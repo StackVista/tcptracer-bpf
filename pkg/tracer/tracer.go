@@ -8,12 +8,17 @@ import (
 	"unsafe"
 
 	bpflib "github.com/iovisor/gobpf/elf"
+	"time"
+	"os/exec"
 )
+
+/*
+#include "../../tcptracer-bpf.h"
+*/
+import "C"
 
 type Tracer struct {
 	m           *bpflib.Module
-	perfMapIPV4 *bpflib.PerfMap
-	perfMapIPV6 *bpflib.PerfMap
 	stopChan    chan struct{}
 }
 
@@ -23,15 +28,13 @@ type Tracer struct {
 // amount of processes blocked on the accept syscall).
 const maxActive = 128
 
-func TracerAsset() ([]byte, error) {
-	buf, err := Asset("tcptracer-ebpf.o")
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-	return buf, nil
-}
-
 func NewTracer(cb Callback) (*Tracer, error) {
+	var out bytes.Buffer
+	cmd := exec.Command("uname","-r")
+	cmd.Stdout = &out
+	cmd.Run()
+	fmt.Printf("Kernel: %s", out.String())
+
 	buf, err := Asset("tcptracer-ebpf.o")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
@@ -43,9 +46,7 @@ func NewTracer(cb Callback) (*Tracer, error) {
 		return nil, fmt.Errorf("BPF not supported")
 	}
 
-	sectionParams := make(map[string]bpflib.SectionParams)
-	sectionParams["maps/tcp_event_ipv4"] = bpflib.SectionParams{PerfRingBufferPageCount: 256}
-	err = m.Load(sectionParams)
+	err = m.Load(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -55,25 +56,15 @@ func NewTracer(cb Callback) (*Tracer, error) {
 		return nil, err
 	}
 
-	channelV4 := make(chan []byte)
-	channelV6 := make(chan []byte)
-	lostChanV4 := make(chan uint64)
-	lostChanV6 := make(chan uint64)
-
-	perfMapIPV4, err := initializeIPv4(m, channelV4, lostChanV4)
-	if err != nil {
-		return nil, fmt.Errorf("failed to init perf map for IPv4 events: %s", err)
-	}
-
-	perfMapIPV6, err := initializeIPv6(m, channelV6, lostChanV6)
-	if err != nil {
-		return nil, fmt.Errorf("failed to init perf map for IPv6 events: %s", err)
-	}
-
-	perfMapIPV4.SetTimestampFunc(tcpV4Timestamp)
-	perfMapIPV6.SetTimestampFunc(tcpV6Timestamp)
-
 	stopChan := make(chan struct{})
+
+	if err := initializeIPv4Send(m, stopChan); err != nil {
+		return nil, fmt.Errorf("failed to init table parser for IPv4 send events: %s", err)
+	}
+
+	if err := initializeIPv4Receive(m, stopChan); err != nil {
+		return nil, fmt.Errorf("failed to init table parser for IPv4 recv events: %s", err)
+	}
 
 	go func() {
 		for {
@@ -83,50 +74,18 @@ func NewTracer(cb Callback) (*Tracer, error) {
 				// also be closed shortly after. The select{} has no priorities,
 				// therefore, the "ok" value must be checked below.
 				return
-			case data, ok := <-channelV4:
-				if !ok {
-					return // see explanation above
-				}
-				cb.TCPEventV4(tcpV4ToGo(&data))
-			case lost, ok := <-lostChanV4:
-				if !ok {
-					return // see explanation above
-				}
-				cb.LostV4(lost)
-			}
-		}
-	}()
-
-	go func() {
-		for {
-			select {
-			case <-stopChan:
-				return
-			case data, ok := <-channelV6:
-				if !ok {
-					return // see explanation above
-				}
-				cb.TCPEventV6(tcpV6ToGo(&data))
-			case lost, ok := <-lostChanV6:
-				if !ok {
-					return // see explanation above
-				}
-				cb.LostV6(lost)
 			}
 		}
 	}()
 
 	return &Tracer{
 		m:           m,
-		perfMapIPV4: perfMapIPV4,
-		perfMapIPV6: perfMapIPV6,
 		stopChan:    stopChan,
 	}, nil
 }
 
 func (t *Tracer) Start() {
-	t.perfMapIPV4.PollStart()
-	t.perfMapIPV6.PollStart()
+	// TODO
 }
 
 func (t *Tracer) AddFdInstallWatcher(pid uint32) (err error) {
@@ -144,29 +103,58 @@ func (t *Tracer) RemoveFdInstallWatcher(pid uint32) (err error) {
 
 func (t *Tracer) Stop() {
 	close(t.stopChan)
-	t.perfMapIPV4.PollStop()
-	t.perfMapIPV6.PollStop()
 	t.m.Close()
 }
 
-func initialize(module *bpflib.Module, eventMapName string, eventChan chan []byte, lostChan chan uint64) (*bpflib.PerfMap, error) {
-	if err := guess(module); err != nil {
-		return nil, fmt.Errorf("error guessing offsets: %v", err)
+func initialize(m *bpflib.Module, mapName string, stopChan chan struct{}) error {
+	fmt.Printf("Initializing watcher for kprobe: %s\n", mapName)
+
+	if err := guess(m); err != nil {
+		return fmt.Errorf("error guessing offsets: %v", err)
 	}
 
-	pm, err := bpflib.InitPerfMap(module, eventMapName, eventChan, lostChan)
-	if err != nil {
-		return nil, fmt.Errorf("error initializing perf map for %q: %v", eventMapName, err)
+	mp := m.Map(mapName)
+	if mp == nil {
+		return fmt.Errorf("no map with name %s", mapName)
 	}
 
-	return pm, nil
+	iterateMap := func() { // Iterate through all key-value pairs in map
+		key, nextKey := &tcpTupleIPv4{}, &tcpTupleIPv4{}
+		var data C.__u64
+		for {
+			hasNext, _ := m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(&data))
+			if !hasNext {
+				break
+			} else {
+				// TODO: Consider using bpf_ktime_get_ns() to store timestamp and deleting keys that haven't been seen in a while?
+				// TODO: Send this data through channel instead of printing it here
+				fmt.Printf("%s - event: %s, %d bytes \n", mapName, nextKey, data)
+				key = nextKey
+			}
+		}
+	}
 
+	go func() {  // Go through map immediately, and then again every 5 seconds
+		tick := time.NewTicker(5 * time.Second)
+		iterateMap()
+		for {
+			select {
+			case <-tick.C:
+				iterateMap()
+			case <-stopChan:
+				tick.Stop()
+				return
+			}
+		}
+	}()
+
+	return nil
 }
 
-func initializeIPv4(module *bpflib.Module, eventChan chan []byte, lostChan chan uint64) (*bpflib.PerfMap, error) {
-	return initialize(module, "tcp_event_ipv4", eventChan, lostChan)
+func initializeIPv4Send(module *bpflib.Module, stopChan chan struct{}) error {
+	return initialize(module, "tcp_send_ipv4", stopChan)
 }
 
-func initializeIPv6(module *bpflib.Module, eventChan chan []byte, lostChan chan uint64) (*bpflib.PerfMap, error) {
-	return initialize(module, "tcp_event_ipv6", eventChan, lostChan)
+func initializeIPv4Receive(module *bpflib.Module, stopChan chan struct{}) error {
+	return initialize(module, "tcp_recv_ipv4", stopChan)
 }
