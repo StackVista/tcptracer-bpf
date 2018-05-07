@@ -32,3 +32,11 @@ delete-docker-image:
 lint:
 	./tools/lint -ignorespelling "agre " -ignorespelling "AGRE " .
 	./tools/shell-lint .
+
+run-tracer:
+	sudo docker build -t "tcptracer-bpf-dd-tracer" . -f tests/Dockerfile
+	sudo docker run \
+		--cap-add=SYS_ADMIN \
+		--privileged \
+		-v /sys/kernel/debug:/sys/kernel/debug \
+		tcptracer-bpf-dd-tracer
