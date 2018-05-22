@@ -8,7 +8,6 @@ import (
 	"unsafe"
 
 	"os/exec"
-	"time"
 
 	bpflib "github.com/iovisor/gobpf/elf"
 )
@@ -24,8 +23,7 @@ const (
 )
 
 type Tracer struct {
-	m        *bpflib.Module
-	stopChan chan struct{}
+	m *bpflib.Module
 }
 
 // maxActive configures the maximum number of instances of the kretprobe-probed functions
@@ -34,7 +32,7 @@ type Tracer struct {
 // amount of processes blocked on the accept syscall).
 const maxActive = 128
 
-func NewTracer(cb Callback) (*Tracer, error) {
+func NewTracer() (*Tracer, error) {
 	buf, err := Asset("tcptracer-ebpf.o")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
@@ -60,22 +58,8 @@ func NewTracer(cb Callback) (*Tracer, error) {
 		return nil, fmt.Errorf("failed to init module: %s", err)
 	}
 
-	stopChan := make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-stopChan:
-				// On stop, stopChan will be closed but the other channels will
-				// also be closed shortly after. The select{} has no priorities,
-				// therefore, the "ok" value must be checked below.
-				return
-			}
-		}
-	}()
-
 	return &Tracer{
-		m:        m,
-		stopChan: stopChan,
+		m: m,
 	}, nil
 }
 
@@ -86,37 +70,10 @@ func (t *Tracer) Start() error {
 	cmd.Run()
 	fmt.Printf("Kernel: %s", out.String())
 
-	// TODO: Remove this debugging output
-	printConns := func() {
-		fmt.Println("----")
-		conns, err := t.GetActiveConnections()
-		if err != nil {
-			fmt.Println(err)
-		}
-		for _, c := range conns {
-			fmt.Println(c)
-		}
-	}
-
-	go func() { // Print active connections immediately, and then again every 5 seconds
-		tick := time.NewTicker(5 * time.Second)
-		printConns()
-		for {
-			select {
-			case <-tick.C:
-				printConns()
-			case <-t.stopChan:
-				tick.Stop()
-				return
-			}
-		}
-	}()
-
 	return nil
 }
 
 func (t *Tracer) Stop() {
-	close(t.stopChan)
 	t.m.Close()
 }
 

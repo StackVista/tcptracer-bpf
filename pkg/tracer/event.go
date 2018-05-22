@@ -52,7 +52,7 @@ type ConnectionStats struct {
 }
 
 func (c ConnectionStats) String() string {
-	return fmt.Sprintf("ConnectionStats [PID: %d - %v:%d -> %v:%d] %d bytes send, %d bytes recieved",
+	return fmt.Sprintf("ConnectionStats [PID: %d - %v:%d → %v:%d] %d bytes send, %d bytes recieved",
 		c.pid, c.source, c.sport, c.dest, c.dport, c.sendBytes, c.recvBytes)
 }
 

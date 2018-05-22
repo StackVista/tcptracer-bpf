@@ -12,7 +12,7 @@ func TracerAsset() ([]byte, error) {
 	return nil, fmt.Errorf("not supported on non-Linux systems")
 }
 
-func NewTracer(cb Callback) (*Tracer, error) {
+func NewTracer() (*Tracer, error) {
 	return nil, fmt.Errorf("not supported on non-Linux systems")
 }
 
