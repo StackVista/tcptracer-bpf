@@ -64,6 +64,7 @@ struct ipv4_tuple_t {
 	__u16 sport;
 	__u16 dport;
 	__u32 netns;
+	__u32 pid;
 };
 
 struct ipv6_tuple_t {
@@ -75,6 +76,7 @@ struct ipv6_tuple_t {
 	__u16 sport;
 	__u16 dport;
 	__u32 netns;
+	__u32 pid;
 };
 
 struct pid_comm_t {

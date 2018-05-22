@@ -719,7 +719,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx)
     // TODO: Add DEBUG macro so this is only printed, if enabled (useful for debugging customer cases?)
     // bpf_debug("map: tcp_send_ipv4 kprobe\n");
 
-    t.netns = pid >> 32; // TODO: Don't overload netns with PID value -- give it, it's own field
+    t.pid = pid >> 32;
     t.sport = ntohs(t.sport); // Making ports human-readable
     t.dport = ntohs(t.dport);
 
@@ -764,7 +764,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx)
     // TODO: Add DEBUG macro so this is only printed, if enabled (useful for debugging customer cases?)
     // bpf_debug("map: tcp_recv_ipv4 kprobe\n");
 
-    t.netns = pid >> 32; // TODO: Don't overload netns with PID value -- give it, it's own field
+    t.pid = pid >> 32;
     t.sport = ntohs(t.sport); // Making ports human-readable
     t.dport = ntohs(t.dport);
 

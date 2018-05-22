@@ -119,7 +119,7 @@ func initialize(m *bpflib.Module, mapName string, stopChan chan struct{}) error 
 	}
 
 	iterateMap := func() { // Iterate through all key-value pairs in map
-		key, nextKey := &tcpTupleIPv4{}, &tcpTupleIPv4{}
+		key, nextKey := &TCPTupleV4{}, &TCPTupleV4{}
 		var data C.__u64
 		for {
 			hasNext, _ := m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(&data))
