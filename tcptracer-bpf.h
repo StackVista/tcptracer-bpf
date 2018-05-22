@@ -3,12 +3,12 @@
 
 #include <linux/types.h>
 
-#define TCP_EVENT_TYPE_CONNECT          1
-#define TCP_EVENT_TYPE_ACCEPT           2
-#define TCP_EVENT_TYPE_CLOSE            3
-#define TCP_EVENT_TYPE_FD_INSTALL       4
-#define TCP_EVENT_TYPE_SEND             5
-#define TCP_EVENT_TYPE_RECEIVE          6
+#define TCP_EVENT_TYPE_CONNECT    1
+#define TCP_EVENT_TYPE_ACCEPT     2
+#define TCP_EVENT_TYPE_CLOSE      3
+#define TCP_EVENT_TYPE_FD_INSTALL 4
+#define TCP_EVENT_TYPE_SEND       5
+#define TCP_EVENT_TYPE_RECEIVE    6
 
 #define GUESS_SADDR      0
 #define GUESS_DADDR      1
@@ -93,6 +93,7 @@ struct pid_comm_t {
 #define TCPTRACER_STATE_CHECKING      1
 #define TCPTRACER_STATE_CHECKED       2
 #define TCPTRACER_STATE_READY         3
+
 struct tcptracer_status_t {
 	__u64 state;
 
