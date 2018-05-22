@@ -17,6 +17,10 @@ import (
 */
 import "C"
 
+const (
+	tcpV4StatsMapName = "tcp_stats_ipv4"
+)
+
 type Tracer struct {
 	m           *bpflib.Module
 	stopChan    chan struct{}
@@ -56,12 +60,11 @@ func NewTracer(cb Callback) (*Tracer, error) {
 		return nil, err
 	}
 
-	stopChan := make(chan struct{})
-
-	if err := initializeIPv4(m, stopChan); err != nil {
-		return nil, fmt.Errorf("failed to init table parser for IPv4 send & recieve stats: %s", err)
+	if err := initialize(m); err != nil {
+		return nil, fmt.Errorf("failed to init module: %s", err)
 	}
 
+	stopChan := make(chan struct{})
 	go func() {
 		for {
 			select {
@@ -80,8 +83,33 @@ func NewTracer(cb Callback) (*Tracer, error) {
 	}, nil
 }
 
-func (t *Tracer) Start() {
-	// No-op at the moment
+func (t *Tracer) Start() error {
+	// TODO: Remove this debugging output
+	printConns := func() {
+		conns, err := t.GetActiveConnections()
+		if err != nil {
+			fmt.Println(err)
+		}
+		for _, c := range conns {
+			fmt.Println(c)
+		}
+	}
+
+	go func() {  // Go through map immediately, and then again every 5 seconds
+		tick := time.NewTicker(5 * time.Second)
+		printConns()
+		for {
+			select {
+			case <-tick.C:
+				printConns()
+			case <-t.stopChan:
+				tick.Stop()
+				return
+			}
+		}
+	}()
+
+	return nil
 }
 
 func (t *Tracer) Stop() {
@@ -102,57 +130,39 @@ func (t *Tracer) RemoveFdInstallWatcher(pid uint32) (err error) {
 	return err
 }
 
-func initialize(m *bpflib.Module, mapName string, stopChan chan struct{}) error {
-	fmt.Printf("Initializing watcher for kprobe: %s\n", mapName)
-
+func initialize(m *bpflib.Module) error {
 	if err := guess(m); err != nil {
 		return fmt.Errorf("error guessing offsets: %v", err)
 	}
 
-	mp := m.Map(mapName)
-	if mp == nil {
-		return fmt.Errorf("no map with name %s", mapName)
-	}
-
-	iterateMap := func() { // Iterate through all key-value pairs in map
-		key, nextKey := &TCPTupleV4{}, &TCPTupleV4{}
-		stats := &TCPConnStats{}
-		for {
-			hasNext, _ := m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
-			if !hasNext {
-				break
-			} else {
-				// TODO: Consider using bpf_ktime_get_ns() to store timestamp and deleting keys that haven't been seen in a while?
-				// TODO: Send this data through channel instead of printing it here
-				fmt.Printf("%s - event: %s, %d bytes sent, %d bytes recieved \n", mapName, nextKey, stats.send_bytes, stats.recv_bytes)
-				key = nextKey
-			}
-		}
-	}
-
-	go func() {  // Go through map immediately, and then again every 5 seconds
-		tick := time.NewTicker(5 * time.Second)
-		iterateMap()
-		for {
-			select {
-			case <-tick.C:
-				iterateMap()
-			case <-stopChan:
-				tick.Stop()
-				return
-			}
-		}
-	}()
-
 	return nil
 }
 
-func initializeIPv4(module *bpflib.Module, stopChan chan struct{}) error {
-	return initialize(module, "tcp_stats_ipv4", stopChan)
+func (t *Tracer) GetActiveConnections() ([]ConnectionStats, error) {
+	// TODO: Also lookup active TCP v6 connections
+	return t.lookupActiveTCPv4Connections()
 }
 
-func (t *Tracer) GetActiveConnections() ([]ConnectionStats, error) {
-	// TODO: Search ip {v4,v6} maps for active connection stats and output
-	return []ConnectionStats{}, nil
+func (t *Tracer) lookupActiveTCPv4Connections() ([]ConnectionStats, error) {
+	mp := t.m.Map("tcp_stats_ipv4")
+	if mp == nil {
+		return nil, fmt.Errorf("no map with name %s", tcpV4StatsMapName)
+	}
+
+	// Iterate through all key-value pairs in map
+	key, nextKey, val := &TCPTupleV4{}, &TCPTupleV4{}, &TCPConnStats{}
+	conns := make([]ConnectionStats, 0)
+	for {
+		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
+		if !hasNext {
+			break
+		} else {
+			conns = append(conns, connectionStatsFromTCPv4(nextKey, val))
+			key = nextKey
+		}
+	}
+
+	return conns, nil
 }
+
 

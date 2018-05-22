@@ -21,20 +21,6 @@ import "C"
 */
 type TCPTupleV4 C.struct_ipv4_tuple_t
 
-func (t TCPTupleV4) String() string {
-	saddrbuf := make([]byte, 4)
-	daddrbuf := make([]byte, 4)
-
-	binary.LittleEndian.PutUint32(saddrbuf, uint32(t.saddr))
-	binary.LittleEndian.PutUint32(daddrbuf, uint32(t.daddr))
-
-	source := net.IPv4(saddrbuf[0], saddrbuf[1], saddrbuf[2], saddrbuf[3])
-	dest := net.IPv4(daddrbuf[0], daddrbuf[1], daddrbuf[2], daddrbuf[3])
-
-	pid := uint32(t.pid)
-	return fmt.Sprintf("[PID: %d - %v:%d -> %v:%d]", pid, source, t.sport, dest, t.dport)
-}
-
 /*	struct tcp_conn_stats_t
 	__u64 send_bytes;
 	__u64 recv_bytes;
@@ -46,9 +32,31 @@ type ConnectionStats struct {
 
 	source string // Represented as a string for now to handle both IPv4 & IPv6
 	dest string
-	sport uint32
-	dport uint32
+	sport uint16
+	dport uint16
 
 	sendBytes uint64
 	recvBytes uint64
+}
+
+func (c ConnectionStats) String() string {
+	return fmt.Sprintf("ConnectionStats [PID: %d - %v:%d -> %v:%d] %d bytes send, %d bytes recieved",
+		c.pid, c.source, c.sport, c.dest, c.dport, c.sendBytes, c.recvBytes)
+}
+
+func connectionStatsFromTCPv4(t *TCPTupleV4, s *TCPConnStats) ConnectionStats {
+	saddrbuf := make([]byte, 4)
+	daddrbuf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(saddrbuf, uint32(t.saddr))
+	binary.LittleEndian.PutUint32(daddrbuf, uint32(t.daddr))
+
+	return ConnectionStats{
+		pid: uint32(t.pid),
+		source: net.IPv4(saddrbuf[0], saddrbuf[1], saddrbuf[2], saddrbuf[3]).String(),
+		dest: net.IPv4(daddrbuf[0], daddrbuf[1], daddrbuf[2], daddrbuf[3]).String(),
+		sport: uint16(t.sport),
+		dport: uint16(t.dport),
+		sendBytes: uint64(s.send_bytes),
+		recvBytes: uint64(s.recv_bytes),
+	}
 }
