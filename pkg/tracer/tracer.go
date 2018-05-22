@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"unsafe"
 
-	bpflib "github.com/iovisor/gobpf/elf"
-	"time"
 	"os/exec"
+	"time"
+
+	bpflib "github.com/iovisor/gobpf/elf"
 )
 
 /*
@@ -19,11 +20,12 @@ import "C"
 
 const (
 	tcpV4StatsMapName = "tcp_stats_ipv4"
+	tcpV6StatsMapName = "tcp_stats_ipv6"
 )
 
 type Tracer struct {
-	m           *bpflib.Module
-	stopChan    chan struct{}
+	m        *bpflib.Module
+	stopChan chan struct{}
 }
 
 // maxActive configures the maximum number of instances of the kretprobe-probed functions
@@ -72,20 +74,21 @@ func NewTracer(cb Callback) (*Tracer, error) {
 	}()
 
 	return &Tracer{
-		m:           m,
-		stopChan:    stopChan,
+		m:        m,
+		stopChan: stopChan,
 	}, nil
 }
 
 func (t *Tracer) Start() error {
 	var out bytes.Buffer
-	cmd := exec.Command("uname","-r")
+	cmd := exec.Command("uname", "-r")
 	cmd.Stdout = &out
 	cmd.Run()
 	fmt.Printf("Kernel: %s", out.String())
 
 	// TODO: Remove this debugging output
 	printConns := func() {
+		fmt.Println("----")
 		conns, err := t.GetActiveConnections()
 		if err != nil {
 			fmt.Println(err)
@@ -95,7 +98,7 @@ func (t *Tracer) Start() error {
 		}
 	}
 
-	go func() {  // Go through map immediately, and then again every 5 seconds
+	go func() { // Go through map immediately, and then again every 5 seconds
 		tick := time.NewTicker(5 * time.Second)
 		printConns()
 		for {
@@ -126,12 +129,19 @@ func initialize(m *bpflib.Module) error {
 }
 
 func (t *Tracer) GetActiveConnections() ([]ConnectionStats, error) {
-	// TODO: Also lookup active TCP v6 connections
-	return t.lookupActiveTCPv4Connections()
+	v4, err := t.lookupTCPv4Connections()
+	if err != nil {
+		return nil, err
+	}
+	v6, err := t.lookupTCPv6Connections()
+	if err != nil {
+		return nil, err
+	}
+	return append(v4, v6...), nil
 }
 
-func (t *Tracer) lookupActiveTCPv4Connections() ([]ConnectionStats, error) {
-	mp := t.m.Map("tcp_stats_ipv4")
+func (t *Tracer) lookupTCPv4Connections() ([]ConnectionStats, error) {
+	mp := t.m.Map(tcpV4StatsMapName)
 	if mp == nil {
 		return nil, fmt.Errorf("no map with name %s", tcpV4StatsMapName)
 	}
@@ -144,7 +154,29 @@ func (t *Tracer) lookupActiveTCPv4Connections() ([]ConnectionStats, error) {
 		if !hasNext {
 			break
 		} else {
-			conns = append(conns, connectionStatsFromTCPv4(nextKey, val))
+			conns = append(conns, connStatsFromTCPv4(nextKey, val))
+			key = nextKey
+		}
+	}
+
+	return conns, nil
+}
+
+func (t *Tracer) lookupTCPv6Connections() ([]ConnectionStats, error) {
+	mp := t.m.Map(tcpV6StatsMapName)
+	if mp == nil {
+		return nil, fmt.Errorf("no map with name %s", tcpV6StatsMapName)
+	}
+
+	// Iterate through all key-value pairs in map
+	key, nextKey, val := &TCPTupleV6{}, &TCPTupleV6{}, &TCPConnStats{}
+	conns := make([]ConnectionStats, 0)
+	for {
+		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
+		if !hasNext {
+			break
+		} else {
+			conns = append(conns, connStatsFromTCPv6(nextKey, val))
 			key = nextKey
 		}
 	}
