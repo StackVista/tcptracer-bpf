@@ -41,23 +41,10 @@ struct bpf_map_def SEC("maps/tcp_event_ipv4") tcp_event_ipv4 = {
 /* This is a key/value store with the keys being an ipv4_tuple_t for send calls
  * and the values being the size in bytes.
  */
-struct bpf_map_def SEC("maps/tcp_send_ipv4") tcp_send_ipv4 = {
+struct bpf_map_def SEC("maps/tcp_stats_ipv4") tcp_stats_ipv4 = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(struct ipv4_tuple_t),
-	.value_size = sizeof(__u64),
-	.max_entries = 1024,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* This is a key/value store with the keys being an ipv4_tuple_t for receive calls
- * and the values being the size in bytes.
- * TODO: Have one map for both send + receive events, and distinguish via field in tuple
- */
-struct bpf_map_def SEC("maps/tcp_recv_ipv4") tcp_recv_ipv4 = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct ipv4_tuple_t),
-	.value_size = sizeof(__u64),
+	.value_size = sizeof(struct tcp_conn_stats_t),
 	.max_entries = 1024,
 	.pinning = 0,
 	.namespace = "",
@@ -695,8 +682,8 @@ SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx)
 {
 	struct sock *sk;
+	struct tcp_conn_stats_t *val;
 	u64 zero = 0;
-	u64 *val = 0;
 	u64 pid = bpf_get_current_pid_tgid();
 
 	sk = (struct sock *) PT_REGS_PARM1(ctx);
@@ -723,11 +710,15 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx)
     t.sport = ntohs(t.sport); // Making ports human-readable
     t.dport = ntohs(t.dport);
 
-    val = bpf_map_lookup_elem(&tcp_send_ipv4, &t);
+    val = bpf_map_lookup_elem(&tcp_stats_ipv4, &t);
     if (val != NULL) { // If already in our map, increment size in-place
-        (*val) += size;
+        (*val).send_bytes += size;
     } else { // Otherwise add the key, value to the map
-        bpf_map_update_elem(&tcp_send_ipv4, &t, &size, BPF_ANY);
+    	struct tcp_conn_stats_t s = {
+            .send_bytes = size,
+            .recv_bytes = 0,
+    	};
+        bpf_map_update_elem(&tcp_stats_ipv4, &t, &s, BPF_ANY);
     }
 
 	return 0;
@@ -737,8 +728,8 @@ SEC("kprobe/tcp_cleanup_rbuf")
 int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx)
 {
 	struct sock *sk;
+	struct tcp_conn_stats_t *val;
 	u64 zero = 0;
-	u64 *val = 0;
 	u64 pid = bpf_get_current_pid_tgid();
 
 	sk = (struct sock *) PT_REGS_PARM1(ctx);
@@ -768,11 +759,15 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx)
     t.sport = ntohs(t.sport); // Making ports human-readable
     t.dport = ntohs(t.dport);
 
-    val = bpf_map_lookup_elem(&tcp_recv_ipv4, &t);
+    val = bpf_map_lookup_elem(&tcp_stats_ipv4, &t);
     if (val != NULL) { // If already in our map, increment size in-place
-        (*val) += copied;
+        (*val).recv_bytes += copied;
     } else { // Otherwise add the key, value to the map
-        bpf_map_update_elem(&tcp_recv_ipv4, &t, &copied, BPF_ANY);
+       struct tcp_conn_stats_t s = {
+            .send_bytes = 0,
+            .recv_bytes = copied,
+       };
+       bpf_map_update_elem(&tcp_stats_ipv4, &t, &s, BPF_ANY);
     }
 
 	return 0;

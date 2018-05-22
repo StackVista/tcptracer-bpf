@@ -34,3 +34,21 @@ func (t TCPTupleV4) String() string {
 	pid := uint32(t.pid)
 	return fmt.Sprintf("[PID: %d - %v:%d -> %v:%d]", pid, source, t.sport, dest, t.dport)
 }
+
+/*	struct tcp_conn_stats_t
+	__u64 send_bytes;
+	__u64 recv_bytes;
+ */
+type TCPConnStats C.struct_tcp_conn_stats_t
+
+type ConnectionStats struct {
+	pid uint32
+
+	source string // Represented as a string for now to handle both IPv4 & IPv6
+	dest string
+	sport uint32
+	dport uint32
+
+	sendBytes uint64
+	recvBytes uint64
+}

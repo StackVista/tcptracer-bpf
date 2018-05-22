@@ -22,7 +22,7 @@ type Tracer struct {
 	stopChan    chan struct{}
 }
 
-// maxActive configures the maximum number of instances of the probed functions
+// maxActive configures the maximum number of instances of the kretprobe-probed functions
 // that can be handled simultaneously.
 // This value should be enough to handle typical workloads (for example, some
 // amount of processes blocked on the accept syscall).
@@ -58,12 +58,8 @@ func NewTracer(cb Callback) (*Tracer, error) {
 
 	stopChan := make(chan struct{})
 
-	if err := initializeIPv4Send(m, stopChan); err != nil {
-		return nil, fmt.Errorf("failed to init table parser for IPv4 send events: %s", err)
-	}
-
-	if err := initializeIPv4Receive(m, stopChan); err != nil {
-		return nil, fmt.Errorf("failed to init table parser for IPv4 recv events: %s", err)
+	if err := initializeIPv4(m, stopChan); err != nil {
+		return nil, fmt.Errorf("failed to init table parser for IPv4 send & recieve stats: %s", err)
 	}
 
 	go func() {
@@ -85,7 +81,12 @@ func NewTracer(cb Callback) (*Tracer, error) {
 }
 
 func (t *Tracer) Start() {
-	// TODO
+	// No-op at the moment
+}
+
+func (t *Tracer) Stop() {
+	close(t.stopChan)
+	t.m.Close()
 }
 
 func (t *Tracer) AddFdInstallWatcher(pid uint32) (err error) {
@@ -99,11 +100,6 @@ func (t *Tracer) RemoveFdInstallWatcher(pid uint32) (err error) {
 	mapFdInstall := t.m.Map("fdinstall_pids")
 	err = t.m.DeleteElement(mapFdInstall, unsafe.Pointer(&pid))
 	return err
-}
-
-func (t *Tracer) Stop() {
-	close(t.stopChan)
-	t.m.Close()
 }
 
 func initialize(m *bpflib.Module, mapName string, stopChan chan struct{}) error {
@@ -120,15 +116,15 @@ func initialize(m *bpflib.Module, mapName string, stopChan chan struct{}) error 
 
 	iterateMap := func() { // Iterate through all key-value pairs in map
 		key, nextKey := &TCPTupleV4{}, &TCPTupleV4{}
-		var data C.__u64
+		stats := &TCPConnStats{}
 		for {
-			hasNext, _ := m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(&data))
+			hasNext, _ := m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
 			if !hasNext {
 				break
 			} else {
 				// TODO: Consider using bpf_ktime_get_ns() to store timestamp and deleting keys that haven't been seen in a while?
 				// TODO: Send this data through channel instead of printing it here
-				fmt.Printf("%s - event: %s, %d bytes \n", mapName, nextKey, data)
+				fmt.Printf("%s - event: %s, %d bytes sent, %d bytes recieved \n", mapName, nextKey, stats.send_bytes, stats.recv_bytes)
 				key = nextKey
 			}
 		}
@@ -151,10 +147,12 @@ func initialize(m *bpflib.Module, mapName string, stopChan chan struct{}) error 
 	return nil
 }
 
-func initializeIPv4Send(module *bpflib.Module, stopChan chan struct{}) error {
-	return initialize(module, "tcp_send_ipv4", stopChan)
+func initializeIPv4(module *bpflib.Module, stopChan chan struct{}) error {
+	return initialize(module, "tcp_stats_ipv4", stopChan)
 }
 
-func initializeIPv4Receive(module *bpflib.Module, stopChan chan struct{}) error {
-	return initialize(module, "tcp_recv_ipv4", stopChan)
+func (t *Tracer) GetActiveConnections() ([]ConnectionStats, error) {
+	// TODO: Search ip {v4,v6} maps for active connection stats and output
+	return []ConnectionStats{}, nil
 }
+

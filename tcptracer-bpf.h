@@ -55,6 +55,11 @@ struct tcp_ipv6_event_t {
 	__u32 dummy;
 };
 
+struct tcp_conn_stats_t {
+	__u64 send_bytes;
+	__u64 recv_bytes;
+};
+
 // tcp_set_state doesn't run in the context of the process that initiated the
 // connection so we need to store a map TUPLE -> PID to send the right PID on
 // the event
