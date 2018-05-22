@@ -98,7 +98,7 @@ func (t *Tracer) Start() error {
 		}
 	}
 
-	go func() { // Go through map immediately, and then again every 5 seconds
+	go func() { // Print active connections immediately, and then again every 5 seconds
 		tick := time.NewTicker(5 * time.Second)
 		printConns()
 		for {

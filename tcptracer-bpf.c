@@ -884,6 +884,13 @@ int kprobe__tcp_close(struct pt_regs *ctx)
 		bpf_get_current_comm(&evt.comm, sizeof(evt.comm));
 
 		bpf_perf_event_output(ctx, &tcp_event_ipv4, cpu, &evt, sizeof(evt));
+
+        // Format into tcp_stats_ipv4 key format, and delete from map
+        // TODO: Come up with a cleaner way of doing this without all the above processing?
+        t.pid = pid >> 32;
+        t.sport = ntohs(t.sport); // Making ports human-readable
+        t.dport = ntohs(t.dport);
+        bpf_map_delete_elem(&tcp_stats_ipv4, &t);
 	} else if (check_family(sk, AF_INET6)) {
 		// output
 		struct ipv6_tuple_t t = { };
@@ -936,6 +943,13 @@ int kprobe__tcp_close(struct pt_regs *ctx)
 		bpf_get_current_comm(&evt.comm, sizeof(evt.comm));
 
 		bpf_perf_event_output(ctx, &tcp_event_ipv6, cpu, &evt, sizeof(evt));
+
+	    // Format into tcp_stats_ipv6 key format, and delete from map
+        // TODO: Come up with a cleaner way of doing this without all the above processing?
+	    t.pid = pid >> 32;
+	    t.sport = ntohs(t.sport); // Making ports human-readable
+        t.dport = ntohs(t.dport);
+		bpf_map_delete_elem(&tcp_stats_ipv6, &t);
 	}
 	return 0;
 }
