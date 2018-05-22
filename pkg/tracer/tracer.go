@@ -33,12 +33,6 @@ type Tracer struct {
 const maxActive = 128
 
 func NewTracer(cb Callback) (*Tracer, error) {
-	var out bytes.Buffer
-	cmd := exec.Command("uname","-r")
-	cmd.Stdout = &out
-	cmd.Run()
-	fmt.Printf("Kernel: %s", out.String())
-
 	buf, err := Asset("tcptracer-ebpf.o")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
@@ -84,6 +78,12 @@ func NewTracer(cb Callback) (*Tracer, error) {
 }
 
 func (t *Tracer) Start() error {
+	var out bytes.Buffer
+	cmd := exec.Command("uname","-r")
+	cmd.Stdout = &out
+	cmd.Run()
+	fmt.Printf("Kernel: %s", out.String())
+
 	// TODO: Remove this debugging output
 	printConns := func() {
 		conns, err := t.GetActiveConnections()
@@ -115,19 +115,6 @@ func (t *Tracer) Start() error {
 func (t *Tracer) Stop() {
 	close(t.stopChan)
 	t.m.Close()
-}
-
-func (t *Tracer) AddFdInstallWatcher(pid uint32) (err error) {
-	var one uint32 = 1
-	mapFdInstall := t.m.Map("fdinstall_pids")
-	err = t.m.UpdateElement(mapFdInstall, unsafe.Pointer(&pid), unsafe.Pointer(&one), 0)
-	return err
-}
-
-func (t *Tracer) RemoveFdInstallWatcher(pid uint32) (err error) {
-	mapFdInstall := t.m.Map("fdinstall_pids")
-	err = t.m.DeleteElement(mapFdInstall, unsafe.Pointer(&pid))
-	return err
 }
 
 func initialize(m *bpflib.Module) error {
@@ -165,4 +152,15 @@ func (t *Tracer) lookupActiveTCPv4Connections() ([]ConnectionStats, error) {
 	return conns, nil
 }
 
+func (t *Tracer) AddFdInstallWatcher(pid uint32) (err error) {
+	var one uint32 = 1
+	mapFdInstall := t.m.Map("fdinstall_pids")
+	err = t.m.UpdateElement(mapFdInstall, unsafe.Pointer(&pid), unsafe.Pointer(&one), 0)
+	return err
+}
 
+func (t *Tracer) RemoveFdInstallWatcher(pid uint32) (err error) {
+	mapFdInstall := t.m.Map("fdinstall_pids")
+	err = t.m.DeleteElement(mapFdInstall, unsafe.Pointer(&pid))
+	return err
+}
