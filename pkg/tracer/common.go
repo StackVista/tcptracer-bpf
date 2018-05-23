@@ -2,10 +2,15 @@ package tracer
 
 import (
 	"encoding/binary"
+	"errors"
 	"unsafe"
 )
 
-var nativeEndian binary.ByteOrder
+var (
+	ErrNotImplemented = errors.New("not implemented on non-linux systems")
+
+	nativeEndian binary.ByteOrder
+)
 
 // In lack of binary.NativeEndian ...
 func init() {

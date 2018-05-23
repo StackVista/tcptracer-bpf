@@ -2,18 +2,14 @@
 
 package tracer
 
-import (
-	"fmt"
-)
-
 type Tracer struct{}
 
 func TracerAsset() ([]byte, error) {
-	return nil, fmt.Errorf("not supported on non-Linux systems")
+	return nil, ErrNotImplemented
 }
 
 func NewTracer() (*Tracer, error) {
-	return nil, fmt.Errorf("not supported on non-Linux systems")
+	return nil, ErrNotImplemented
 }
 
 func (t *Tracer) Start() {}
@@ -21,13 +17,13 @@ func (t *Tracer) Start() {}
 func (t *Tracer) Stop() {}
 
 func (t *Tracer) AddFdInstallWatcher(pid uint32) (err error) {
-	return fmt.Errorf("not supported on non-Linux systems")
+	return ErrNotImplemented
 }
 
 func (t *Tracer) RemoveFdInstallWatcher(pid uint32) (err error) {
-	return fmt.Errorf("not supported on non-Linux systems")
+	return ErrNotImplemented
 }
 
 func (t *Tracer) GetActiveConnections() ([]ConnectionStats, error) {
-	return nil, fmt.Errorf("not supported on non-Linux systems")
+	return nil, ErrNotImplemented
 }

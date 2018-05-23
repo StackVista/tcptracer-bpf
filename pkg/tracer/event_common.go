@@ -12,8 +12,6 @@ const (
 	EventAccept              = 2
 	EventClose               = 3
 	EventFdInstall           = 4
-	EventSend                = 5
-	EventRecieve             = 6
 )
 
 func (e EventType) String() string {
@@ -26,10 +24,6 @@ func (e EventType) String() string {
 		return "close"
 	case EventFdInstall:
 		return "fdinstall"
-	case EventSend:
-		return "send"
-	case EventRecieve:
-		return "recieve"
 	default:
 		return "unknown"
 	}
