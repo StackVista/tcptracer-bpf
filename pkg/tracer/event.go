@@ -39,8 +39,24 @@ __u64 recv_bytes;
 */
 type TCPConnStats C.struct_tcp_conn_stats_t
 
+type ConnectionType uint32
+
+const (
+	TCP ConnectionType = 0
+	UDP ConnectionType = 1
+)
+
+const (
+	AF_INET  ConnectionFamily = 0
+	AF_INET6 ConnectionFamily = 1
+)
+
+type ConnectionFamily uint32
+
 type ConnectionStats struct {
-	Pid uint32
+	Pid    uint32
+	Type   ConnectionType
+	Family ConnectionFamily
 
 	Source string // Represented as a string for now to handle both IPv4 & IPv6
 	Dest   string
@@ -64,6 +80,8 @@ func connStatsFromTCPv4(t *TCPTupleV4, s *TCPConnStats) ConnectionStats {
 
 	return ConnectionStats{
 		Pid:       uint32(t.pid),
+		Type:      TCP,
+		Family:    AF_INET,
 		Source:    net.IPv4(saddrbuf[0], saddrbuf[1], saddrbuf[2], saddrbuf[3]).String(),
 		Dest:      net.IPv4(daddrbuf[0], daddrbuf[1], daddrbuf[2], daddrbuf[3]).String(),
 		SPort:     uint16(t.sport),
@@ -83,6 +101,8 @@ func connStatsFromTCPv6(t *TCPTupleV6, s *TCPConnStats) ConnectionStats {
 
 	return ConnectionStats{
 		Pid:       uint32(t.pid),
+		Type:      TCP,
+		Family:    AF_INET6,
 		Source:    net.IP(saddrbuf).String(),
 		Dest:      net.IP(daddrbuf).String(),
 		SPort:     uint16(t.sport),
