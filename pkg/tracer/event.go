@@ -40,20 +40,20 @@ __u64 recv_bytes;
 type TCPConnStats C.struct_tcp_conn_stats_t
 
 type ConnectionStats struct {
-	pid uint32
+	Pid uint32
 
-	source string // Represented as a string for now to handle both IPv4 & IPv6
-	dest   string
-	sport  uint16
-	dport  uint16
+	Source string // Represented as a string for now to handle both IPv4 & IPv6
+	Dest   string
+	SPort  uint16
+	DPort  uint16
 
-	sendBytes uint64
-	recvBytes uint64
+	SendBytes uint64
+	RecvBytes uint64
 }
 
 func (c ConnectionStats) String() string {
 	return fmt.Sprintf("ConnectionStats [PID: %d - %v:%d → %v:%d] %d bytes send, %d bytes recieved",
-		c.pid, c.source, c.sport, c.dest, c.dport, c.sendBytes, c.recvBytes)
+		c.Pid, c.Source, c.SPort, c.Dest, c.DPort, c.SendBytes, c.RecvBytes)
 }
 
 func connStatsFromTCPv4(t *TCPTupleV4, s *TCPConnStats) ConnectionStats {
@@ -63,13 +63,13 @@ func connStatsFromTCPv4(t *TCPTupleV4, s *TCPConnStats) ConnectionStats {
 	binary.LittleEndian.PutUint32(daddrbuf, uint32(t.daddr))
 
 	return ConnectionStats{
-		pid:       uint32(t.pid),
-		source:    net.IPv4(saddrbuf[0], saddrbuf[1], saddrbuf[2], saddrbuf[3]).String(),
-		dest:      net.IPv4(daddrbuf[0], daddrbuf[1], daddrbuf[2], daddrbuf[3]).String(),
-		sport:     uint16(t.sport),
-		dport:     uint16(t.dport),
-		sendBytes: uint64(s.send_bytes),
-		recvBytes: uint64(s.recv_bytes),
+		Pid:       uint32(t.pid),
+		Source:    net.IPv4(saddrbuf[0], saddrbuf[1], saddrbuf[2], saddrbuf[3]).String(),
+		Dest:      net.IPv4(daddrbuf[0], daddrbuf[1], daddrbuf[2], daddrbuf[3]).String(),
+		SPort:     uint16(t.sport),
+		DPort:     uint16(t.dport),
+		SendBytes: uint64(s.send_bytes),
+		RecvBytes: uint64(s.recv_bytes),
 	}
 }
 
@@ -82,12 +82,12 @@ func connStatsFromTCPv6(t *TCPTupleV6, s *TCPConnStats) ConnectionStats {
 	binary.LittleEndian.PutUint64(daddrbuf[8:], uint64(t.daddr_l))
 
 	return ConnectionStats{
-		pid:       uint32(t.pid),
-		source:    net.IP(saddrbuf).String(),
-		dest:      net.IP(daddrbuf).String(),
-		sport:     uint16(t.sport),
-		dport:     uint16(t.dport),
-		sendBytes: uint64(s.send_bytes),
-		recvBytes: uint64(s.recv_bytes),
+		Pid:       uint32(t.pid),
+		Source:    net.IP(saddrbuf).String(),
+		Dest:      net.IP(daddrbuf).String(),
+		SPort:     uint16(t.sport),
+		DPort:     uint16(t.dport),
+		SendBytes: uint64(s.send_bytes),
+		RecvBytes: uint64(s.recv_bytes),
 	}
 }
