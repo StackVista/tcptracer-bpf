@@ -18,12 +18,12 @@ ENV PATH $GOPATH/bin:$GOROOT/bin:$PATH
 
 RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 
-ADD ./ /go/src/github.com/weaveworks/tcptracer-bpf
+ADD ./ /go/src/github.com/DataDog/tcptracer-bpf
 
 WORKDIR $GOPATH
 
-RUN cd /go/src/github.com/weaveworks/tcptracer-bpf/tests && go build -o tracer tracer.go
-RUN mv /go/src/github.com/weaveworks/tcptracer-bpf/tests/tracer /usr/sbin
+RUN cd /go/src/github.com/DataDog/tcptracer-bpf/tests && go build -o tracer tracer.go
+RUN mv /go/src/github.com/DataDog/tcptracer-bpf/tests/tracer /usr/sbin
 RUN chmod a+x /usr/sbin/tracer 
 
 CMD ["tracer"]
