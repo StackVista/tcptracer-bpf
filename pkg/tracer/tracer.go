@@ -142,18 +142,18 @@ func (t *Tracer) Stop() {
 }
 
 func (t *Tracer) GetActiveConnections() ([]ConnectionStats, error) {
-	v4, err := t.lookupTCPv4Connections()
+	v4, err := t.getTCPv4Connections()
 	if err != nil {
 		return nil, err
 	}
-	v6, err := t.lookupTCPv6Connections()
+	v6, err := t.getTCPv6Connections()
 	if err != nil {
 		return nil, err
 	}
 	return append(v4, v6...), nil
 }
 
-func (t *Tracer) lookupTCPv4Connections() ([]ConnectionStats, error) {
+func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
 	mp := t.m.Map(tcpV4StatsMapName)
 	if mp == nil {
 		return nil, fmt.Errorf("no map with name %s", tcpV4StatsMapName)
@@ -175,7 +175,7 @@ func (t *Tracer) lookupTCPv4Connections() ([]ConnectionStats, error) {
 	return conns, nil
 }
 
-func (t *Tracer) lookupTCPv6Connections() ([]ConnectionStats, error) {
+func (t *Tracer) getTCPv6Connections() ([]ConnectionStats, error) {
 	mp := t.m.Map(tcpV6StatsMapName)
 	if mp == nil {
 		return nil, fmt.Errorf("no map with name %s", tcpV6StatsMapName)
