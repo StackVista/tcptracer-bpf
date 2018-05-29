@@ -7,8 +7,6 @@
 #define TCP_EVENT_TYPE_ACCEPT     2
 #define TCP_EVENT_TYPE_CLOSE      3
 #define TCP_EVENT_TYPE_FD_INSTALL 4
-#define TCP_EVENT_TYPE_SEND       5
-#define TCP_EVENT_TYPE_RECEIVE    6
 
 #define GUESS_SADDR      0
 #define GUESS_DADDR      1

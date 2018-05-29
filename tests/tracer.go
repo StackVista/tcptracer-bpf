@@ -7,12 +7,55 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/DataDog/tcptracer-bpf/pkg/tracer"
 )
 
 var watchFdInstallPids string
+
+type tcpEventTracer struct {
+	lastTimestampV4 uint64
+	lastTimestampV6 uint64
+}
+
+func (t *tcpEventTracer) TCPEventV4(e tracer.TcpV4) {
+	if e.Type == tracer.EventFdInstall {
+		fmt.Printf("%v cpu#%d %s %v %s %v\n",
+			e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.Fd)
+	} else {
+		fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v\n",
+			e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.SAddr, e.SPort, e.DAddr, e.DPort, e.NetNS)
+	}
+
+	if t.lastTimestampV4 > e.Timestamp {
+		fmt.Printf("ERROR: late event!\n")
+		os.Exit(1)
+	}
+
+	t.lastTimestampV4 = e.Timestamp
+}
+
+func (t *tcpEventTracer) TCPEventV6(e tracer.TcpV6) {
+	fmt.Printf("%v cpu#%d %s %v %s %v:%v %v:%v %v\n",
+		e.Timestamp, e.CPU, e.Type, e.Pid, e.Comm, e.SAddr, e.SPort, e.DAddr, e.DPort, e.NetNS)
+
+	if t.lastTimestampV6 > e.Timestamp {
+		fmt.Printf("ERROR: late event!\n")
+		os.Exit(1)
+	}
+
+	t.lastTimestampV6 = e.Timestamp
+}
+
+func (t *tcpEventTracer) LostV4(count uint64) {
+	fmt.Printf("ERROR: lost %d events!\n", count)
+	os.Exit(1)
+}
+
+func (t *tcpEventTracer) LostV6(count uint64) {
+	fmt.Printf("ERROR: lost %d events!\n", count)
+	os.Exit(1)
+}
 
 func init() {
 	flag.StringVar(&watchFdInstallPids, "monitor-fdinstall-pids", "", "a comma-separated list of pids that need to be monitored for fdinstall events")
@@ -26,7 +69,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	t, err := tracer.NewTracer()
+	t, err := tracer.NewEventTracer(&tcpEventTracer{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
@@ -53,35 +96,6 @@ func main() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, os.Kill)
 
-	printConns := func(now time.Time) {
-		fmt.Printf("-- %s --\n", now)
-		conns, err := t.GetActiveConnections()
-		if err != nil {
-			fmt.Println(err)
-		}
-		for _, c := range conns {
-			fmt.Println(c)
-		}
-	}
-
-	stopChan := make(chan struct{})
-	go func() {
-		// Print active connections immediately, and then again every 5 seconds
-		tick := time.NewTicker(5 * time.Second)
-		printConns(time.Now())
-		for {
-			select {
-			case now := <-tick.C:
-				printConns(now)
-			case <-stopChan:
-				tick.Stop()
-				return
-			}
-		}
-	}()
-
 	<-sig
-	stopChan <- struct{}{}
-
 	t.Stop()
 }

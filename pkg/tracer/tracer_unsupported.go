@@ -4,11 +4,11 @@ package tracer
 
 type Tracer struct{}
 
-func TracerAsset() ([]byte, error) {
+func NewTracer() (*Tracer, error) {
 	return nil, ErrNotImplemented
 }
 
-func NewTracer() (*Tracer, error) {
+func NewEventTracer(cb Callback) (*Tracer, error) {
 	return nil, ErrNotImplemented
 }
 
