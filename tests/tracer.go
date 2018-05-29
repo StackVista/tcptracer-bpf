@@ -69,7 +69,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	t, err := tracer.NewTracer(&tcpEventTracer{})
+	t, err := tracer.NewEventTracer(&tcpEventTracer{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)

@@ -3,10 +3,10 @@
 
 #include <linux/types.h>
 
-#define TCP_EVENT_TYPE_CONNECT          1
-#define TCP_EVENT_TYPE_ACCEPT           2
-#define TCP_EVENT_TYPE_CLOSE            3
-#define TCP_EVENT_TYPE_FD_INSTALL       4
+#define TCP_EVENT_TYPE_CONNECT    1
+#define TCP_EVENT_TYPE_ACCEPT     2
+#define TCP_EVENT_TYPE_CLOSE      3
+#define TCP_EVENT_TYPE_FD_INSTALL 4
 
 #define GUESS_SADDR      0
 #define GUESS_DADDR      1
@@ -53,6 +53,11 @@ struct tcp_ipv6_event_t {
 	__u32 dummy;
 };
 
+struct tcp_conn_stats_t {
+	__u64 send_bytes;
+	__u64 recv_bytes;
+};
+
 // tcp_set_state doesn't run in the context of the process that initiated the
 // connection so we need to store a map TUPLE -> PID to send the right PID on
 // the event
@@ -62,6 +67,7 @@ struct ipv4_tuple_t {
 	__u16 sport;
 	__u16 dport;
 	__u32 netns;
+	__u32 pid;
 };
 
 struct ipv6_tuple_t {
@@ -73,6 +79,7 @@ struct ipv6_tuple_t {
 	__u16 sport;
 	__u16 dport;
 	__u32 netns;
+	__u32 pid;
 };
 
 struct pid_comm_t {
@@ -84,6 +91,7 @@ struct pid_comm_t {
 #define TCPTRACER_STATE_CHECKING      1
 #define TCPTRACER_STATE_CHECKED       2
 #define TCPTRACER_STATE_READY         3
+
 struct tcptracer_status_t {
 	__u64 state;
 

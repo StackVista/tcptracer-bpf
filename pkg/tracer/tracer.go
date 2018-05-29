@@ -10,6 +10,16 @@ import (
 	bpflib "github.com/iovisor/gobpf/elf"
 )
 
+/*
+#include "../../tcptracer-bpf.h"
+*/
+import "C"
+
+const (
+	tcpV4StatsMapName = "tcp_stats_ipv4"
+	tcpV6StatsMapName = "tcp_stats_ipv6"
+)
+
 type Tracer struct {
 	m           *bpflib.Module
 	perfMapIPV4 *bpflib.PerfMap
@@ -17,30 +27,38 @@ type Tracer struct {
 	stopChan    chan struct{}
 }
 
-// maxActive configures the maximum number of instances of the probed functions
-// that can be handled simultaneously.
-// This value should be enough to handle typical workloads (for example, some
-// amount of processes blocked on the accept syscall).
+// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
+// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
 const maxActive = 128
 
-func TracerAsset() ([]byte, error) {
-	buf, err := Asset("tcptracer-ebpf.o")
+func NewTracer() (*Tracer, error) {
+	m, err := loadBPFModule()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
+		return nil, err
 	}
-	return buf, nil
+
+	err = m.Load(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	err = m.EnableKprobes(maxActive)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := initialize(m); err != nil {
+		return nil, fmt.Errorf("failed to init module: %s", err)
+	}
+
+	// TODO: Improve performance by detaching unnecessary kprobes, once offsets have been figured out in initialize()
+	return &Tracer{m: m}, nil
 }
 
-func NewTracer(cb Callback) (*Tracer, error) {
-	buf, err := Asset("tcptracer-ebpf.o")
+func NewEventTracer(cb Callback) (*Tracer, error) {
+	m, err := loadBPFModule()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-	reader := bytes.NewReader(buf)
-
-	m := bpflib.NewModuleFromReader(reader)
-	if m == nil {
-		return nil, fmt.Errorf("BPF not supported")
+		return nil, err
 	}
 
 	sectionParams := make(map[string]bpflib.SectionParams)
@@ -55,17 +73,15 @@ func NewTracer(cb Callback) (*Tracer, error) {
 		return nil, err
 	}
 
-	channelV4 := make(chan []byte)
-	channelV6 := make(chan []byte)
-	lostChanV4 := make(chan uint64)
-	lostChanV6 := make(chan uint64)
+	channelV4, channelV6 := make(chan []byte), make(chan []byte)
+	lostChanV4, lostChanV6 := make(chan uint64), make(chan uint64)
 
-	perfMapIPV4, err := initializeIPv4(m, channelV4, lostChanV4)
+	perfMapIPV4, err := initializePerfMap(m, "tcp_event_ipv4", channelV4, lostChanV4)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init perf map for IPv4 events: %s", err)
 	}
 
-	perfMapIPV6, err := initializeIPv6(m, channelV6, lostChanV6)
+	perfMapIPV6, err := initializePerfMap(m, "tcp_event_ipv6", channelV6, lostChanV6)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init perf map for IPv6 events: %s", err)
 	}
@@ -74,59 +90,111 @@ func NewTracer(cb Callback) (*Tracer, error) {
 	perfMapIPV6.SetTimestampFunc(tcpV6Timestamp)
 
 	stopChan := make(chan struct{})
-
 	go func() {
+		defer perfMapIPV4.PollStop()
+		defer perfMapIPV6.PollStop()
+
 		for {
 			select {
 			case <-stopChan:
-				// On stop, stopChan will be closed but the other channels will
-				// also be closed shortly after. The select{} has no priorities,
-				// therefore, the "ok" value must be checked below.
 				return
 			case data, ok := <-channelV4:
-				if !ok {
-					return // see explanation above
+				if ok {
+					cb.TCPEventV4(tcpV4ToGo(&data))
 				}
-				cb.TCPEventV4(tcpV4ToGo(&data))
-			case lost, ok := <-lostChanV4:
-				if !ok {
-					return // see explanation above
-				}
-				cb.LostV4(lost)
-			}
-		}
-	}()
-
-	go func() {
-		for {
-			select {
-			case <-stopChan:
-				return
 			case data, ok := <-channelV6:
-				if !ok {
-					return // see explanation above
+				if ok {
+					cb.TCPEventV6(tcpV6ToGo(&data))
 				}
-				cb.TCPEventV6(tcpV6ToGo(&data))
+			case lost, ok := <-lostChanV4:
+				if ok {
+					cb.LostV4(lost)
+				}
 			case lost, ok := <-lostChanV6:
-				if !ok {
-					return // see explanation above
+				if ok {
+					cb.LostV6(lost)
 				}
-				cb.LostV6(lost)
 			}
 		}
 	}()
 
 	return &Tracer{
 		m:           m,
+		stopChan:    stopChan,
 		perfMapIPV4: perfMapIPV4,
 		perfMapIPV6: perfMapIPV6,
-		stopChan:    stopChan,
 	}, nil
 }
 
-func (t *Tracer) Start() {
-	t.perfMapIPV4.PollStart()
-	t.perfMapIPV6.PollStart()
+func (t *Tracer) Start() error {
+	if t.perfMapIPV4 != nil {
+		t.perfMapIPV4.PollStart()
+		t.perfMapIPV6.PollStart()
+	}
+	return nil
+}
+
+func (t *Tracer) Stop() {
+	if t.stopChan != nil {
+		t.stopChan <- struct{}{}
+	}
+	t.m.Close()
+}
+
+func (t *Tracer) GetActiveConnections() ([]ConnectionStats, error) {
+	v4, err := t.getTCPv4Connections()
+	if err != nil {
+		return nil, err
+	}
+	v6, err := t.getTCPv6Connections()
+	if err != nil {
+		return nil, err
+	}
+	return append(v4, v6...), nil
+}
+
+func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
+	mp := t.m.Map(tcpV4StatsMapName)
+	if mp == nil {
+		return nil, fmt.Errorf("no map with name %s", tcpV4StatsMapName)
+	}
+
+	// Iterate through all key-value pairs in map
+	key, nextKey, val := &TCPTupleV4{}, &TCPTupleV4{}, &TCPConnStats{}
+	conns := make([]ConnectionStats, 0)
+	for {
+		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
+		if !hasNext {
+			break
+		} else {
+			conns = append(conns, connStatsFromTCPv4(nextKey, val))
+			key = nextKey
+		}
+	}
+
+	return conns, nil
+}
+
+func (t *Tracer) getTCPv6Connections() ([]ConnectionStats, error) {
+	mp := t.m.Map(tcpV6StatsMapName)
+	if mp == nil {
+		return nil, fmt.Errorf("no map with name %s", tcpV6StatsMapName)
+	}
+
+	// Iterate through all key-value pairs in map
+	key, nextKey, val := &TCPTupleV6{}, &TCPTupleV6{}, &TCPConnStats{}
+	conns := make([]ConnectionStats, 0)
+	for {
+		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
+		if !hasNext {
+			break
+		} else {
+			conns = append(conns, connStatsFromTCPv6(nextKey, val))
+			key = nextKey
+		}
+	}
+
+	return conns, nil
 }
 
 func (t *Tracer) AddFdInstallWatcher(pid uint32) (err error) {
@@ -142,31 +210,35 @@ func (t *Tracer) RemoveFdInstallWatcher(pid uint32) (err error) {
 	return err
 }
 
-func (t *Tracer) Stop() {
-	close(t.stopChan)
-	t.perfMapIPV4.PollStop()
-	t.perfMapIPV6.PollStop()
-	t.m.Close()
+func initialize(m *bpflib.Module) error {
+	if err := guess(m); err != nil {
+		return fmt.Errorf("error guessing offsets: %v", err)
+	}
+	return nil
 }
 
-func initialize(module *bpflib.Module, eventMapName string, eventChan chan []byte, lostChan chan uint64) (*bpflib.PerfMap, error) {
-	if err := guess(module); err != nil {
+func initializePerfMap(module *bpflib.Module, eventMapName string, eChan chan []byte, lChan chan uint64) (*bpflib.PerfMap, error) {
+	if err := initialize(module); err != nil {
 		return nil, fmt.Errorf("error guessing offsets: %v", err)
 	}
 
-	pm, err := bpflib.InitPerfMap(module, eventMapName, eventChan, lostChan)
+	pm, err := bpflib.InitPerfMap(module, eventMapName, eChan, lChan)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing perf map for %q: %v", eventMapName, err)
 	}
 
 	return pm, nil
-
 }
 
-func initializeIPv4(module *bpflib.Module, eventChan chan []byte, lostChan chan uint64) (*bpflib.PerfMap, error) {
-	return initialize(module, "tcp_event_ipv4", eventChan, lostChan)
-}
+func loadBPFModule() (*bpflib.Module, error) {
+	buf, err := Asset("tcptracer-ebpf.o")
+	if err != nil {
+		return nil, fmt.Errorf("couldn't find asset: %s", err)
+	}
 
-func initializeIPv6(module *bpflib.Module, eventChan chan []byte, lostChan chan uint64) (*bpflib.PerfMap, error) {
-	return initialize(module, "tcp_event_ipv6", eventChan, lostChan)
+	m := bpflib.NewModuleFromReader(bytes.NewReader(buf))
+	if m == nil {
+		return nil, fmt.Errorf("BPF not supported")
+	}
+	return m, nil
 }

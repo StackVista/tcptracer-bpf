@@ -3,7 +3,7 @@ UID=$(shell id -u)
 PWD=$(shell pwd)
 
 DOCKER_FILE?=Dockerfile
-DOCKER_IMAGE?=weaveworks/tcptracer-bpf-builder
+DOCKER_IMAGE?=datadog/tcptracer-bpf-builder
 
 # If you can use docker without being root, you can do "make SUDO="
 SUDO=$(shell docker info >/dev/null 2>&1 || echo "sudo -E")
@@ -32,3 +32,14 @@ delete-docker-image:
 lint:
 	./tools/lint -ignorespelling "agre " -ignorespelling "AGRE " .
 	./tools/shell-lint .
+
+# Run dockerized `nettop` command for testing 
+# $ make all run-nettop
+run-nettop:
+	sudo docker build -t "tcptracer-bpf-dd-nettop" . -f tests/Dockerfile-nettop
+	sudo docker run \
+		--net=host --pid=host \
+		--cap-add=SYS_ADMIN \
+		--privileged \
+		-v /sys/kernel/debug:/sys/kernel/debug \
+		tcptracer-bpf-dd-nettop
