@@ -2,6 +2,14 @@
 
 package tracer
 
+func CurrentKernelVersion() (uint32, error) {
+	return 0, ErrNotImplemented
+}
+
+func IsTracerSupportedByOS() (bool, error) {
+	return false, ErrNotImplemented
+}
+
 type Tracer struct{}
 
 func NewTracer() (*Tracer, error) {

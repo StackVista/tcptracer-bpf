@@ -10,6 +10,21 @@ import (
 )
 
 func main() {
+	kernelVersion, err := tracer.CurrentKernelVersion()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("-- Kernel: %d (%d.%d)--\n", kernelVersion, (kernelVersion>>16)&0xff, (kernelVersion>>8)&0xff)
+
+	if ok, err := tracer.IsTracerSupportedByOS(); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	} else if !ok {
+		fmt.Fprintln(os.Stderr, "tracer is not supported by current OS")
+		os.Exit(1)
+	}
+
 	t, err := tracer.NewTracer()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
