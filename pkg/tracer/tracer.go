@@ -21,28 +21,20 @@ const (
 )
 
 type Tracer struct {
-	m *bpflib.Module
+	m           *bpflib.Module
 	perfMapIPV4 *bpflib.PerfMap
 	perfMapIPV6 *bpflib.PerfMap
-	stopChan chan struct{}
+	stopChan    chan struct{}
 }
 
-// maxActive configures the maximum number of instances of the kretprobe-probed functions
-// that can be handled simultaneously.
-// This value should be enough to handle typical workloads (for example, some
-// amount of processes blocked on the accept syscall).
+// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
+// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
 const maxActive = 128
 
 func NewTracer() (*Tracer, error) {
-	buf, err := loadTracerAsset()
+	m, err := loadBPFModule()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-	reader := bytes.NewReader(buf)
-
-	m := bpflib.NewModuleFromReader(reader)
-	if m == nil {
-		return nil, fmt.Errorf("BPF not supported")
+		return nil, err
 	}
 
 	err = m.Load(nil)
@@ -60,24 +52,13 @@ func NewTracer() (*Tracer, error) {
 	}
 
 	// TODO: Improve performance by detaching unnecessary kprobes, once offsets have been figured out in initialize()
-	return &Tracer{
-		m: m,
-		perfMapIPV4: nil,
-		perfMapIPV6: nil,
-		stopChan: nil,
-	}, nil
+	return &Tracer{m: m}, nil
 }
 
 func NewEventTracer(cb Callback) (*Tracer, error) {
-	buf, err := Asset("tcptracer-ebpf.o")
+	m, err := loadBPFModule()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-	reader := bytes.NewReader(buf)
-
-	m := bpflib.NewModuleFromReader(reader)
-	if m == nil {
-		return nil, fmt.Errorf("BPF not supported")
+		return nil, err
 	}
 
 	sectionParams := make(map[string]bpflib.SectionParams)
@@ -109,7 +90,6 @@ func NewEventTracer(cb Callback) (*Tracer, error) {
 	perfMapIPV6.SetTimestampFunc(tcpV6Timestamp)
 
 	stopChan := make(chan struct{})
-
 	go func() {
 		defer perfMapIPV4.PollStop()
 		defer perfMapIPV6.PollStop()
@@ -119,25 +99,21 @@ func NewEventTracer(cb Callback) (*Tracer, error) {
 			case <-stopChan:
 				return
 			case data, ok := <-channelV4:
-				if !ok {
-					return
+				if ok {
+					cb.TCPEventV4(tcpV4ToGo(&data))
 				}
-				cb.TCPEventV4(tcpV4ToGo(&data))
 			case data, ok := <-channelV6:
-				if !ok {
-					return
+				if ok {
+					cb.TCPEventV6(tcpV6ToGo(&data))
 				}
-				cb.TCPEventV6(tcpV6ToGo(&data))
 			case lost, ok := <-lostChanV4:
-				if !ok {
-					return
+				if ok {
+					cb.LostV4(lost)
 				}
-				cb.LostV4(lost)
 			case lost, ok := <-lostChanV6:
-				if !ok {
-					return
+				if ok {
+					cb.LostV6(lost)
 				}
-				cb.LostV6(lost)
 			}
 		}
 	}()
@@ -254,10 +230,15 @@ func initializePerfMap(module *bpflib.Module, eventMapName string, eChan chan []
 	return pm, nil
 }
 
-func loadTracerAsset() ([]byte, error) {
+func loadBPFModule() (*bpflib.Module, error) {
 	buf, err := Asset("tcptracer-ebpf.o")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
 	}
-	return buf, nil
+
+	m := bpflib.NewModuleFromReader(bytes.NewReader(buf))
+	if m == nil {
+		return nil, fmt.Errorf("BPF not supported")
+	}
+	return m, nil
 }
