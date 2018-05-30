@@ -20,6 +20,14 @@ const (
 	tcpV6StatsMapName = "tcp_stats_ipv6"
 )
 
+var (
+	// Feature versions sourced from: https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
+	// Minimum kernel version -> max(3.15 - eBPF, 3.18 - tables/maps,
+	//                               4.1 - kprobes, 4.3 - perf events)
+	// 	                      -> 4.3
+	minRequiredKernelCode = linuxKernelVersionCode(4, 3, 0)
+)
+
 type Tracer struct {
 	m           *bpflib.Module
 	perfMapIPV4 *bpflib.PerfMap
@@ -30,6 +38,25 @@ type Tracer struct {
 // maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
 // This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
 const maxActive = 128
+
+// CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
+// That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
+func CurrentKernelVersion() (uint32, error) {
+	return bpflib.CurrentKernelVersion()
+}
+
+// IsTracerSupportedByOS returns whether or not the current kernel version supports tracer functionality
+func IsTracerSupportedByOS() (bool, error) {
+	currentKernelCode, err := bpflib.CurrentKernelVersion()
+	if err != nil {
+		return false, err
+	}
+
+	if currentKernelCode < minRequiredKernelCode {
+		return false, fmt.Errorf("incompatible linux version. at least %d required, got %d", minRequiredKernelCode, currentKernelCode)
+	}
+	return true, nil
+}
 
 func NewTracer() (*Tracer, error) {
 	m, err := loadBPFModule()
