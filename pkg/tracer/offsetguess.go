@@ -175,7 +175,7 @@ func generateRandomIPv6Address() (addr [4]uint32) {
 // tryCurrentOffset creates a IPv4 or IPv6 connection so the corresponding
 // tcp_v{4,6}_connect kprobes get triggered and save the value at the current
 // offset in the eBPF map
-func tryCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTracerStatus, expected *fieldValues, stop chan struct{}) error {
+func tryCurrentOffset(status *tcpTracerStatus, expected *fieldValues, stop chan struct{}) error {
 	// for ipv6, we don't need the source port because we already guessed
 	// it doing ipv4 connections so we use a random destination address and
 	// try to connect to it
@@ -390,7 +390,7 @@ func guess(b *elf.Module) error {
 	var maxRetries int = 100
 
 	for status.state != stateReady {
-		if err := tryCurrentOffset(b, mp, status, expected, stop); err != nil {
+		if err := tryCurrentOffset(status, expected, stop); err != nil {
 			return err
 		}
 

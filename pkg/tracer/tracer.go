@@ -79,6 +79,7 @@ func NewTracer() (*Tracer, error) {
 	}
 
 	// TODO: Improve performance by detaching unnecessary kprobes, once offsets have been figured out in initialize()
+
 	return &Tracer{m: m}, nil
 }
 
