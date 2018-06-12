@@ -64,20 +64,39 @@ func BenchmarkUniqueConnKeyByteBufferPacked(b *testing.B) {
 }
 
 func TestConnStatsByteKeyFieldsAgainstEmpty(t *testing.T) {
-	bufA := new(bytes.Buffer)
-	bufB := new(bytes.Buffer)
-
+	buf := new(bytes.Buffer)
 	for _, test := range []struct {
 		a ConnectionStats
 		b ConnectionStats
 	}{
-		{a: ConnectionStats{Pid: 1}, b: ConnectionStats{}},
-		{a: ConnectionStats{Family: 1}, b: ConnectionStats{}},
-		{a: ConnectionStats{Type: 1}, b: ConnectionStats{}},
-		{a: ConnectionStats{Source: "hello"}, b: ConnectionStats{}},
-		{a: ConnectionStats{Dest: "goodbye"}, b: ConnectionStats{}},
-		{a: ConnectionStats{SPort: 1}, b: ConnectionStats{}},
-		{a: ConnectionStats{DPort: 1}, b: ConnectionStats{}},
+		{
+			a: ConnectionStats{Pid: 1},
+			b: ConnectionStats{},
+		},
+		{
+			a: ConnectionStats{Family: 1},
+			b: ConnectionStats{},
+		},
+		{
+			a: ConnectionStats{Type: 1},
+			b: ConnectionStats{},
+		},
+		{
+			a: ConnectionStats{Source: "hello"},
+			b: ConnectionStats{},
+		},
+		{
+			a: ConnectionStats{Dest: "goodbye"},
+			b: ConnectionStats{},
+		},
+		{
+			a: ConnectionStats{SPort: 1},
+			b: ConnectionStats{},
+		},
+		{
+			a: ConnectionStats{DPort: 1},
+			b: ConnectionStats{},
+		},
 		{
 			a: ConnectionStats{Pid: 1, Family: 0, Type: 1, Source: "a"},
 			b: ConnectionStats{Pid: 1, Family: 0, Type: 1, Source: "b"},
@@ -103,12 +122,13 @@ func TestConnStatsByteKeyFieldsAgainstEmpty(t *testing.T) {
 			b: ConnectionStats{Pid: 1, Dest: "b", Type: 0, DPort: 3},
 		},
 	} {
-		bufA.Reset()
-		bufB.Reset()
-		errA := test.a.ByteKey(bufA)
-		errB := test.b.ByteKey(bufB)
-		assert.NoError(t, errA)
-		assert.NoError(t, errB)
-		assert.NotEqual(t, bufA.Bytes(), bufB.Bytes())
+		var keyA, keyB string
+		if b, err := test.a.ByteKey(buf); assert.NoError(t, err) {
+			keyA = string(b)
+		}
+		if b, err := test.b.ByteKey(buf); assert.NoError(t, err) {
+			keyB = string(b)
+		}
+		assert.NotEqual(t, keyA, keyB)
 	}
 }
