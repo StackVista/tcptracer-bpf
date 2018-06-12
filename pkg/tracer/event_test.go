@@ -63,7 +63,7 @@ func BenchmarkUniqueConnKeyByteBufferPacked(b *testing.B) {
 	}
 }
 
-func TestConnStatsByteKeyFieldsAgainstEmpty(t *testing.T) {
+func TestConnStatsByteKey(t *testing.T) {
 	buf := new(bytes.Buffer)
 	for _, test := range []struct {
 		a ConnectionStats
