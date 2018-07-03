@@ -3,7 +3,7 @@
 all: build
 
 build:
-	go build -o tracer tracer.go
+	go build -tags 'linux_bpf' -o tracer tracer.go
 
 build-in-docker:
 	sudo docker build -t "datadog/tcptracer-bpf-ci" . -f Dockerfile-tracer
