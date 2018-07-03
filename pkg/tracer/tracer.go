@@ -16,6 +16,7 @@ import (
 import "C"
 
 const (
+	udpV4StatsMapName = "udp_stats_ipv4"
 	tcpV4StatsMapName = "tcp_stats_ipv4"
 	tcpV6StatsMapName = "tcp_stats_ipv6"
 )
@@ -170,6 +171,10 @@ func (t *Tracer) Stop() {
 }
 
 func (t *Tracer) GetActiveConnections() ([]ConnectionStats, error) {
+	udpv4, err := t.getUDPv4Connections()
+	if err != nil {
+		return nil, err
+	}
 	v4, err := t.getTCPv4Connections()
 	if err != nil {
 		return nil, err
@@ -178,7 +183,29 @@ func (t *Tracer) GetActiveConnections() ([]ConnectionStats, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(v4, v6...), nil
+	return append(append(v4, v6...), udpv4...), nil
+}
+
+func (t *Tracer) getUDPv4Connections() ([]ConnectionStats, error) {
+	mp := t.m.Map(udpV4StatsMapName)
+	if mp == nil {
+		return nil, fmt.Errorf("no map with name %s", udpV4StatsMapName)
+	}
+
+	// Iterate through all key-value pairs in map
+	key, nextKey, val := &TCPTupleV4{}, &TCPTupleV4{}, &ConnStats{}
+	conns := make([]ConnectionStats, 0)
+	for {
+		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
+		if !hasNext {
+			break
+		} else {
+			conns = append(conns, connStatsFromUDPv4(nextKey, val))
+			key = nextKey
+		}
+	}
+
+	return conns, nil
 }
 
 func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
@@ -188,7 +215,7 @@ func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
 	}
 
 	// Iterate through all key-value pairs in map
-	key, nextKey, val := &TCPTupleV4{}, &TCPTupleV4{}, &TCPConnStats{}
+	key, nextKey, val := &TCPTupleV4{}, &TCPTupleV4{}, &ConnStats{}
 	conns := make([]ConnectionStats, 0)
 	for {
 		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
@@ -210,7 +237,7 @@ func (t *Tracer) getTCPv6Connections() ([]ConnectionStats, error) {
 	}
 
 	// Iterate through all key-value pairs in map
-	key, nextKey, val := &TCPTupleV6{}, &TCPTupleV6{}, &TCPConnStats{}
+	key, nextKey, val := &TCPTupleV6{}, &TCPTupleV6{}, &ConnStats{}
 	conns := make([]ConnectionStats, 0)
 	for {
 		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))

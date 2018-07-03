@@ -14,6 +14,13 @@ const (
 	UDP ConnectionType = 1
 )
 
+func (c ConnectionType) String() string {
+	if c == TCP {
+		return "TCP"
+	}
+	return "UDP"
+}
+
 const (
 	AF_INET  ConnectionFamily = 0
 	AF_INET6 ConnectionFamily = 1
@@ -36,8 +43,8 @@ type ConnectionStats struct {
 }
 
 func (c ConnectionStats) String() string {
-	return fmt.Sprintf("ConnectionStats [PID: %d - %v:%d → %v:%d] %d bytes send, %d bytes recieved",
-		c.Pid, c.Source, c.SPort, c.Dest, c.DPort, c.SendBytes, c.RecvBytes)
+	return fmt.Sprintf("ConnectionStats [PID: %d - %v:%d → %v:%d | %s] %d bytes send, %d bytes recieved",
+		c.Pid, c.Source, c.SPort, c.Dest, c.DPort, c.Type, c.SendBytes, c.RecvBytes)
 }
 
 func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
