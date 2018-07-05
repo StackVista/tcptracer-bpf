@@ -77,17 +77,12 @@ func (cs *ConnStatsWithTimestamp) isExpired(latestTime int64, timeout int64) boo
 }
 
 func connStatsFromTCPv4(t *ConnTupleV4, s *ConnStats) ConnectionStats {
-	saddrbuf := make([]byte, 4)
-	daddrbuf := make([]byte, 4)
-	binary.LittleEndian.PutUint32(saddrbuf, uint32(t.saddr))
-	binary.LittleEndian.PutUint32(daddrbuf, uint32(t.daddr))
-
 	return ConnectionStats{
 		Pid:       uint32(t.pid),
 		Type:      TCP,
 		Family:    AF_INET,
-		Source:    net.IPv4(saddrbuf[0], saddrbuf[1], saddrbuf[2], saddrbuf[3]).String(),
-		Dest:      net.IPv4(daddrbuf[0], daddrbuf[1], daddrbuf[2], daddrbuf[3]).String(),
+		Source:    v4IPString(uint32(t.saddr)),
+		Dest:      v4IPString(uint32(t.daddr)),
 		SPort:     uint16(t.sport),
 		DPort:     uint16(t.dport),
 		SendBytes: uint64(s.send_bytes),
@@ -96,19 +91,12 @@ func connStatsFromTCPv4(t *ConnTupleV4, s *ConnStats) ConnectionStats {
 }
 
 func connStatsFromTCPv6(t *ConnTupleV6, s *ConnStats) ConnectionStats {
-	saddrbuf := make([]byte, 16)
-	daddrbuf := make([]byte, 16)
-	binary.LittleEndian.PutUint64(saddrbuf, uint64(t.saddr_h))
-	binary.LittleEndian.PutUint64(saddrbuf[8:], uint64(t.saddr_l))
-	binary.LittleEndian.PutUint64(daddrbuf, uint64(t.daddr_h))
-	binary.LittleEndian.PutUint64(daddrbuf[8:], uint64(t.daddr_l))
-
 	return ConnectionStats{
 		Pid:       uint32(t.pid),
 		Type:      TCP,
 		Family:    AF_INET6,
-		Source:    net.IP(saddrbuf).String(),
-		Dest:      net.IP(daddrbuf).String(),
+		Source:    v6IPString(uint64(t.saddr_h), uint64(t.saddr_l)),
+		Dest:      v6IPString(uint64(t.daddr_h), uint64(t.daddr_l)),
 		SPort:     uint16(t.sport),
 		DPort:     uint16(t.dport),
 		SendBytes: uint64(s.send_bytes),
@@ -117,17 +105,12 @@ func connStatsFromTCPv6(t *ConnTupleV6, s *ConnStats) ConnectionStats {
 }
 
 func connStatsFromUDPv4(t *ConnTupleV4, s *ConnStatsWithTimestamp) ConnectionStats {
-	saddrbuf := make([]byte, 4)
-	daddrbuf := make([]byte, 4)
-	binary.LittleEndian.PutUint32(saddrbuf, uint32(t.saddr))
-	binary.LittleEndian.PutUint32(daddrbuf, uint32(t.daddr))
-
 	return ConnectionStats{
 		Pid:       uint32(t.pid),
 		Type:      UDP,
 		Family:    AF_INET,
-		Source:    net.IPv4(saddrbuf[0], saddrbuf[1], saddrbuf[2], saddrbuf[3]).String(),
-		Dest:      net.IPv4(daddrbuf[0], daddrbuf[1], daddrbuf[2], daddrbuf[3]).String(),
+		Source:    v4IPString(uint32(t.saddr)),
+		Dest:      v4IPString(uint32(t.daddr)),
 		SPort:     uint16(t.sport),
 		DPort:     uint16(t.dport),
 		SendBytes: uint64(s.send_bytes),
@@ -136,24 +119,30 @@ func connStatsFromUDPv4(t *ConnTupleV4, s *ConnStatsWithTimestamp) ConnectionSta
 }
 
 func connStatsFromUDPv6(t *ConnTupleV6, s *ConnStatsWithTimestamp) ConnectionStats {
-	saddrbuf := make([]byte, 16)
-	daddrbuf := make([]byte, 16)
-	binary.LittleEndian.PutUint64(saddrbuf, uint64(t.saddr_h))
-	binary.LittleEndian.PutUint64(saddrbuf[8:], uint64(t.saddr_l))
-	binary.LittleEndian.PutUint64(daddrbuf, uint64(t.daddr_h))
-	binary.LittleEndian.PutUint64(daddrbuf[8:], uint64(t.daddr_l))
-
 	return ConnectionStats{
 		Pid:       uint32(t.pid),
 		Type:      UDP,
 		Family:    AF_INET6,
-		Source:    net.IP(saddrbuf).String(),
-		Dest:      net.IP(daddrbuf).String(),
+		Source:    v6IPString(uint64(t.saddr_h), uint64(t.saddr_l)),
+		Dest:      v6IPString(uint64(t.daddr_h), uint64(t.daddr_l)),
 		SPort:     uint16(t.sport),
 		DPort:     uint16(t.dport),
 		SendBytes: uint64(s.send_bytes),
 		RecvBytes: uint64(s.recv_bytes),
 	}
+}
+
+func v4IPString(addr uint32) string {
+	addrbuf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(addrbuf, uint32(addr))
+	return net.IPv4(addrbuf[0], addrbuf[1], addrbuf[2], addrbuf[3]).String()
+}
+
+func v6IPString(addr_h, addr_l uint64) string {
+	addrbuf := make([]byte, 16)
+	binary.LittleEndian.PutUint64(addrbuf, uint64(addr_h))
+	binary.LittleEndian.PutUint64(addrbuf[8:], uint64(addr_l))
+	return net.IP(addrbuf).String()
 }
 
 func tcpV4ToGo(data *[]byte) (ret TcpV4) {
