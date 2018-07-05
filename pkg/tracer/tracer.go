@@ -19,7 +19,7 @@ const (
 	v4UDPMapName           = "udp_stats_ipv4"
 	v6UDPMapName           = "udp_stats_ipv6"
 	V4TCPMapName           = "tcp_stats_ipv4"
-	v6TCPStatsMapName      = "tcp_stats_ipv6"
+	v6TCPMapName           = "tcp_stats_ipv6"
 	latestTimestampMapName = "latest_ts"
 )
 
@@ -305,7 +305,7 @@ func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
 }
 
 func (t *Tracer) getTCPv6Connections() ([]ConnectionStats, error) {
-	mp, err := t.getMap(v6TCPStatsMapName)
+	mp, err := t.getMap(v6TCPMapName)
 	if err != nil {
 		return nil, err
 	}
