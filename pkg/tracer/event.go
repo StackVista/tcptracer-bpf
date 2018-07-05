@@ -53,7 +53,16 @@ __u64 recv_bytes;
 */
 type ConnStats C.struct_conn_stats_t
 
+/* struct conn_stats_ts_t
+__u64 send_bytes;
+__u64 recv_bytes;
+__u64 timestamp;
+*/
 type ConnStatsWithTimestamp C.struct_conn_stats_ts_t
+
+func (cs *ConnStatsWithTimestamp) isExpired(latestTime int64, timeout int64) bool {
+	return latestTime-int64(cs.timestamp) > timeout
+}
 
 func connStatsFromTCPv4(t *TCPTupleV4, s *ConnStats) ConnectionStats {
 	saddrbuf := make([]byte, 4)
