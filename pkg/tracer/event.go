@@ -24,7 +24,6 @@ __u32 pid;
 type TCPTupleV4 C.struct_ipv4_tuple_t
 
 func (t *TCPTupleV4) copy() *TCPTupleV4 {
-	// Is there an easier way of doing this copy?
 	return &TCPTupleV4{
 		saddr: t.saddr,
 		daddr: t.daddr,

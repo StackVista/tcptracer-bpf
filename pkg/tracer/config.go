@@ -19,6 +19,5 @@ type Config struct {
 var DefaultConfig = &Config{
 	CollectTCPConns: true,
 	CollectUDPConns: true,
-	// TODO: Determine a good default timeout for UDP connections
-	UDPConnTimeout: 30 * time.Second,
+	UDPConnTimeout:  30 * time.Second,
 }
