@@ -23,6 +23,18 @@ __u32 pid;
 */
 type TCPTupleV4 C.struct_ipv4_tuple_t
 
+func (t *TCPTupleV4) copy() *TCPTupleV4 {
+	// Is there an easier way of doing this copy?
+	return &TCPTupleV4{
+		saddr: t.saddr,
+		daddr: t.daddr,
+		sport: t.sport,
+		dport: t.dport,
+		netns: t.netns,
+		pid:   t.pid,
+	}
+}
+
 /* struct_ipv6_tuple_t
 __u64 saddr_h;
 __u64 saddr_l;
@@ -40,6 +52,8 @@ __u64 send_bytes;
 __u64 recv_bytes;
 */
 type ConnStats C.struct_conn_stats_t
+
+type ConnStatsWithTimestamp C.struct_conn_stats_ts_t
 
 func connStatsFromTCPv4(t *TCPTupleV4, s *ConnStats) ConnectionStats {
 	saddrbuf := make([]byte, 4)
@@ -81,7 +95,7 @@ func connStatsFromTCPv6(t *TCPTupleV6, s *ConnStats) ConnectionStats {
 	}
 }
 
-func connStatsFromUDPv4(t *TCPTupleV4, s *ConnStats) ConnectionStats {
+func connStatsFromUDPv4(t *TCPTupleV4, s *ConnStatsWithTimestamp) ConnectionStats {
 	saddrbuf := make([]byte, 4)
 	daddrbuf := make([]byte, 4)
 	binary.LittleEndian.PutUint32(saddrbuf, uint32(t.saddr))

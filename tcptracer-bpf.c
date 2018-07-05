@@ -43,7 +43,7 @@ struct bpf_map_def SEC("maps/tcp_event_ipv4") tcp_event_ipv4 = {
 struct bpf_map_def SEC("maps/udp_stats_ipv4") udp_stats_ipv4 = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(struct ipv4_tuple_t),
-	.value_size = sizeof(struct conn_stats_t),
+	.value_size = sizeof(struct conn_stats_ts_t),
 	.max_entries = 1024, // TODO: Increase this to support more active connections?
 	.pinning = 0,
 	.namespace = "",
@@ -189,6 +189,16 @@ struct bpf_map_def SEC("maps/tcptracer_status") tcptracer_status = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(__u64),
 	.value_size = sizeof(struct tcptracer_status_t),
+	.max_entries = 1,
+	.pinning = 0,
+	.namespace = "",
+};
+
+// Keeping track of latest timestamp of monotonic clock
+struct bpf_map_def SEC("maps/latest_ts") latest_ts = {
+	.type = BPF_MAP_TYPE_HASH,
+	.key_size = sizeof(__u64),
+	.value_size = sizeof(__u64),
 	.max_entries = 1,
 	.pinning = 0,
 	.namespace = "",
@@ -951,9 +961,11 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 SEC("kprobe/udp_sendmsg")
 int kprobe__udp_sendmsg(struct pt_regs *ctx) {
 	struct sock *sk;
-	struct conn_stats_t *val;
+	struct conn_stats_ts_t *val;
+
 	u64 zero = 0;
 	u64 pid = bpf_get_current_pid_tgid();
+	u64 ts = bpf_ktime_get_ns();
 
 	sk = (struct sock *) PT_REGS_PARM1(ctx);
 	size_t size = (size_t) PT_REGS_PARM3(ctx);
@@ -983,14 +995,71 @@ int kprobe__udp_sendmsg(struct pt_regs *ctx) {
 		// If already in our map, increment size in-place
 		if (val != NULL) {
 			(*val).send_bytes += size;
+			(*val).timestamp = ts;
 		} else { // Otherwise add the key, value to the map
-			struct conn_stats_t s = {
+			struct conn_stats_ts_t s = {
 				.send_bytes = size,
 				.recv_bytes = 0,
+				.timestamp = ts,
 			};
 			bpf_map_update_elem(&udp_stats_ipv4, &t, &s, BPF_ANY);
 		}
 	}
+
+	// Update latest timestamp that we've seen - for UDP connection expiration tracking
+	bpf_map_update_elem(&latest_ts, &zero, &ts, BPF_ANY);
+
+	return 0;
+}
+
+SEC("kprobe/udp_recvmsg")
+int kprobe__udp_recvmsg(struct pt_regs *ctx) {
+	struct sock *sk;
+	struct conn_stats_ts_t *val;
+
+	u64 zero = 0;
+	u64 pid = bpf_get_current_pid_tgid();
+	u64 ts = bpf_ktime_get_ns();
+
+	sk = (struct sock *) PT_REGS_PARM1(ctx);
+	size_t size = (size_t) PT_REGS_PARM3(ctx);
+
+	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
+	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
+		return 0;
+	}
+
+	if (check_family(sk, AF_INET)) {
+		if (!are_offsets_ready_v4(status, sk, pid)) {
+			return 0;
+		}
+		struct ipv4_tuple_t t = {};
+		if (!read_ipv4_tuple(&t, status, sk)) {
+			return 0;
+		}
+
+		t.pid = pid >> 32;
+		t.sport = ntohs(t.sport); // Making ports human-readable
+		t.dport = ntohs(t.dport);
+
+		val = bpf_map_lookup_elem(&udp_stats_ipv4, &t);
+		// If already in our map, increment size in-place
+		if (val != NULL) {
+			(*val).recv_bytes += size;
+			(*val).timestamp = ts;
+		} else { // Otherwise add the key, value to the map
+			struct conn_stats_ts_t s = {
+				.send_bytes = 0,
+				.recv_bytes = size,
+				.timestamp = ts,
+			};
+			bpf_map_update_elem(&udp_stats_ipv4, &t, &s, BPF_ANY);
+		}
+	}
+
+	// Update latest timestamp that we've seen - for UDP connection expiration tracking
+	bpf_map_update_elem(&latest_ts, &zero, &ts, BPF_ANY);
+
 	return 0;
 }
 

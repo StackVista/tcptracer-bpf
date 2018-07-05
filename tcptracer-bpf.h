@@ -58,6 +58,12 @@ struct conn_stats_t {
 	__u64 recv_bytes;
 };
 
+struct conn_stats_ts_t {
+	__u64 send_bytes;
+	__u64 recv_bytes;
+	__u64 timestamp;
+};
+
 // tcp_set_state doesn't run in the context of the process that initiated the
 // connection so we need to store a map TUPLE -> PID to send the right PID on
 // the event

@@ -43,8 +43,8 @@ type ConnectionStats struct {
 }
 
 func (c ConnectionStats) String() string {
-	return fmt.Sprintf("ConnectionStats [PID: %d - %v:%d → %v:%d | %s] %d bytes send, %d bytes recieved",
-		c.Pid, c.Source, c.SPort, c.Dest, c.DPort, c.Type, c.SendBytes, c.RecvBytes)
+	return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] %d bytes sent, %d bytes received",
+		c.Type, c.Pid, c.Source, c.SPort, c.Dest, c.DPort, c.SendBytes, c.RecvBytes)
 }
 
 func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
