@@ -16,8 +16,11 @@ import (
 import "C"
 
 const (
-	tcpV4StatsMapName = "tcp_stats_ipv4"
-	tcpV6StatsMapName = "tcp_stats_ipv6"
+	v4UDPMapName           = "udp_stats_ipv4"
+	v6UDPMapName           = "udp_stats_ipv6"
+	V4TCPMapName           = "tcp_stats_ipv4"
+	v6TCPMapName           = "tcp_stats_ipv6"
+	latestTimestampMapName = "latest_ts"
 )
 
 var (
@@ -29,10 +32,13 @@ var (
 )
 
 type Tracer struct {
-	m           *bpflib.Module
+	m      *bpflib.Module
+	config *Config
+
 	perfMapIPV4 *bpflib.PerfMap
 	perfMapIPV6 *bpflib.PerfMap
-	stopChan    chan struct{}
+
+	stopChan chan struct{}
 }
 
 // maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
@@ -58,7 +64,7 @@ func IsTracerSupportedByOS() (bool, error) {
 	return true, nil
 }
 
-func NewTracer() (*Tracer, error) {
+func NewTracer(config *Config) (*Tracer, error) {
 	m, err := loadBPFModule()
 	if err != nil {
 		return nil, err
@@ -69,6 +75,7 @@ func NewTracer() (*Tracer, error) {
 		return nil, err
 	}
 
+	// TODO: Only enable kprobes for traffic collection defined in config
 	err = m.EnableKprobes(maxActive)
 	if err != nil {
 		return nil, err
@@ -79,8 +86,7 @@ func NewTracer() (*Tracer, error) {
 	}
 
 	// TODO: Improve performance by detaching unnecessary kprobes, once offsets have been figured out in initialize()
-
-	return &Tracer{m: m}, nil
+	return &Tracer{m: m, config: config}, nil
 }
 
 func NewEventTracer(cb Callback) (*Tracer, error) {
@@ -170,25 +176,121 @@ func (t *Tracer) Stop() {
 }
 
 func (t *Tracer) GetActiveConnections() ([]ConnectionStats, error) {
-	v4, err := t.getTCPv4Connections()
-	if err != nil {
-		return nil, err
+	conns := make([]ConnectionStats, 0)
+	if t.config.CollectTCPConns {
+		v4, err := t.getTCPv4Connections()
+		if err != nil {
+			return nil, err
+		}
+		v6, err := t.getTCPv6Connections()
+		if err != nil {
+			return nil, err
+		}
+		conns = append(conns, append(v4, v6...)...)
 	}
-	v6, err := t.getTCPv6Connections()
-	if err != nil {
-		return nil, err
+
+	if t.config.CollectUDPConns {
+		v4, err := t.getUDPv4Connections()
+		if err != nil {
+			return nil, err
+		}
+		v6, err := t.getUDPv6Connections()
+		if err != nil {
+			return nil, err
+		}
+		conns = append(conns, append(v4, v6...)...)
 	}
-	return append(v4, v6...), nil
+	return conns, nil
 }
 
-func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
-	mp := t.m.Map(tcpV4StatsMapName)
-	if mp == nil {
-		return nil, fmt.Errorf("no map with name %s", tcpV4StatsMapName)
+func (t *Tracer) getUDPv4Connections() ([]ConnectionStats, error) {
+	mp, err := t.getMap(v4UDPMapName)
+	if err != nil {
+		return nil, err
+	}
+
+	tsMp, err := t.getMap(latestTimestampMapName)
+	if err != nil {
+		return nil, err
+	}
+
+	var latestTime int64
+	err = t.m.LookupElement(tsMp, unsafe.Pointer(&zero), unsafe.Pointer(&latestTime))
+	if err != nil { // If we can't find latest timestamp, there probably hasn't been any UDP messages yet
+		return nil, nil
 	}
 
 	// Iterate through all key-value pairs in map
-	key, nextKey, val := &TCPTupleV4{}, &TCPTupleV4{}, &TCPConnStats{}
+	key, nextKey, stats := &ConnTupleV4{}, &ConnTupleV4{}, &ConnStatsWithTimestamp{}
+	active := make([]ConnectionStats, 0)
+	expired := make([]*ConnTupleV4, 0)
+	for {
+		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
+		if !hasNext {
+			break
+		} else if stats.isExpired(latestTime, t.config.UDPConnTimeout.Nanoseconds()) {
+			expired = append(expired, nextKey.copy())
+		} else {
+			active = append(active, connStatsFromUDPv4(nextKey, stats))
+		}
+		key = nextKey
+	}
+
+	// Remove expired entries
+	for i := range expired {
+		t.m.DeleteElement(mp, unsafe.Pointer(expired[i]))
+	}
+	return active, nil
+}
+
+func (t *Tracer) getUDPv6Connections() ([]ConnectionStats, error) {
+	mp, err := t.getMap(v6UDPMapName)
+	if err != nil {
+		return nil, err
+	}
+
+	tsMp, err := t.getMap(latestTimestampMapName)
+	if err != nil {
+		return nil, err
+	}
+
+	var latestTime int64
+	err = t.m.LookupElement(tsMp, unsafe.Pointer(&zero), unsafe.Pointer(&latestTime))
+	if err != nil { // If we can't find latest timestamp, there probably hasn't been any UDP messages yet
+		return nil, nil
+	}
+
+	// Iterate through all key-value pairs in map
+	key, nextKey, stats := &ConnTupleV6{}, &ConnTupleV6{}, &ConnStatsWithTimestamp{}
+	active := make([]ConnectionStats, 0)
+	expired := make([]*ConnTupleV6, 0)
+	for {
+		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
+		if !hasNext {
+			break
+		} else if stats.isExpired(latestTime, t.config.UDPConnTimeout.Nanoseconds()) {
+			expired = append(expired, nextKey.copy())
+		} else {
+			active = append(active, connStatsFromUDPv6(nextKey, stats))
+		}
+		key = nextKey
+	}
+
+	// Remove expired entries
+	for i := range expired {
+		t.m.DeleteElement(mp, unsafe.Pointer(expired[i]))
+	}
+	return active, nil
+}
+
+func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
+	mp, err := t.getMap(V4TCPMapName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Iterate through all key-value pairs in map
+	key, nextKey, val := &ConnTupleV4{}, &ConnTupleV4{}, &ConnStats{}
 	conns := make([]ConnectionStats, 0)
 	for {
 		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
@@ -199,18 +301,17 @@ func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
 			key = nextKey
 		}
 	}
-
 	return conns, nil
 }
 
 func (t *Tracer) getTCPv6Connections() ([]ConnectionStats, error) {
-	mp := t.m.Map(tcpV6StatsMapName)
-	if mp == nil {
-		return nil, fmt.Errorf("no map with name %s", tcpV6StatsMapName)
+	mp, err := t.getMap(v6TCPMapName)
+	if err != nil {
+		return nil, err
 	}
 
 	// Iterate through all key-value pairs in map
-	key, nextKey, val := &TCPTupleV6{}, &TCPTupleV6{}, &TCPConnStats{}
+	key, nextKey, val := &ConnTupleV6{}, &ConnTupleV6{}, &ConnStats{}
 	conns := make([]ConnectionStats, 0)
 	for {
 		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
@@ -236,6 +337,14 @@ func (t *Tracer) RemoveFdInstallWatcher(pid uint32) (err error) {
 	mapFdInstall := t.m.Map("fdinstall_pids")
 	err = t.m.DeleteElement(mapFdInstall, unsafe.Pointer(&pid))
 	return err
+}
+
+func (t *Tracer) getMap(mapName string) (*bpflib.Map, error) {
+	mp := t.m.Map(mapName)
+	if mp == nil {
+		return nil, fmt.Errorf("no map with name %s", mapName)
+	}
+	return mp, nil
 }
 
 func initialize(m *bpflib.Module) error {
