@@ -4,7 +4,7 @@ LINUX_HEADERS=$(shell rpm -q kernel-devel --last | head -n 1 | awk -F'kernel-dev
 
 build:
 	@mkdir -p "$(DEST_DIR)"
-	clang -D__KERNEL__ -D__ASM_SYSREG_H \
+	clang -D__KERNEL__ -D__ASM_SYSREG_H -D__BPF_TRACING__ \
 		-DCIRCLE_BUILD_URL=\"$(CIRCLE_BUILD_URL)\" \
 		-Wno-unused-value \
 		-Wno-pointer-sign \
