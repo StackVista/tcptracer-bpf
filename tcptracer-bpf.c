@@ -396,7 +396,7 @@ static int are_offsets_ready_v6(struct tcptracer_status_t *status, struct sock *
 __attribute__((always_inline))
 static bool check_family(struct sock *sk, struct tcptracer_status_t *status, u16 expected_family) {
 	u16 family = 0;
-	u64 res = bpf_probe_read(&family, sizeof(u16), ((char *) sk) + status->offset_family);
+	bpf_probe_read(&family, sizeof(u16), ((char *) sk) + status->offset_family);
 	return family == expected_family;
 }
 
