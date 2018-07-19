@@ -394,19 +394,9 @@ static int are_offsets_ready_v6(struct tcptracer_status_t *status, struct sock *
 }
 
 __attribute__((always_inline))
-static bool check_family(struct sock *sk, u16 expected_family) {
-	struct tcptracer_status_t *status;
-	u64 zero = 0;
-	u16 family;
-	family = 0;
-
-	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-	if (status == NULL || status->state != TCPTRACER_STATE_READY) {
-		return 0;
-	}
-
+static bool check_family(struct sock *sk, struct tcptracer_status_t *status, u16 expected_family) {
+	u16 family = 0;
 	bpf_probe_read(&family, sizeof(u16), ((char *) sk) + status->offset_family);
-
 	return family == expected_family;
 }
 
@@ -493,7 +483,7 @@ static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *statu
 
 	u64 pid = bpf_get_current_pid_tgid();
 
-	if (check_family(sk, AF_INET)) {
+	if (check_family(sk, status, AF_INET)) {
 		if (!are_offsets_ready_v4(status, sk, pid)) {
 			return 0;
 		}
@@ -518,7 +508,7 @@ static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *statu
 			};
 			bpf_map_update_elem(&tcp_stats_ipv4, &t, &s, BPF_ANY);
 		}
-	} else if (check_family(sk, AF_INET6)) {
+	} else if (check_family(sk, status, AF_INET6)) {
 		if (!are_offsets_ready_v6(status, sk, pid)) {
 			return 0;
 		}
@@ -556,7 +546,7 @@ static int increment_udp_stats(struct sock *sk, struct tcptracer_status_t *statu
 	u64 pid = bpf_get_current_pid_tgid();
 	u64 ts = bpf_ktime_get_ns();
 
-	if (check_family(sk, AF_INET)) {
+	if (check_family(sk, status, AF_INET)) {
 		if (!are_offsets_ready_v4(status, sk, pid)) {
 			return 0;
 		}
@@ -584,7 +574,7 @@ static int increment_udp_stats(struct sock *sk, struct tcptracer_status_t *statu
 			};
 			bpf_map_update_elem(&udp_stats_ipv4, &t, &s, BPF_ANY);
 		}
-	} else if (check_family(sk, AF_INET6)) {
+	} else if (check_family(sk, status, AF_INET6)) {
     		if (!are_offsets_ready_v6(status, sk, pid)) {
     			return 0;
     		}
@@ -764,7 +754,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx) {
 		return 0;
 	}
 
-	if (check_family(skp, AF_INET)) {
+	if (check_family(skp, status, AF_INET)) {
 		// output
 		struct ipv4_tuple_t t = {};
 		if (!read_ipv4_tuple(&t, status, skp)) {
@@ -802,7 +792,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx) {
 
 		bpf_perf_event_output(ctx, &tcp_event_ipv4, cpu, &evt4, sizeof(evt4));
 		bpf_map_delete_elem(&tuplepid_ipv4, &t);
-	} else if (check_family(skp, AF_INET6)) {
+	} else if (check_family(skp, status, AF_INET6)) {
 		// output
 		struct ipv6_tuple_t t = {};
 		if (!read_ipv6_tuple(&t, status, skp)) {
@@ -906,7 +896,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 	bpf_probe_read(&skc_net, sizeof(possible_net_t *), ((char *) sk) + status->offset_netns);
 	bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char *) skc_net) + status->offset_ino);
 
-	if (check_family(sk, AF_INET)) {
+	if (check_family(sk, status, AF_INET)) {
 		// output
 		struct ipv4_tuple_t t = {};
 		if (!read_ipv4_tuple(&t, status, sk)) {
@@ -936,7 +926,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 		t.sport = ntohs(t.sport); // Making ports human-readable
 		t.dport = ntohs(t.dport);
 		bpf_map_delete_elem(&tcp_stats_ipv4, &t);
-	} else if (check_family(sk, AF_INET6)) {
+	} else if (check_family(sk, status, AF_INET6)) {
 		// output
 		struct ipv6_tuple_t t = {};
 		if (!read_ipv6_tuple(&t, status, sk)) {
@@ -1061,7 +1051,7 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx) {
 	bpf_probe_read(&skc_net, sizeof(possible_net_t *), ((char *) newsk) + status->offset_netns);
 	bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char *) skc_net) + status->offset_ino);
 
-	if (check_family(newsk, AF_INET)) {
+	if (check_family(newsk, status, AF_INET)) {
 		struct tcp_ipv4_event_t evt = {
 			.timestamp = bpf_ktime_get_ns(),
 			.cpu = cpu,
@@ -1080,7 +1070,7 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx) {
 		if (evt.saddr != 0 && evt.daddr != 0 && evt.sport != 0 && evt.dport != 0) {
 			bpf_perf_event_output(ctx, &tcp_event_ipv4, cpu, &evt, sizeof(evt));
 		}
-	} else if (check_family(newsk, AF_INET6)) {
+	} else if (check_family(newsk, status, AF_INET6)) {
 		struct tcp_ipv6_event_t evt = {
 			.timestamp = bpf_ktime_get_ns(),
 			.cpu = cpu,
