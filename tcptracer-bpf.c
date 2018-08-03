@@ -25,18 +25,6 @@
 		bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
 	})
 
-/* This is a key/value store with the keys being the cpu number
- * and the values being a perf file descriptor.
- */
-struct bpf_map_def SEC("maps/tcp_event_ipv4") tcp_event_ipv4 = {
-	.type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-	.key_size = sizeof(int),
-	.value_size = sizeof(__u32),
-	.max_entries = 1024,
-	.pinning = 0,
-	.namespace = "",
-};
-
 /* This is a key/value store with the keys being an ipv4_tuple_t for send & recv calls
  * and the values being the a struct conn_stats_t *.
  */
@@ -85,18 +73,6 @@ struct bpf_map_def SEC("maps/tcp_stats_ipv6") tcp_stats_ipv6 = {
 	.namespace = "",
 };
 
-/* This is a key/value store with the keys being the cpu number
- * and the values being a perf file descriptor.
- */
-struct bpf_map_def SEC("maps/tcp_event_ipv6") tcp_event_ipv6 = {
-	.type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-	.key_size = sizeof(int),
-	.value_size = sizeof(__u32),
-	.max_entries = 1024,
-	.pinning = 0,
-	.namespace = "",
-};
-
 /* These maps are used to match the kprobe & kretprobe of connect */
 
 /* This is a key/value store with the keys being a pid
@@ -123,55 +99,8 @@ struct bpf_map_def SEC("maps/connectsock_ipv6") connectsock_ipv6 = {
 	.namespace = "",
 };
 
-/* This is a key/value store with the keys being an ipv4_tuple_t
- * and the values being a struct pid_comm_t.
- */
-struct bpf_map_def SEC("maps/tuplepid_ipv4") tuplepid_ipv4 = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct ipv4_tuple_t),
-	.value_size = sizeof(struct pid_comm_t),
-	.max_entries = 1024,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* This is a key/value store with the keys being an ipv6_tuple_t
- * and the values being a struct pid_comm_t.
- */
-struct bpf_map_def SEC("maps/tuplepid_ipv6") tuplepid_ipv6 = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct ipv6_tuple_t),
-	.value_size = sizeof(struct pid_comm_t),
-	.max_entries = 1024,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* This is a key/value store with the keys being a pid
- * and the values being a fd unsigned int.
- */
-struct bpf_map_def SEC("maps/fdinstall_ret") fdinstall_ret = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(__u64),
-	.value_size = sizeof(unsigned int),
-	.max_entries = 1024,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* This is a key/value store with the keys being a pid (tgid)
- * and the values being a boolean.
- */
-struct bpf_map_def SEC("maps/fdinstall_pids") fdinstall_pids = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(__u32),
-	.value_size = sizeof(__u32),
-	.max_entries = 1024,
-	.pinning = 0,
-	.namespace = "",
-};
-
 /* http://stackoverflow.com/questions/1001307/detecting-endianness-programmatically-in-a-c-program */
+/*
 __attribute__((always_inline))
 static bool is_big_endian(void) {
 	union {
@@ -181,13 +110,13 @@ static bool is_big_endian(void) {
 
 	return bint.c[0] == 1;
 }
+*/
 
 /* check if IPs are IPv4 mapped to IPv6 ::ffff:xxxx:xxxx
  * https://tools.ietf.org/html/rfc4291#section-2.5.5
  * the addresses are stored in network byte order so IPv4 adddress is stored
  * in the most significant 32 bits of part saddr_l and daddr_l.
  * Meanwhile the end of the mask is stored in the least significant 32 bits.
- */
 __attribute__((always_inline))
 static bool is_ipv4_mapped_ipv6(u64 saddr_h, u64 saddr_l, u64 daddr_h, u64 daddr_l) {
 	if (is_big_endian()) {
@@ -196,6 +125,7 @@ static bool is_ipv4_mapped_ipv6(u64 saddr_h, u64 saddr_l, u64 daddr_h, u64 daddr
 		return ((saddr_h == 0 && ((u32) saddr_l == 0xFFFF0000)) || (daddr_h == 0 && ((u32) daddr_l == 0xFFFF0000)));
 	}
 }
+ */
 
 struct bpf_map_def SEC("maps/tcptracer_status") tcptracer_status = {
 	.type = BPF_MAP_TYPE_HASH,
@@ -609,6 +539,7 @@ static int increment_udp_stats(struct sock *sk, struct tcptracer_status_t *statu
 	return 0;
 }
 
+// Used for offset guessing (see: pkg/offsetguess.go)
 SEC("kprobe/tcp_v4_connect")
 int kprobe__tcp_v4_connect(struct pt_regs *ctx) {
 	struct sock *sk;
@@ -621,6 +552,7 @@ int kprobe__tcp_v4_connect(struct pt_regs *ctx) {
 	return 0;
 }
 
+// Used for offset guessing (see: pkg/offsetguess.go)
 SEC("kretprobe/tcp_v4_connect")
 int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
 	int ret = PT_REGS_RC(ctx);
@@ -649,23 +581,13 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
 		return 0;
 	}
 
-	if (!are_offsets_ready_v4(status, skp, pid)) {
-		return 0;
-	}
-
-	// output
-	struct ipv4_tuple_t t = {};
-	if (!read_ipv4_tuple(&t, status, skp)) {
-		return 0;
-	}
-
-	struct pid_comm_t p = {.pid = pid};
-	bpf_get_current_comm(p.comm, sizeof(p.comm));
-	bpf_map_update_elem(&tuplepid_ipv4, &t, &p, BPF_ANY);
+	// We should figure out offsets if they're not already figured out
+	are_offsets_ready_v4(status, skp, pid);
 
 	return 0;
 }
 
+// Used for offset guessing (see: pkg/offsetguess.go)
 SEC("kprobe/tcp_v6_connect")
 int kprobe__tcp_v6_connect(struct pt_regs *ctx) {
 	struct sock *sk;
@@ -678,9 +600,10 @@ int kprobe__tcp_v6_connect(struct pt_regs *ctx) {
 	return 0;
 }
 
+// Used for offset guessing (see: pkg/offsetguess.go)
 SEC("kretprobe/tcp_v6_connect")
 int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
-	int ret = PT_REGS_RC(ctx);
+	// int ret = PT_REGS_RC(ctx);
 	u64 pid = bpf_get_current_pid_tgid();
 	u64 zero = 0;
 	struct sock **skpp;
@@ -699,139 +622,9 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
 		return 0;
 	}
 
-	if (!are_offsets_ready_v6(status, skp, pid)) {
-		return 0;
-	}
-
-	if (ret != 0) {
-		// failed to send SYNC packet, may not have populated
-		// socket __sk_common.{skc_rcv_saddr, ...}
-		return 0;
-	}
-
-	// output
-	struct ipv6_tuple_t t = {};
-	if (!read_ipv6_tuple(&t, status, skp)) {
-		return 0;
-	}
-
-	struct pid_comm_t p = {};
-	p.pid = pid;
-	bpf_get_current_comm(p.comm, sizeof(p.comm));
-
-	if (is_ipv4_mapped_ipv6(t.saddr_h, t.saddr_l, t.daddr_h, t.daddr_l)) {
-		struct ipv4_tuple_t t4 = {
-			.netns = t.netns,
-			.saddr = (u32)(t.saddr_l >> 32),
-			.daddr = (u32)(t.daddr_l >> 32),
-			.sport = ntohs(t.sport),
-			.dport = ntohs(t.dport),
-		};
-		bpf_map_update_elem(&tuplepid_ipv4, &t4, &p, BPF_ANY);
-		return 0;
-	}
-
-	bpf_map_update_elem(&tuplepid_ipv6, &t, &p, BPF_ANY);
-	return 0;
-}
-
-SEC("kprobe/tcp_set_state")
-int kprobe__tcp_set_state(struct pt_regs *ctx) {
-	u32 cpu = bpf_get_smp_processor_id();
-	struct sock *skp;
-	struct tcptracer_status_t *status;
-	int state;
-	u64 zero = 0;
-	skp = (struct sock *) PT_REGS_PARM1(ctx);
-	state = (int) PT_REGS_PARM2(ctx);
-
-	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-	if (status == NULL || status->state != TCPTRACER_STATE_READY) {
-		return 0;
-	}
-
-	if (state != TCP_ESTABLISHED && state != TCP_CLOSE) {
-		return 0;
-	}
-
-	if (check_family(skp, status, AF_INET)) {
-		// output
-		struct ipv4_tuple_t t = {};
-		if (!read_ipv4_tuple(&t, status, skp)) {
-			return 0;
-		}
-		if (state == TCP_CLOSE) {
-			bpf_map_delete_elem(&tuplepid_ipv4, &t);
-			return 0;
-		}
-
-		struct pid_comm_t *pp;
-
-		pp = bpf_map_lookup_elem(&tuplepid_ipv4, &t);
-		if (pp == 0) {
-			return 0; // missed entry
-		}
-		struct pid_comm_t p = {};
-		bpf_probe_read(&p, sizeof(struct pid_comm_t), pp);
-
-		struct tcp_ipv4_event_t evt4 = {
-			.timestamp = bpf_ktime_get_ns(),
-			.cpu = cpu,
-			.type = TCP_EVENT_TYPE_CONNECT,
-			.pid = p.pid >> 32,
-			.saddr = t.saddr,
-			.daddr = t.daddr,
-			.sport = ntohs(t.sport),
-			.dport = ntohs(t.dport),
-			.netns = t.netns,
-		};
-		int i;
-		for (i = 0; i < TASK_COMM_LEN; i++) {
-			evt4.comm[i] = p.comm[i];
-		}
-
-		bpf_perf_event_output(ctx, &tcp_event_ipv4, cpu, &evt4, sizeof(evt4));
-		bpf_map_delete_elem(&tuplepid_ipv4, &t);
-	} else if (check_family(skp, status, AF_INET6)) {
-		// output
-		struct ipv6_tuple_t t = {};
-		if (!read_ipv6_tuple(&t, status, skp)) {
-			return 0;
-		}
-		if (state == TCP_CLOSE) {
-			bpf_map_delete_elem(&tuplepid_ipv6, &t);
-			return 0;
-		}
-
-		struct pid_comm_t *pp;
-		pp = bpf_map_lookup_elem(&tuplepid_ipv6, &t);
-		if (pp == 0) {
-			return 0; // missed entry
-		}
-		struct pid_comm_t p = {};
-		bpf_probe_read(&p, sizeof(struct pid_comm_t), pp);
-		struct tcp_ipv6_event_t evt6 = {
-			.timestamp = bpf_ktime_get_ns(),
-			.cpu = cpu,
-			.type = TCP_EVENT_TYPE_CONNECT,
-			.pid = p.pid >> 32,
-			.saddr_h = t.saddr_h,
-			.saddr_l = t.saddr_l,
-			.daddr_h = t.daddr_h,
-			.daddr_l = t.daddr_l,
-			.sport = ntohs(t.sport),
-			.dport = ntohs(t.dport),
-			.netns = t.netns,
-		};
-		int i;
-		for (i = 0; i < TASK_COMM_LEN; i++) {
-			evt6.comm[i] = p.comm[i];
-		}
-
-		bpf_perf_event_output(ctx, &tcp_event_ipv6, cpu, &evt6, sizeof(evt6));
-		bpf_map_delete_elem(&tuplepid_ipv6, &t);
-	}
-
+	// We should figure out offsets if they're not already figured out
+	are_offsets_ready_v6(status, skp, pid);
+	
 	return 0;
 }
 
@@ -875,7 +668,6 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 	struct tcptracer_status_t *status;
 	u64 zero = 0;
 	u64 pid = bpf_get_current_pid_tgid();
-	u32 cpu = bpf_get_smp_processor_id();
 	sk = (struct sock *) PT_REGS_PARM1(ctx);
 
 	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
@@ -897,43 +689,22 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 	bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char *) skc_net) + status->offset_ino);
 
 	if (check_family(sk, status, AF_INET)) {
-		// output
 		struct ipv4_tuple_t t = {};
 		if (!read_ipv4_tuple(&t, status, sk)) {
-			bpf_map_delete_elem(&tuplepid_ipv4, &t);
 			return 0;
 		}
 
-		// output
-		struct tcp_ipv4_event_t evt = {
-			.timestamp = bpf_ktime_get_ns(),
-			.cpu = cpu,
-			.type = TCP_EVENT_TYPE_CLOSE,
-			.pid = pid >> 32,
-			.saddr = t.saddr,
-			.daddr = t.daddr,
-			.sport = ntohs(t.sport),
-			.dport = ntohs(t.dport),
-			.netns = t.netns,
-		};
-		bpf_get_current_comm(&evt.comm, sizeof(evt.comm));
-
-		bpf_perf_event_output(ctx, &tcp_event_ipv4, cpu, &evt, sizeof(evt));
-
-		// Format into tcp_stats_ipv4 key format, and delete from map
-		// TODO: Come up with a cleaner way of doing this without all the above processing?
 		t.pid = pid >> 32;
 		t.sport = ntohs(t.sport); // Making ports human-readable
 		t.dport = ntohs(t.dport);
 		bpf_map_delete_elem(&tcp_stats_ipv4, &t);
 	} else if (check_family(sk, status, AF_INET6)) {
-		// output
 		struct ipv6_tuple_t t = {};
 		if (!read_ipv6_tuple(&t, status, sk)) {
-			bpf_map_delete_elem(&tuplepid_ipv6, &t);
 			return 0;
 		}
 
+		/*
 		if (is_ipv4_mapped_ipv6(t.saddr_h, t.saddr_l, t.daddr_h, t.daddr_l)) {
 			struct tcp_ipv4_event_t evt4 = {
 				.timestamp = bpf_ktime_get_ns(),
@@ -957,26 +728,8 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 			bpf_map_delete_elem(&tuplepid_ipv4, &t);
 			return 0;
 		}
+		*/
 
-		struct tcp_ipv6_event_t evt = {
-			.timestamp = bpf_ktime_get_ns(),
-			.cpu = cpu,
-			.type = TCP_EVENT_TYPE_CLOSE,
-			.pid = pid >> 32,
-			.saddr_h = t.saddr_h,
-			.saddr_l = t.saddr_l,
-			.daddr_h = t.daddr_h,
-			.daddr_l = t.daddr_l,
-			.sport = ntohs(t.sport),
-			.dport = ntohs(t.dport),
-			.netns = t.netns,
-		};
-		bpf_get_current_comm(&evt.comm, sizeof(evt.comm));
-
-		bpf_perf_event_output(ctx, &tcp_event_ipv6, cpu, &evt, sizeof(evt));
-
-		// Format into tcp_stats_ipv6 key format, and delete from map
-		// TODO: Come up with a cleaner way of doing this without all the above processing?
 		t.pid = pid >> 32;
 		t.sport = ntohs(t.sport); // Making ports human-readable
 		t.dport = ntohs(t.dport);
@@ -1013,141 +766,6 @@ int kprobe__udp_recvmsg(struct pt_regs *ctx) {
 	}
 
 	increment_udp_stats(sk, status, 0, size);
-
-	return 0;
-}
-
-SEC("kretprobe/inet_csk_accept")
-int kretprobe__inet_csk_accept(struct pt_regs *ctx) {
-	struct tcptracer_status_t *status;
-	u64 zero = 0;
-	struct sock *newsk = (struct sock *) PT_REGS_RC(ctx);
-	u64 pid = bpf_get_current_pid_tgid();
-	u32 cpu = bpf_get_smp_processor_id();
-
-	if (newsk == NULL)
-		return 0;
-
-	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-	if (status == NULL || status->state != TCPTRACER_STATE_READY) {
-		return 0;
-	}
-
-	// pull in details
-	u16 lport, dport;
-	u32 net_ns_inum;
-
-	lport = 0;
-	dport = 0;
-
-	bpf_probe_read(&dport, sizeof(dport), ((char *) newsk) + status->offset_dport);
-	// lport is right after dport
-	bpf_probe_read(&lport, sizeof(lport), ((char *) newsk) + status->offset_dport + sizeof(dport));
-	// Get network namespace id
-	possible_net_t *skc_net;
-
-	skc_net = NULL;
-	net_ns_inum = 0;
-	bpf_probe_read(&skc_net, sizeof(possible_net_t *), ((char *) newsk) + status->offset_netns);
-	bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char *) skc_net) + status->offset_ino);
-
-	if (check_family(newsk, status, AF_INET)) {
-		struct tcp_ipv4_event_t evt = {
-			.timestamp = bpf_ktime_get_ns(),
-			.cpu = cpu,
-			.type = TCP_EVENT_TYPE_ACCEPT,
-			.netns = net_ns_inum,
-		};
-		evt.pid = pid >> 32;
-		bpf_probe_read(&evt.saddr, sizeof(u32), ((char *) newsk) + status->offset_saddr);
-		bpf_probe_read(&evt.daddr, sizeof(u32), ((char *) newsk) + status->offset_daddr);
-
-		evt.sport = lport;
-		evt.dport = ntohs(dport);
-		bpf_get_current_comm(&evt.comm, sizeof(evt.comm));
-
-		// do not send event if IP address is 0.0.0.0 or port is 0
-		if (evt.saddr != 0 && evt.daddr != 0 && evt.sport != 0 && evt.dport != 0) {
-			bpf_perf_event_output(ctx, &tcp_event_ipv4, cpu, &evt, sizeof(evt));
-		}
-	} else if (check_family(newsk, status, AF_INET6)) {
-		struct tcp_ipv6_event_t evt = {
-			.timestamp = bpf_ktime_get_ns(),
-			.cpu = cpu,
-			.type = TCP_EVENT_TYPE_ACCEPT,
-			.netns = net_ns_inum,
-		};
-		evt.pid = pid >> 32;
-		bpf_probe_read(&evt.daddr_h, sizeof(u64), ((char *) newsk) + status->offset_daddr_ipv6);
-		bpf_probe_read(&evt.daddr_l, sizeof(u64), ((char *) newsk) + status->offset_daddr_ipv6 + sizeof(u64));
-		bpf_probe_read(&evt.saddr_h, sizeof(u64), ((char *) newsk) + status->offset_daddr_ipv6 + 2 * sizeof(u64));
-		bpf_probe_read(&evt.saddr_l, sizeof(u64), ((char *) newsk) + status->offset_daddr_ipv6 + 3 * sizeof(u64));
-
-		evt.sport = lport;
-		evt.dport = ntohs(dport);
-		bpf_get_current_comm(&evt.comm, sizeof(evt.comm));
-		if (is_ipv4_mapped_ipv6(evt.saddr_h, evt.saddr_l, evt.daddr_h, evt.daddr_l)) {
-			struct tcp_ipv4_event_t evt4 = {
-				.timestamp = bpf_ktime_get_ns(),
-				.cpu = cpu,
-				.type = TCP_EVENT_TYPE_ACCEPT,
-				.pid = pid >> 32,
-				.saddr = (u32)(evt.saddr_l >> 32),
-				.daddr = (u32)(evt.daddr_l >> 32),
-				.sport = evt.sport,
-				.dport = evt.dport,
-				.netns = net_ns_inum,
-			};
-			bpf_get_current_comm(&evt4.comm, sizeof(evt4.comm));
-			if (evt4.saddr != 0 && evt4.daddr != 0 && evt4.sport != 0 && evt4.dport != 0) {
-				bpf_perf_event_output(ctx, &tcp_event_ipv4, cpu, &evt4, sizeof(evt4));
-			}
-			return 0;
-		}
-		// do not send event if IP address is :: or port is 0
-		if ((evt.saddr_h || evt.saddr_l) && (evt.daddr_h || evt.daddr_l) && evt.sport != 0 && evt.dport != 0) {
-			bpf_perf_event_output(ctx, &tcp_event_ipv6, cpu, &evt, sizeof(evt));
-		}
-	}
-	return 0;
-}
-
-SEC("kprobe/fd_install")
-int kprobe__fd_install(struct pt_regs *ctx) {
-	u64 pid = bpf_get_current_pid_tgid();
-	u32 tgid = pid >> 32;
-	unsigned long fd = (unsigned long) PT_REGS_PARM1(ctx);
-	u32 *exists = NULL;
-
-	exists = bpf_map_lookup_elem(&fdinstall_pids, &tgid);
-	if (exists == NULL || !*exists)
-		return 0;
-
-	bpf_map_update_elem(&fdinstall_ret, &pid, &fd, BPF_ANY);
-
-	return 0;
-}
-
-SEC("kretprobe/fd_install")
-int kretprobe__fd_install(struct pt_regs *ctx) {
-	u64 pid = bpf_get_current_pid_tgid();
-	unsigned long *fd;
-	fd = bpf_map_lookup_elem(&fdinstall_ret, &pid);
-	if (fd == NULL) {
-		return 0; // missed entry
-	}
-	bpf_map_delete_elem(&fdinstall_ret, &pid);
-
-	u32 cpu = bpf_get_smp_processor_id();
-	struct tcp_ipv4_event_t evt = {
-		.timestamp = bpf_ktime_get_ns(),
-		.cpu = cpu,
-		.type = TCP_EVENT_TYPE_FD_INSTALL,
-	};
-	evt.pid = pid >> 32;
-	evt.fd = *(__u32 *) fd;
-	bpf_get_current_comm(&evt.comm, sizeof(evt.comm));
-	bpf_perf_event_output(ctx, &tcp_event_ipv4, cpu, &evt, sizeof(evt));
 
 	return 0;
 }

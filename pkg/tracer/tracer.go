@@ -18,15 +18,17 @@ import "C"
 const (
 	v4UDPMapName           = "udp_stats_ipv4"
 	v6UDPMapName           = "udp_stats_ipv6"
-	V4TCPMapName           = "tcp_stats_ipv4"
+	v4TCPMapName           = "tcp_stats_ipv4"
 	v6TCPMapName           = "tcp_stats_ipv6"
 	latestTimestampMapName = "latest_ts"
 )
 
 var (
 	// Feature versions sourced from: https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
-	// Minimum kernel version -> max(3.15 - eBPF, 3.18 - tables/maps,
-	//                               4.1 - kprobes, 4.3 - perf events)
+	// Minimum kernel version -> max(3.15 - eBPF,
+	//                               3.18 - tables/maps,
+	//                               4.1 - kprobes,
+	//                               4.3 - perf events)
 	// 	                      -> 4.3
 	minRequiredKernelCode = linuxKernelVersionCode(4, 3, 0)
 )
@@ -34,11 +36,6 @@ var (
 type Tracer struct {
 	m      *bpflib.Module
 	config *Config
-
-	perfMapIPV4 *bpflib.PerfMap
-	perfMapIPV6 *bpflib.PerfMap
-
-	stopChan chan struct{}
 }
 
 // maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
@@ -89,89 +86,11 @@ func NewTracer(config *Config) (*Tracer, error) {
 	return &Tracer{m: m, config: config}, nil
 }
 
-func NewEventTracer(cb Callback) (*Tracer, error) {
-	m, err := loadBPFModule()
-	if err != nil {
-		return nil, err
-	}
-
-	sectionParams := make(map[string]bpflib.SectionParams)
-	sectionParams["maps/tcp_event_ipv4"] = bpflib.SectionParams{PerfRingBufferPageCount: 256}
-	err = m.Load(sectionParams)
-	if err != nil {
-		return nil, err
-	}
-
-	err = m.EnableKprobes(maxActive)
-	if err != nil {
-		return nil, err
-	}
-
-	channelV4, channelV6 := make(chan []byte), make(chan []byte)
-	lostChanV4, lostChanV6 := make(chan uint64), make(chan uint64)
-
-	perfMapIPV4, err := initializePerfMap(m, "tcp_event_ipv4", channelV4, lostChanV4)
-	if err != nil {
-		return nil, fmt.Errorf("failed to init perf map for IPv4 events: %s", err)
-	}
-
-	perfMapIPV6, err := initializePerfMap(m, "tcp_event_ipv6", channelV6, lostChanV6)
-	if err != nil {
-		return nil, fmt.Errorf("failed to init perf map for IPv6 events: %s", err)
-	}
-
-	perfMapIPV4.SetTimestampFunc(tcpV4Timestamp)
-	perfMapIPV6.SetTimestampFunc(tcpV6Timestamp)
-
-	stopChan := make(chan struct{})
-	go func() {
-		defer perfMapIPV4.PollStop()
-		defer perfMapIPV6.PollStop()
-
-		for {
-			select {
-			case <-stopChan:
-				return
-			case data, ok := <-channelV4:
-				if ok {
-					cb.TCPEventV4(tcpV4ToGo(&data))
-				}
-			case data, ok := <-channelV6:
-				if ok {
-					cb.TCPEventV6(tcpV6ToGo(&data))
-				}
-			case lost, ok := <-lostChanV4:
-				if ok {
-					cb.LostV4(lost)
-				}
-			case lost, ok := <-lostChanV6:
-				if ok {
-					cb.LostV6(lost)
-				}
-			}
-		}
-	}()
-
-	return &Tracer{
-		m:           m,
-		stopChan:    stopChan,
-		perfMapIPV4: perfMapIPV4,
-		perfMapIPV6: perfMapIPV6,
-	}, nil
-}
-
 func (t *Tracer) Start() error {
-	if t.perfMapIPV4 != nil {
-		t.perfMapIPV4.PollStart()
-		t.perfMapIPV6.PollStart()
-	}
 	return nil
 }
 
 func (t *Tracer) Stop() {
-	if t.stopChan != nil {
-		t.stopChan <- struct{}{}
-	}
 	t.m.Close()
 }
 
@@ -284,7 +203,7 @@ func (t *Tracer) getUDPv6Connections() ([]ConnectionStats, error) {
 }
 
 func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
-	mp, err := t.getMap(V4TCPMapName)
+	mp, err := t.getMap(v4TCPMapName)
 	if err != nil {
 		return nil, err
 	}
@@ -326,19 +245,6 @@ func (t *Tracer) getTCPv6Connections() ([]ConnectionStats, error) {
 	return conns, nil
 }
 
-func (t *Tracer) AddFdInstallWatcher(pid uint32) (err error) {
-	var one uint32 = 1
-	mapFdInstall := t.m.Map("fdinstall_pids")
-	err = t.m.UpdateElement(mapFdInstall, unsafe.Pointer(&pid), unsafe.Pointer(&one), 0)
-	return err
-}
-
-func (t *Tracer) RemoveFdInstallWatcher(pid uint32) (err error) {
-	mapFdInstall := t.m.Map("fdinstall_pids")
-	err = t.m.DeleteElement(mapFdInstall, unsafe.Pointer(&pid))
-	return err
-}
-
 func (t *Tracer) getMap(mapName string) (*bpflib.Map, error) {
 	mp := t.m.Map(mapName)
 	if mp == nil {
@@ -352,19 +258,6 @@ func initialize(m *bpflib.Module) error {
 		return fmt.Errorf("error guessing offsets: %v", err)
 	}
 	return nil
-}
-
-func initializePerfMap(module *bpflib.Module, eventMapName string, eChan chan []byte, lChan chan uint64) (*bpflib.PerfMap, error) {
-	if err := initialize(module); err != nil {
-		return nil, fmt.Errorf("error guessing offsets: %v", err)
-	}
-
-	pm, err := bpflib.InitPerfMap(module, eventMapName, eChan, lChan)
-	if err != nil {
-		return nil, fmt.Errorf("error initializing perf map for %q: %v", eventMapName, err)
-	}
-
-	return pm, nil
 }
 
 func loadBPFModule() (*bpflib.Module, error) {

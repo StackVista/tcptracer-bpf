@@ -3,11 +3,6 @@
 
 #include <linux/types.h>
 
-#define TCP_EVENT_TYPE_CONNECT    1
-#define TCP_EVENT_TYPE_ACCEPT     2
-#define TCP_EVENT_TYPE_CLOSE      3
-#define TCP_EVENT_TYPE_FD_INSTALL 4
-
 #define GUESS_SADDR      0
 #define GUESS_DADDR      1
 #define GUESS_FAMILY     2
@@ -15,43 +10,6 @@
 #define GUESS_DPORT      4
 #define GUESS_NETNS      5
 #define GUESS_DADDR_IPV6 6
-
-#ifndef TASK_COMM_LEN
-#define TASK_COMM_LEN 16
-#endif
-
-struct tcp_ipv4_event_t {
-	__u64 timestamp;
-	__u64 cpu;
-	__u32 type;
-	__u32 pid;
-	char comm[TASK_COMM_LEN];
-	__u32 saddr;
-	__u32 daddr;
-	__u16 sport;
-	__u16 dport;
-	__u32 netns;
-	__u32 fd;
-	__u32 dummy;
-};
-
-struct tcp_ipv6_event_t {
-	__u64 timestamp;
-	__u64 cpu;
-	__u32 type;
-	__u32 pid;
-	char comm[TASK_COMM_LEN];
-	/* Using the type unsigned __int128 generates an error in the ebpf verifier */
-	__u64 saddr_h;
-	__u64 saddr_l;
-	__u64 daddr_h;
-	__u64 daddr_l;
-	__u16 sport;
-	__u16 dport;
-	__u32 netns;
-	__u32 fd;
-	__u32 dummy;
-};
 
 struct conn_stats_t {
 	__u64 send_bytes;
@@ -86,11 +44,6 @@ struct ipv6_tuple_t {
 	__u16 dport;
 	__u32 netns;
 	__u32 pid;
-};
-
-struct pid_comm_t {
-	__u64 pid;
-	char comm[TASK_COMM_LEN];
 };
 
 #define TCPTRACER_STATE_UNINITIALIZED 0
