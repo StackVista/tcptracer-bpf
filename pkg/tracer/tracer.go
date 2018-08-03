@@ -26,7 +26,7 @@ const (
 var (
 	// Feature versions sourced from: https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
 	// Minimum kernel version -> max(3.15 - eBPF,
-	// 							     3.18 - tables/maps,
+	//                               3.18 - tables/maps,
 	//                               4.1 - kprobes,
 	//                               4.3 - perf events)
 	// 	                      -> 4.3
