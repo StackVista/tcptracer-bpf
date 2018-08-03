@@ -24,14 +24,6 @@ func (t *Tracer) Start() {}
 
 func (t *Tracer) Stop() {}
 
-func (t *Tracer) AddFdInstallWatcher(pid uint32) (err error) {
-	return ErrNotImplemented
-}
-
-func (t *Tracer) RemoveFdInstallWatcher(pid uint32) (err error) {
-	return ErrNotImplemented
-}
-
 func (t *Tracer) GetActiveConnections() ([]ConnectionStats, error) {
 	return nil, ErrNotImplemented
 }

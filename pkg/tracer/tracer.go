@@ -326,19 +326,6 @@ func (t *Tracer) getTCPv6Connections() ([]ConnectionStats, error) {
 	return conns, nil
 }
 
-func (t *Tracer) AddFdInstallWatcher(pid uint32) (err error) {
-	var one uint32 = 1
-	mapFdInstall := t.m.Map("fdinstall_pids")
-	err = t.m.UpdateElement(mapFdInstall, unsafe.Pointer(&pid), unsafe.Pointer(&one), 0)
-	return err
-}
-
-func (t *Tracer) RemoveFdInstallWatcher(pid uint32) (err error) {
-	mapFdInstall := t.m.Map("fdinstall_pids")
-	err = t.m.DeleteElement(mapFdInstall, unsafe.Pointer(&pid))
-	return err
-}
-
 func (t *Tracer) getMap(mapName string) (*bpflib.Map, error) {
 	mp := t.m.Map(mapName)
 	if mp == nil {

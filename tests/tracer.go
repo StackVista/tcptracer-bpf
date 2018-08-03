@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 
 	"github.com/DataDog/tcptracer-bpf/pkg/tracer"
 )
@@ -58,8 +56,6 @@ func (t *tcpEventTracer) LostV6(count uint64) {
 }
 
 func init() {
-	flag.StringVar(&watchFdInstallPids, "monitor-fdinstall-pids", "", "a comma-separated list of pids that need to be monitored for fdinstall events")
-
 	flag.Parse()
 }
 
@@ -76,20 +72,6 @@ func main() {
 	}
 
 	t.Start()
-
-	for _, p := range strings.Split(watchFdInstallPids, ",") {
-		if p == "" {
-			continue
-		}
-
-		pid, err := strconv.ParseUint(p, 10, 32)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Invalid pid: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("Monitor fdinstall events for pid %d\n", pid)
-		t.AddFdInstallWatcher(uint32(pid))
-	}
 
 	fmt.Printf("Ready\n")
 
