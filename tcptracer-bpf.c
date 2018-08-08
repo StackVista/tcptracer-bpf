@@ -32,7 +32,7 @@ struct bpf_map_def SEC("maps/udp_stats_ipv4") udp_stats_ipv4 = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(struct ipv4_tuple_t),
 	.value_size = sizeof(struct conn_stats_ts_t),
-	.max_entries = 1024, // TODO: Increase this to support more active connections?
+	.max_entries = 32768,
 	.pinning = 0,
 	.namespace = "",
 };
@@ -44,7 +44,7 @@ struct bpf_map_def SEC("maps/udp_stats_ipv6") udp_stats_ipv6 = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(struct ipv6_tuple_t),
 	.value_size = sizeof(struct conn_stats_ts_t),
-	.max_entries = 1024, // TODO: Increase this to support more active connections?
+	.max_entries = 32768,
 	.pinning = 0,
 	.namespace = "",
 };
@@ -56,7 +56,7 @@ struct bpf_map_def SEC("maps/tcp_stats_ipv4") tcp_stats_ipv4 = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(struct ipv4_tuple_t),
 	.value_size = sizeof(struct conn_stats_t),
-	.max_entries = 1024, // TODO: Increase this to support more active connections?
+	.max_entries = 32768,
 	.pinning = 0,
 	.namespace = "",
 };
@@ -68,7 +68,7 @@ struct bpf_map_def SEC("maps/tcp_stats_ipv6") tcp_stats_ipv6 = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(struct ipv6_tuple_t),
 	.value_size = sizeof(struct conn_stats_t),
-	.max_entries = 1024, // TODO: Increase this to support more active connections?
+	.max_entries = 32768,
 	.pinning = 0,
 	.namespace = "",
 };
