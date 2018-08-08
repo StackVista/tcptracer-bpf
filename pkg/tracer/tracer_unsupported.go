@@ -12,7 +12,7 @@ func IsTracerSupportedByOS() (bool, error) {
 
 type Tracer struct{}
 
-func NewTracer(config Config) (*Tracer, error) {
+func NewTracer(config *Config) (*Tracer, error) {
 	return nil, ErrNotImplemented
 }
 
