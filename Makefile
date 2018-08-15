@@ -38,7 +38,7 @@ lint:
 run-nettop:
 	sudo docker build -t "tcptracer-bpf-dd-nettop" . -f tests/Dockerfile-nettop
 	sudo docker run \
-		--net=host --pid=host \
+		--net=host \
 		--cap-add=SYS_ADMIN \
 		--privileged \
 		-v /sys/kernel/debug:/sys/kernel/debug \

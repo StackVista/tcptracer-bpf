@@ -32,6 +32,8 @@ const (
 
 	// The source port is much further away in the inet sock.
 	thresholdInetSock = 2000
+
+	procNameMaxSize = 15
 )
 
 // These constants should be in sync with the equivalent definitions in the ebpf program.
@@ -73,11 +75,6 @@ var whatString = map[C.__u64]string{
 const listenIP = "127.0.0.2"
 
 var zero uint64
-
-type freePort struct {
-	port uint16
-	err  error
-}
 
 type fieldValues struct {
 	saddr     uint32
@@ -347,11 +344,19 @@ func guess(b *elf.Module) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	pidTgid := uint64(os.Getpid())<<32 | uint64(syscall.Gettid())
+	processName := os.Args[0]
+	if len(processName) > procNameMaxSize { // Truncate process name if needed
+		processName = processName[:procNameMaxSize]
+	}
+
+	cProcName := [procNameMaxSize + 1]C.char{} // Last char has to be null character, so add one
+	for i := range processName {
+		cProcName[i] = C.char(processName[i])
+	}
 
 	status := &tcpTracerStatus{
-		state:    stateChecking,
-		pid_tgid: C.__u64(pidTgid),
+		state: stateChecking,
+		proc:  C.struct_proc_t{comm: cProcName},
 	}
 
 	// if we already have the offsets, just return
