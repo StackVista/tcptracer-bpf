@@ -145,6 +145,17 @@ struct bpf_map_def SEC("maps/latest_ts") latest_ts = {
 };
 
 __attribute__((always_inline))
+static bool proc_t_comm_equals(struct proc_t a, struct proc_t b) {
+	int i;
+	for (i = 0; i < TASK_COMM_LEN; i++) {
+		if (a.comm[i] != b.comm[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+__attribute__((always_inline))
 static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *skp, u64 pid) {
 	u64 zero = 0;
 
@@ -161,16 +172,17 @@ static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *
 			return 0;
 	}
 
-	// Only accept the exact pid & tid. Extraneous connections from other
-	// threads must be ignored here. Userland must take care to generate
-	// connections from the correct thread. In Golang, this can be achieved
+	// Only traffic for the expected process name. Extraneous connections from other processes must be ignored here.
+	// Userland must take care to generate connections from the correct thread. In Golang, this can be achieved
 	// with runtime.LockOSThread.
-	if (status->pid_tgid != pid)
+	struct proc_t proc = {};
+	bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
+
+	if (!proc_t_comm_equals(status->proc, proc))
 		return 0;
 
 	struct tcptracer_status_t new_status = {};
 	new_status.state = TCPTRACER_STATE_CHECKED;
-	new_status.pid_tgid = status->pid_tgid;
 	new_status.what = status->what;
 	new_status.offset_saddr = status->offset_saddr;
 	new_status.offset_daddr = status->offset_daddr;
@@ -187,6 +199,8 @@ static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *
 	new_status.dport = status->dport;
 	new_status.netns = status->netns;
 	new_status.family = status->family;
+
+	bpf_probe_read(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
 
 	int i;
 	for (i = 0; i < 4; i++) {
@@ -269,16 +283,17 @@ static int are_offsets_ready_v6(struct tcptracer_status_t *status, struct sock *
 			return 0;
 	}
 
-	// Only accept the exact pid & tid. Extraneous connections from other
-	// threads must be ignored here. Userland must take care to generate
-	// connections from the correct thread. In Golang, this can be achieved
+	// Only traffic for the expected process name. Extraneous connections from other processes must be ignored here.
+	// Userland must take care to generate connections from the correct thread. In Golang, this can be achieved
 	// with runtime.LockOSThread.
-	if (status->pid_tgid != pid)
+	struct proc_t proc = {};
+	bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
+
+	if (!proc_t_comm_equals(status->proc, proc))
 		return 0;
 
 	struct tcptracer_status_t new_status = {};
 	new_status.state = TCPTRACER_STATE_CHECKED;
-	new_status.pid_tgid = status->pid_tgid;
 	new_status.what = status->what;
 	new_status.offset_saddr = status->offset_saddr;
 	new_status.offset_daddr = status->offset_daddr;
@@ -295,6 +310,8 @@ static int are_offsets_ready_v6(struct tcptracer_status_t *status, struct sock *
 	new_status.dport = status->dport;
 	new_status.netns = status->netns;
 	new_status.family = status->family;
+
+	bpf_probe_read(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
 
 	int i;
 	for (i = 0; i < 4; i++) {

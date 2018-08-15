@@ -11,6 +11,14 @@
 #define GUESS_NETNS      5
 #define GUESS_DADDR_IPV6 6
 
+#ifndef TASK_COMM_LEN
+#define TASK_COMM_LEN 16
+#endif
+
+struct proc_t {
+    char comm[TASK_COMM_LEN];
+};
+
 struct conn_stats_t {
 	__u64 send_bytes;
 	__u64 recv_bytes;
@@ -55,7 +63,7 @@ struct tcptracer_status_t {
 	__u64 state;
 
 	/* checking */
-	__u64 pid_tgid;
+	struct proc_t proc;
 	__u64 what;
 	__u64 offset_saddr;
 	__u64 offset_daddr;
