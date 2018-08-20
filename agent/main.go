@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/tcptracer-bpf/agent/config"
-
-	"net/http"
 
 	log "github.com/cihub/seelog"
 )
@@ -81,12 +82,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	nt.Run()
-	defer nt.Close()
+	go nt.Run()
 
-	// TODO: Block until sigterm, etc. properly
-	e := make(chan struct{})
+	log.Infof("network tracer started")
+
+	// Handles signals, which tells us whether we should exit.
+	e := make(chan bool)
+	go handleSignals(e)
 	<-e
+
+	nt.Close()
+	log.Flush()
+}
+
+func handleSignals(exit chan bool) {
+	sigIn := make(chan os.Signal, 100)
+	signal.Notify(sigIn)
+	// unix only in all likelihood;  but we don't care.
+	for sig := range sigIn {
+		switch sig {
+		case syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT:
+			log.Criticalf("Caught signal '%s'; terminating.", sig)
+			close(exit)
+		default:
+			log.Warnf("Caught signal %s; continuing/ignoring.", sig)
+		}
+	}
 }
 
 // versionString returns the version information filled in at build time

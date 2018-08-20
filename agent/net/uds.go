@@ -53,8 +53,8 @@ func (l *UDSListener) GetListener() net.Listener {
 func (l *UDSListener) Stop() {
 	l.conn.Close()
 
-	// Socket cleanup on exit
+	// Socket cleanup on exit - above conn.Close() should remove it, but just in case.
 	if err := os.Remove(l.socketPath); err != nil {
-		log.Infof("nettracer-uds: error removing socket file: %s", err)
+		log.Debugf("nettracer-uds: error removing socket file: %s", err)
 	}
 }
