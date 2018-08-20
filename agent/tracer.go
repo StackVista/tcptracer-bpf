@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	log "github.com/cihub/seelog"
 
@@ -32,9 +34,10 @@ func CreateNetworkTracer(cfg *config.Config) (*NetworkTracer, error) {
 		return nil, err
 	}
 
+	log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))
 	t, err := tracer.NewTracer(tracer.DefaultConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create network tracer: %s", err)
+		return nil, err
 	}
 
 	// Setting up the unix socket
