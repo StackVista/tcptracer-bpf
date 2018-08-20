@@ -1,3 +1,4 @@
 .*.swp
 ebpf/
 weaveworks-tcptracer-bpf-ci-latest.aci
+.vscode
