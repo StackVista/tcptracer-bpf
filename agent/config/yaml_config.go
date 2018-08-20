@@ -15,11 +15,8 @@ type YamlConfig struct {
 	LogToConsole bool   `yaml:"log_to_console"`
 	LogLevel     string `yaml:"log_level"`
 	Process      struct {
-		// A string indicate the enabled state of the Agent.
-		// If "false" (the default) we will only collect containers.
-		// If "true" we will collect containers and processes.
-		// If "disabled" the agent will be disabled altogether and won't start.
-		Enabled string `yaml:"enabled"`
+		// A string indicating the enabled state of the network tracer.
+		NetworkTracingEnabled string `yaml:"network_tracing_enabled"`
 		// The full path to the file where process-agent logs will be written.
 		LogFile string `yaml:"log_file"`
 		// The full path to the location of the unix socket where network traces will be accessed
@@ -44,12 +41,8 @@ func NewYamlIfExists(configPath string) (*YamlConfig, error) {
 }
 
 func mergeYamlConfig(agentConf *Config, yc *YamlConfig) (*Config, error) {
-	if enabled, err := isAffirmative(yc.Process.Enabled); enabled {
-		agentConf.Enabled = true
-	} else if strings.ToLower(yc.Process.Enabled) == "disabled" {
-		agentConf.Enabled = false
-	} else if !enabled && err == nil {
-		agentConf.Enabled = true
+	if enabled, err := isAffirmative(yc.Process.NetworkTracingEnabled); err != nil {
+		agentConf.Enabled = enabled
 	}
 
 	if socketPath := yc.Process.UnixSocketPath; socketPath != "" {

@@ -77,7 +77,8 @@ func main() {
 
 	nt, err := CreateNetworkTracer(cfg)
 	if err != nil {
-		log.Infof("failed to create network tracer: %s", err)
+		log.Criticalf("failed to create network tracer: %s", err)
+		os.Exit(1)
 	}
 
 	nt.Run()
@@ -106,7 +107,7 @@ func versionString() string {
 }
 
 func parseConfig() *config.Config {
-	iniConfig, err := config.New(opts.iniConfigPath) // --iniConfig
+	iniConfig, err := config.NewIfExists(opts.iniConfigPath) // --iniConfig
 	if err != nil {
 		log.Criticalf("Error reading INI formatted config: %s", err)
 		os.Exit(1)

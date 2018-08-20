@@ -198,7 +198,7 @@ func (cfg *LoggerConfig) seelogConfig() (*seelogConfig, error) {
 		s.addConsole(cfg.LogLevel)
 	}
 	if cfg.Syslog {
-		if err := s.addSyslog("process-agent", cfg.SyslogHost, cfg.SyslogLevel); err != nil {
+		if err := s.addSyslog("nettracer", cfg.SyslogHost, cfg.SyslogLevel); err != nil {
 			return nil, err
 		}
 	}

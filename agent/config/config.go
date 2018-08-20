@@ -42,7 +42,7 @@ func NewConfig(iniCfg *File, yamlCfg *YamlConfig) (*Config, error) {
 		if section, _ := iniCfg.GetSection("Main"); section != nil {
 			cfg.LogLevel = strings.ToLower(iniCfg.GetDefault("Main", "log_level", "INFO"))
 
-			v, _ := iniCfg.Get("Main", "process_agent_enabled")
+			v, _ := iniCfg.Get("Main", "network_tracing_enabled")
 			if enabled, err := isAffirmative(v); enabled {
 				cfg.Enabled = true
 			} else if !enabled && err == nil { // Only want to disable the process agent if it's explicitly disabled
