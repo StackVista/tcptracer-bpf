@@ -7,25 +7,28 @@ import (
 )
 
 const (
-	DefaultLogFilePath = "/var/log/datadog/network-tracer.log"
+	DefaultLogFilePath    = "/var/log/datadog/network-tracer.log"
+	DefaultUnixSocketPath = "/var/run/datadog/nettracer.sock"
 )
 
 // Config is the global config for the network-tracer. This information is sourced from config files and
 // the environment variables.
 type Config struct {
-	Enabled      bool
-	LogFile      string
-	LogLevel     string
-	LogToConsole bool
+	Enabled        bool
+	LogFile        string
+	LogLevel       string
+	LogToConsole   bool
+	UnixSocketPath string
 }
 
 // DefaultConfig returns an Config with defaults initialized
 func DefaultConfig() *Config {
 	return &Config{
-		Enabled:      false,
-		LogFile:      DefaultLogFilePath,
-		LogLevel:     "info",
-		LogToConsole: false,
+		Enabled:        false,
+		LogFile:        DefaultLogFilePath,
+		LogLevel:       "info",
+		LogToConsole:   false,
+		UnixSocketPath: DefaultUnixSocketPath,
 	}
 }
 
@@ -49,6 +52,7 @@ func NewConfig(iniCfg *File, yamlCfg *YamlConfig) (*Config, error) {
 			// All process-agent specific config lives under [process.config] section.
 			ns := "process.config"
 			cfg.LogFile = iniCfg.GetDefault(ns, "log_file", cfg.LogFile)
+			cfg.UnixSocketPath = iniCfg.GetDefault(ns, "nettracer_socket", DefaultUnixSocketPath)
 		}
 	}
 
@@ -80,6 +84,11 @@ func mergeEnvironmentVariables(cfg *Config) *Config {
 		cfg.Enabled = true
 	} else if !enabled && err == nil {
 		cfg.Enabled = false
+	}
+
+	// Network tracer unix socket location
+	if v := os.Getenv("DD_NETTRACER_SOCKET"); v != "" {
+		cfg.UnixSocketPath = v
 	}
 
 	// Support LOG_LEVEL and DD_LOG_LEVEL, but prefer DD_LOG_LEVEL

@@ -22,6 +22,8 @@ type YamlConfig struct {
 		Enabled string `yaml:"enabled"`
 		// The full path to the file where process-agent logs will be written.
 		LogFile string `yaml:"log_file"`
+		// The full path to the location of the unix socket where network traces will be accessed
+		UnixSocketPath string `yaml:"nettracer_socket"`
 	} `yaml:"process_config"`
 }
 
@@ -48,6 +50,10 @@ func mergeYamlConfig(agentConf *Config, yc *YamlConfig) (*Config, error) {
 		agentConf.Enabled = false
 	} else if !enabled && err == nil {
 		agentConf.Enabled = true
+	}
+
+	if socketPath := yc.Process.UnixSocketPath; socketPath != "" {
+		agentConf.UnixSocketPath = socketPath
 	}
 
 	if yc.LogToConsole {

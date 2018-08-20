@@ -76,13 +76,16 @@ func main() {
 	}()
 
 	nt, err := CreateNetworkTracer(cfg)
+	if err != nil {
+		log.Infof("failed to create network tracer: %s", err)
+	}
 
 	nt.Run()
 	defer nt.Close()
 
-	// TODO: Setup UDS socket
-
-	// TODO: Block until sigterm, etc.
+	// TODO: Block until sigterm, etc. properly
+	e := make(chan struct{})
+	<-e
 }
 
 // versionString returns the version information filled in at build time

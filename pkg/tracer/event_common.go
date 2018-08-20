@@ -27,18 +27,23 @@ const (
 
 type ConnectionFamily uint8
 
+type Connections struct {
+	Conns []ConnectionStats `json:"connections"`
+}
+
 type ConnectionStats struct {
-	Pid    uint32
-	Type   ConnectionType
-	Family ConnectionFamily
+	Pid    uint32           `json:"pid"`
+	Type   ConnectionType   `json:"type"`
+	Family ConnectionFamily `json:"family"`
 
-	Source string // Represented as a string for now to handle both IPv4 & IPv6
-	Dest   string
-	SPort  uint16
-	DPort  uint16
+	// Source & Dest represented as a string to handle both IPv4 & IPv6
+	Source string `json:"source"`
+	Dest   string `json:"dest"`
+	SPort  uint16 `json:"sport"`
+	DPort  uint16 `json:"dport"`
 
-	SendBytes uint64
-	RecvBytes uint64
+	SendBytes uint64 `json:"send_bytes"`
+	RecvBytes uint64 `json:"recv_bytes"`
 }
 
 func (c ConnectionStats) String() string {

@@ -94,7 +94,7 @@ func (t *Tracer) Stop() {
 	t.m.Close()
 }
 
-func (t *Tracer) GetActiveConnections() ([]ConnectionStats, error) {
+func (t *Tracer) GetActiveConnections() (*Connections, error) {
 	conns := make([]ConnectionStats, 0)
 	if t.config.CollectTCPConns {
 		v4, err := t.getTCPv4Connections()
@@ -119,7 +119,7 @@ func (t *Tracer) GetActiveConnections() ([]ConnectionStats, error) {
 		}
 		conns = append(conns, append(v4, v6...)...)
 	}
-	return conns, nil
+	return &Connections{Conns: conns}, nil
 }
 
 func (t *Tracer) getUDPv4Connections() ([]ConnectionStats, error) {

@@ -1,9 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
+
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/tcptracer-bpf/agent/config"
+	"github.com/DataDog/tcptracer-bpf/agent/net"
 	"github.com/DataDog/tcptracer-bpf/pkg/tracer"
 )
 
@@ -12,6 +17,7 @@ type NetworkTracer struct {
 
 	supported bool
 	tracer    *tracer.Tracer
+	conn      net.Conn
 }
 
 func CreateNetworkTracer(cfg *config.Config) (*NetworkTracer, error) {
@@ -21,7 +27,7 @@ func CreateNetworkTracer(cfg *config.Config) (*NetworkTracer, error) {
 
 	// Checking whether the current OS + kernel version is supported by the tracer
 	if nt.supported, err = tracer.IsTracerSupportedByOS(); err == tracer.ErrNotImplemented {
-		return nil, fmt.Errorf("operating is unsupported for BPF tracing")
+		return nil, fmt.Errorf("operating system is unsupported for BPF-based network tracing")
 	} else if err != nil {
 		return nil, err
 	}
@@ -31,20 +37,44 @@ func CreateNetworkTracer(cfg *config.Config) (*NetworkTracer, error) {
 		return nil, fmt.Errorf("failed to create network tracer: %s", err)
 	}
 
+	// Setting up the unix socket
+	uds, err := net.NewUDSListener(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	nt.tracer = t
 	nt.cfg = cfg
-
-	// TODO: Setup UDS + TCP endpoints
-
+	nt.conn = uds
 	return nt, nil
 }
 
 func (nt *NetworkTracer) Run() {
 	nt.tracer.Start()
-	// TODO: Enable UDS + TCP endpoints
+
+	http.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {
+		cs, err := nt.tracer.GetActiveConnections()
+
+		if err != nil {
+			log.Errorf("unable to retrieve connections: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		buf, err := json.Marshal(cs)
+		if err != nil {
+			log.Errorf("unable to marshall connections into JSON: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		w.Write(buf)
+	})
+
+	http.Serve(nt.conn.GetListener(), nil)
 }
 
 func (nt *NetworkTracer) Close() {
-	// TODO: Disable UDS + TCP endpoints
+	nt.conn.Stop()
 	nt.tracer.Stop()
 }
