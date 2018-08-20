@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -344,7 +345,7 @@ func guess(b *elf.Module) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	processName := os.Args[0]
+	processName := filepath.Base(os.Args[0])
 	if len(processName) > procNameMaxSize { // Truncate process name if needed
 		processName = processName[:procNameMaxSize]
 	}
