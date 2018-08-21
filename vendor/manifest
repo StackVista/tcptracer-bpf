@@ -35,6 +35,30 @@
 			"revision": "c679ae2cc0cb27ec3293fea7e254e47386f05d69",
 			"branch": "master",
 			"notests": true
+		},
+		{
+			"importpath": "github.com/cihub/seelog",
+			"repository": "https://github.com/cihub/seelog",
+			"vcs": "git",
+			"revision": "f561c5e57575bb1e0a2167028b7339b3a8d16fb4",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/go-ini/ini",
+			"repository": "https://github.com/go-ini/ini",
+			"vcs": "git",
+			"revision": "5cf292cae48347c2490ac1a58fe36735fb78df7e",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "gopkg.in/yaml.v2",
+			"repository": "https://github.com/go-yaml/yaml",
+			"vcs": "git",
+			"revision": "5420a8b6744d3b0345ab293f6fcba19c978f1183",
+			"branch": "v2",
+			"notests": true
 		}
 	]
 }
