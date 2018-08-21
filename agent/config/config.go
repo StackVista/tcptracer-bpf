@@ -80,10 +80,8 @@ func NewConfig(iniCfg *File, yamlCfg *YamlConfig) (*Config, error) {
 
 // mergeEnvironmentVariables applies overrides from environment variables to the process agent configuration
 func mergeEnvironmentVariables(cfg *Config) *Config {
-	if enabled, err := isAffirmative(os.Getenv("DD_CONNECTION_TRACING_ENABLED")); enabled {
-		cfg.Enabled = true
-	} else if !enabled && err == nil {
-		cfg.Enabled = false
+	if enabled, err := isAffirmative(os.Getenv("DD_NETWORK_TRACING_ENABLED")); err == nil {
+		cfg.Enabled = enabled
 	}
 
 	// Network tracer unix socket location

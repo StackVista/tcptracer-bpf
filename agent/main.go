@@ -4,15 +4,16 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
+
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/tcptracer-bpf/agent/config"
-
-	log "github.com/cihub/seelog"
 )
 
 // Flag values
@@ -47,6 +48,7 @@ func main() {
 	if err := config.NewLoggerLevel("info", "", true); err != nil {
 		panic(err)
 	}
+	defer log.Flush()
 
 	// --version
 	if opts.version {
@@ -71,28 +73,38 @@ func main() {
 	// Parsing INI and/or YAML config files
 	cfg := parseConfig()
 
-	// Run a profile server.
-	go func() {
-		http.ListenAndServe("localhost:6062", nil)
-	}()
+	// Exit if network tracer is disabled
+	if !cfg.Enabled {
+		log.Info("network tracer not enabled. exiting.")
+		gracefulExit()
+	}
 
-	nt, err := CreateNetworkTracer(cfg)
-	if err != nil {
+	nettracer, err := CreateNetworkTracer(cfg)
+	if err != nil && strings.HasPrefix(err.Error(), TracerUnsupportedError.Error()) {
+		// If tracer is unsupported by this operating system, then exit gracefully
+		log.Infof("%s, exiting.", err)
+		gracefulExit()
+	} else if err != nil {
 		log.Criticalf("failed to create network tracer: %s", err)
 		os.Exit(1)
 	}
+	defer nettracer.Close()
 
-	go nt.Run()
-
+	go nettracer.Run()
 	log.Infof("network tracer started")
 
 	// Handles signals, which tells us whether we should exit.
 	e := make(chan bool)
 	go handleSignals(e)
 	<-e
+}
 
-	nt.Close()
-	log.Flush()
+func gracefulExit() {
+	// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
+	// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
+	// http://supervisord.org/subprocess.html#process-states
+	time.Sleep(5 * time.Second)
+	os.Exit(0)
 }
 
 func handleSignals(exit chan bool) {

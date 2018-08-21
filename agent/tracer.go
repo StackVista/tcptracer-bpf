@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,6 +15,8 @@ import (
 	"github.com/DataDog/tcptracer-bpf/pkg/tracer"
 )
 
+var TracerUnsupportedError = errors.New("tracer unsupported")
+
 type NetworkTracer struct {
 	cfg *config.Config
 
@@ -24,14 +27,11 @@ type NetworkTracer struct {
 
 func CreateNetworkTracer(cfg *config.Config) (*NetworkTracer, error) {
 	var err error
-
 	nt := &NetworkTracer{}
 
 	// Checking whether the current OS + kernel version is supported by the tracer
-	if nt.supported, err = tracer.IsTracerSupportedByOS(); err == tracer.ErrNotImplemented {
-		return nil, fmt.Errorf("operating system is unsupported for BPF-based network tracing")
-	} else if err != nil {
-		return nil, err
+	if nt.supported, err = tracer.IsTracerSupportedByOS(); err != nil {
+		return nil, fmt.Errorf("%s: %s", TracerUnsupportedError, err)
 	}
 
 	log.Infof("Creating tracer for: %s", filepath.Base(os.Args[0]))

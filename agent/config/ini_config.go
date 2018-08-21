@@ -2,11 +2,10 @@ package config
 
 import (
 	"fmt"
-	"strings"
-	"time"
-
 	"os"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/go-ini/ini"
 )
