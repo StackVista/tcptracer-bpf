@@ -24,6 +24,6 @@ func (t *Tracer) Start() {}
 
 func (t *Tracer) Stop() {}
 
-func (t *Tracer) GetActiveConnections() ([]ConnectionStats, error) {
+func (t *Tracer) GetActiveConnections() (*Connections, error) {
 	return nil, ErrNotImplemented
 }
