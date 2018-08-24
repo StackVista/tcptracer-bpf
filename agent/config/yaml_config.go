@@ -1,12 +1,12 @@
 package config
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"strings"
 
 	"gopkg.in/yaml.v2"
-
-	"github.com/DataDog/datadog-process-agent/util"
 )
 
 // YamlConfig is a structure used for marshaling the datadog.yaml configuration
@@ -27,8 +27,8 @@ type YamlConfig struct {
 // NewYamlIfExists returns a new YamlConfig if the given configPath is exists.
 func NewYamlIfExists(configPath string) (*YamlConfig, error) {
 	yamlConf := YamlConfig{}
-	if util.PathExists(configPath) {
-		lines, err := util.ReadLines(configPath)
+	if pathExists(configPath) {
+		lines, err := readLines(configPath)
 		if err != nil {
 			return nil, fmt.Errorf("read error: %s", err)
 		}
@@ -60,4 +60,28 @@ func mergeYamlConfig(agentConf *Config, yc *YamlConfig) (*Config, error) {
 	agentConf.LogLevel = yc.LogLevel
 
 	return agentConf, nil
+}
+
+// pathExists returns a boolean indicating if the given path exists on the file system.
+func pathExists(filename string) bool {
+	if _, err := os.Stat(filename); err == nil {
+		return true
+	}
+	return false
+}
+
+// readLines reads contents from a file and splits them by new lines.
+func readLines(filename string) ([]string, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return []string{""}, err
+	}
+	defer f.Close()
+
+	var ret []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		ret = append(ret, scanner.Text())
+	}
+	return ret, scanner.Err()
 }

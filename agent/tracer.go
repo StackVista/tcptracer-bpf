@@ -55,6 +55,8 @@ func CreateNetworkTracer(cfg *config.Config) (*NetworkTracer, error) {
 func (nt *NetworkTracer) Run() {
 	nt.tracer.Start()
 
+	http.HandleFunc("/status", func(w http.ResponseWriter, req *http.Request) {})
+
 	http.HandleFunc("/connections", func(w http.ResponseWriter, req *http.Request) {
 		cs, err := nt.tracer.GetActiveConnections()
 
