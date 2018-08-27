@@ -34,29 +34,12 @@ func DefaultConfig() *Config {
 
 // NewConfig returns an Config using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
-func NewConfig(iniCfg *File, yamlCfg *YamlConfig) (*Config, error) {
+func NewConfig(yamlCfg *YamlConfig) (*Config, error) {
 	var err error
 	cfg := DefaultConfig()
 
-	if iniCfg != nil { // Pull from the ini Agent config by default.
-		if section, _ := iniCfg.GetSection("Main"); section != nil {
-			cfg.LogLevel = strings.ToLower(iniCfg.GetDefault("Main", "log_level", "INFO"))
-
-			v, _ := iniCfg.Get("Main", "network_tracing_enabled")
-			if enabled, err := isAffirmative(v); enabled {
-				cfg.Enabled = true
-			} else if !enabled && err == nil { // Only want to disable the process agent if it's explicitly disabled
-				cfg.Enabled = false
-			}
-
-			// All process-agent specific config lives under [process.config] section.
-			ns := "process.config"
-			cfg.LogFile = iniCfg.GetDefault(ns, "log_file", cfg.LogFile)
-			cfg.UnixSocketPath = iniCfg.GetDefault(ns, "nettracer_socket", DefaultUnixSocketPath)
-		}
-	}
-
-	if yamlCfg != nil { // For Agents >= 6 we will have a YAML config file to use.
+	// For Agents >= 6 we will have a YAML config file to use.
+	if yamlCfg != nil {
 		if cfg, err = mergeYamlConfig(cfg, yamlCfg); err != nil {
 			return nil, err
 		}

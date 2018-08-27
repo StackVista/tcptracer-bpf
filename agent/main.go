@@ -19,7 +19,6 @@ import (
 // Flag values
 var opts struct {
 	yamlConfigPath string
-	iniConfigPath  string
 
 	pidFilePath string
 	debug       bool
@@ -38,7 +37,6 @@ var (
 func main() {
 	// Parse flags
 	flag.StringVar(&opts.yamlConfigPath, "yamlConfig", "/etc/datadog-agent/datadog.yaml", "Path to datadog config formatted as YAML")
-	flag.StringVar(&opts.iniConfigPath, "iniConfig", "/etc/dd-agent/datadog.conf", "Path to datadog config formatted as INI")
 	flag.StringVar(&opts.pidFilePath, "pid", "", "Path to set pidfile for process")
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 	flag.Parse()
@@ -117,7 +115,6 @@ func handleSignals(exit chan bool) {
 			log.Criticalf("Caught signal '%s'; terminating.", sig)
 			close(exit)
 		default:
-			log.Warnf("Caught signal %s; continuing/ignoring.", sig)
 		}
 	}
 }
@@ -140,19 +137,13 @@ func versionString() string {
 }
 
 func parseConfig() *config.Config {
-	iniConfig, err := config.NewIfExists(opts.iniConfigPath) // --iniConfig
-	if err != nil {
-		log.Criticalf("Error reading INI formatted config: %s", err)
-		os.Exit(1)
-	}
-
 	yamlConf, err := config.NewYamlIfExists(opts.yamlConfigPath) // --yamlConfig
 	if err != nil {
 		log.Criticalf("Error reading YAML formatted config: %s", err)
 		os.Exit(1)
 	}
 
-	cfg, err := config.NewConfig(iniConfig, yamlConf)
+	cfg, err := config.NewConfig(yamlConf)
 	if err != nil {
 		log.Criticalf("Error parsing config: %s", err)
 		os.Exit(1)
