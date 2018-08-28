@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 	"path/filepath"
 
 	log "github.com/cihub/seelog"
+	"github.com/mailru/easyjson"
 
 	"github.com/DataDog/tcptracer-bpf/agent/config"
 	"github.com/DataDog/tcptracer-bpf/agent/net"
@@ -66,7 +66,7 @@ func (nt *NetworkTracer) Run() {
 			return
 		}
 
-		buf, err := json.Marshal(cs)
+		buf, err := easyjson.Marshal(cs)
 		if err != nil {
 			log.Errorf("unable to marshall connections into JSON: %s", err)
 			w.WriteHeader(500)
@@ -74,6 +74,7 @@ func (nt *NetworkTracer) Run() {
 		}
 
 		w.Write(buf)
+		log.Debugf("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
 	})
 
 	http.Serve(nt.conn.GetListener(), nil)

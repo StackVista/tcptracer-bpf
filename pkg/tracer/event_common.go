@@ -27,10 +27,12 @@ const (
 
 type ConnectionFamily uint8
 
+//easyjson:json
 type Connections struct {
 	Conns []ConnectionStats `json:"connections"`
 }
 
+//easyjson:json
 type ConnectionStats struct {
 	Pid    uint32           `json:"pid"`
 	Type   ConnectionType   `json:"type"`
