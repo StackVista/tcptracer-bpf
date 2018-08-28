@@ -51,6 +51,15 @@
 			"revision": "5420a8b6744d3b0345ab293f6fcba19c978f1183",
 			"branch": "v2",
 			"notests": true
+		},
+		{
+			"importpath": "github.com/mailru/easyjson",
+			"repository": "https://github.com/mailru/easyjson",
+			"vcs": "git",
+			"revision": "60711f1a8329503b04e1c88535f419d0bb440bff",
+			"branch": "master",
+			"notests": true
 		}
+
 	]
 }
