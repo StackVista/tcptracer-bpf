@@ -21,8 +21,8 @@ type Config struct {
 	UnixSocketPath string
 }
 
-// DefaultConfig returns an Config with defaults initialized
-func DefaultConfig() *Config {
+// NewDefaultConfig returns an Config with defaults initialized
+func NewDefaultConfig() *Config {
 	return &Config{
 		Enabled:        false,
 		LogFile:        DefaultLogFilePath,
@@ -36,7 +36,7 @@ func DefaultConfig() *Config {
 // if there is no file available. In this case we'll configure only via environment.
 func NewConfig(yamlCfg *YamlConfig) (*Config, error) {
 	var err error
-	cfg := DefaultConfig()
+	cfg := NewDefaultConfig()
 
 	// For Agents >= 6 we will have a YAML config file to use.
 	if yamlCfg != nil {
