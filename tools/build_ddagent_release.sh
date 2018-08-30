@@ -30,7 +30,7 @@ export GOPATH=$WORKSPACE/go
 export PATH=$PATH:$GOPATH/bin
 
 echo "Building binaries..."
-NETWORK_AGENT_STATIC=true rake build-agent
+NETWORK_AGENT_STATIC=true make build-agent
 
 # Upload to s3
 cp network-tracer $FILENAME
