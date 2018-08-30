@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	ErrNotImplemented = errors.New("not implemented on non-linux systems")
+	ErrNotImplemented = errors.New("BPF-based network tracing not implemented on non-linux systems")
 
 	nativeEndian binary.ByteOrder
 )

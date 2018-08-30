@@ -40,11 +40,11 @@ func main() {
 
 	printConns := func(now time.Time) {
 		fmt.Printf("-- %s --\n", now)
-		conns, err := t.GetActiveConnections()
+		cs, err := t.GetActiveConnections()
 		if err != nil {
 			fmt.Println(err)
 		}
-		for _, c := range conns {
+		for _, c := range cs.Conns {
 			fmt.Println(c)
 		}
 	}
