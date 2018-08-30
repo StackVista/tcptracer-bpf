@@ -29,9 +29,8 @@ eval "$(gimme 1.10.1)"
 export GOPATH=$WORKSPACE/go
 export PATH=$PATH:$GOPATH/bin
 
-
 echo "Building binaries..."
-AGENT_STATIC=true rake build-agent
+NETWORK_AGENT_STATIC=true rake build-agent
 
 # Upload to s3
 cp network-tracer $FILENAME

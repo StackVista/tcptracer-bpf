@@ -75,3 +75,8 @@ run-nettop:
 # Build network-tracer agent: runs eBPF program and exposes connections via /connections over UDS
 build-agent:
 	go build -a -o network-tracer -tags '$(GO_TAGS)' -ldflags "$(LDFLAGS)" github.com/DataDog/tcptracer-bpf/agent
+
+# easyjson code generation
+codegen:
+	go get -u github.com/mailru/easyjson
+	easyjson pkg/tracer/event_common.go
