@@ -6,6 +6,7 @@
 package status
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"strconv"
@@ -14,7 +15,8 @@ import (
 	"unicode"
 
 	"github.com/dustin/go-humanize"
-	json "github.com/json-iterator/go"
+	"github.com/fatih/color"
+
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -33,6 +35,8 @@ func Fmap() template.FuncMap {
 		"toUnsortedList":     toUnsortedList,
 		"formatTitle":        formatTitle,
 		"add":                add,
+		"status":             status,
+		"version":            getVersion,
 	}
 }
 
@@ -167,4 +171,33 @@ func formatTitle(title string) string {
 
 	// Capitalize the first letter
 	return strings.Title(title)
+}
+
+func status(check map[string]interface{}) string {
+	if check["LastError"].(string) != "" {
+		return fmt.Sprintf("[%s]", color.RedString("ERROR"))
+	}
+	if len(check["LastWarnings"].([]interface{})) != 0 {
+		return fmt.Sprintf("[%s]", color.YellowString("WARNING"))
+	}
+	return fmt.Sprintf("[%s]", color.GreenString("OK"))
+}
+
+func getVersion(instances map[string]interface{}) string {
+	if len(instances) == 0 {
+		return ""
+	}
+	for _, instance := range instances {
+		instanceMap := instance.(map[string]interface{})
+		version, ok := instanceMap["CheckVersion"]
+		if !ok {
+			return ""
+		}
+		str, ok := version.(string)
+		if !ok {
+			return ""
+		}
+		return str
+	}
+	return ""
 }

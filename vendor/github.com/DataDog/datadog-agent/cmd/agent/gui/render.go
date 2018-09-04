@@ -2,6 +2,7 @@ package gui
 
 import (
 	"bytes"
+	"encoding/json"
 	"expvar"
 	"html/template"
 	"io"
@@ -13,8 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/status"
-
-	json "github.com/json-iterator/go"
 )
 
 var fmap = status.Fmap()
@@ -23,7 +22,7 @@ func init() {
 	fmap["lastErrorTraceback"] = lastErrorTraceback
 	fmap["lastErrorMessage"] = lastErrorMessage
 	fmap["pythonLoaderError"] = pythonLoaderError
-	fmap["instances"] = instances
+	fmap["status"] = displayStatus
 }
 
 const (
@@ -143,18 +142,12 @@ func lastErrorMessage(value string) string {
 	return "UNKNOWN ERROR"
 }
 
-func instances(checks map[string]interface{}) map[string][]interface{} {
-	instances := make(map[string][]interface{})
-	for _, ch := range checks {
-		if check, ok := ch.(map[string]interface{}); ok {
-			if name, ok := check["CheckName"].(string); ok {
-				if len(instances[name]) == 0 {
-					instances[name] = []interface{}{check}
-				} else {
-					instances[name] = append(instances[name], check)
-				}
-			}
-		}
+func displayStatus(check map[string]interface{}) template.HTML {
+	if check["LastError"].(string) != "" {
+		return template.HTML("[<span class=\"error\">ERROR</span>]")
 	}
-	return instances
+	if len(check["LastWarnings"].([]interface{})) != 0 {
+		return template.HTML("[<span class=\"warning\">WARNING</span>]")
+	}
+	return template.HTML("[<span class=\"ok\">OK</span>]")
 }

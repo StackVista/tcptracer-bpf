@@ -7,7 +7,7 @@ package app
 
 import (
 	"bytes"
-	"encoding/json" // Not intensively called, no need for jsoniter
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 
@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -40,6 +41,9 @@ var statusCmd = &cobra.Command{
 		err := common.SetupConfig(confFilePath)
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
+		}
+		if flagNoColor {
+			color.NoColor = true
 		}
 		err = requestStatus()
 		if err != nil {

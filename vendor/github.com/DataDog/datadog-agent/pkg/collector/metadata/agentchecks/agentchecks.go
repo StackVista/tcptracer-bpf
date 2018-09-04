@@ -6,6 +6,8 @@
 package agentchecks
 
 import (
+	"encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
@@ -13,8 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	json "github.com/json-iterator/go"
 )
 
 // GetPayload builds a payload of all the agentchecks metadata
@@ -24,22 +24,24 @@ func GetPayload() *Payload {
 	checkStats := runner.GetCheckStats()
 
 	for _, stats := range checkStats {
-		var status []interface{}
-		if stats.LastError != "" {
-			status = []interface{}{
-				stats.CheckName, stats.CheckName, stats.CheckID, "ERROR", stats.LastError, "",
+		for _, s := range stats {
+			var status []interface{}
+			if s.LastError != "" {
+				status = []interface{}{
+					s.CheckName, s.CheckName, s.CheckID, "ERROR", s.LastError, "",
+				}
+			} else if len(s.LastWarnings) != 0 {
+				status = []interface{}{
+					s.CheckName, s.CheckName, s.CheckID, "WARNING", s.LastWarnings, "",
+				}
+			} else {
+				status = []interface{}{
+					s.CheckName, s.CheckName, s.CheckID, "OK", "", "",
+				}
 			}
-		} else if len(stats.LastWarnings) != 0 {
-			status = []interface{}{
-				stats.CheckName, stats.CheckName, stats.CheckID, "WARNING", stats.LastWarnings, "",
+			if status != nil {
+				agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 			}
-		} else {
-			status = []interface{}{
-				stats.CheckName, stats.CheckName, stats.CheckID, "OK", "", "",
-			}
-		}
-		if status != nil {
-			agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 		}
 	}
 

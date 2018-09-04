@@ -6,17 +6,17 @@
 package flare
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
-	"strconv"
+
+	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-
-	"github.com/fatih/color"
-	json "github.com/json-iterator/go"
 )
 
 // ConfigCheckURL contains the Agent API endpoint URL exposing the loaded checks
@@ -93,8 +93,9 @@ func PrintConfig(w io.Writer, c integration.Config) {
 	} else {
 		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Source"), color.RedString("Unknown provider")))
 	}
-	for i, inst := range c.Instances {
-		fmt.Fprintln(w, fmt.Sprintf("%s %s:", color.BlueString("Instance"), color.CyanString(strconv.Itoa(i+1))))
+	for _, inst := range c.Instances {
+		ID := string(check.BuildID(c.Name, inst, c.InitConfig))
+		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Instance ID"), color.CyanString(ID)))
 		fmt.Fprint(w, fmt.Sprintf("%s", inst))
 		fmt.Fprintln(w, "~")
 	}

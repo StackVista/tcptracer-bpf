@@ -6,22 +6,23 @@
 package status
 
 import (
+	"encoding/json"
 	"expvar"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	json "github.com/json-iterator/go"
 )
 
 var timeFormat = "2006-01-02 15:04:05.000000 UTC"
@@ -51,6 +52,8 @@ func GetStatus() (map[string]interface{}, error) {
 		return nil, err
 	}
 	stats["pid"] = os.Getpid()
+	pythonVersion := host.GetPythonVersion()
+	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
 	stats["platform"] = platformPayload
 	stats["hostinfo"] = host.GetStatusInformation()
 	now := time.Now()
@@ -93,8 +96,9 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	checks := s["runnerStats"].(map[string]interface{})["Checks"]
-	checks.(map[string]interface{})[c.String()] = cs
+	checks := s["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
+	checks[c.String()] = make(map[check.ID]interface{})
+	checks[c.String()].(map[check.ID]interface{})[c.ID()] = cs
 
 	statusJSON, err := json.Marshal(s)
 	if err != nil {

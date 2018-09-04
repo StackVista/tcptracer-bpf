@@ -12,23 +12,28 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 )
 
 // Since returns the date from when logs should be collected.
-func Since(registry auditor.Registry, identifier string, tailFromBeginning bool) (time.Time, error) {
+func Since(registry auditor.Registry, identifier string, creationTime service.CreationTime) (time.Time, error) {
 	var since time.Time
 	var err error
 	offset := registry.GetOffset(identifier)
-	if offset != "" {
+	switch {
+	case offset != "":
+		// an offset was registered, tail from the offset
 		since, err = time.Parse(config.DateFormat, offset)
 		if err != nil {
 			since = time.Now().UTC()
 		} else {
 			since = since.Add(time.Nanosecond)
 		}
-	} else if tailFromBeginning {
+	case creationTime == service.After:
+		// a new service has been discovered and was launched after the agent start, tail from the beginning
 		since = time.Time{}
-	} else {
+	case creationTime == service.Before:
+		// a new config has been discovered and was launched before the agent start, tail from the end
 		since = time.Now().UTC()
 	}
 	return since, err

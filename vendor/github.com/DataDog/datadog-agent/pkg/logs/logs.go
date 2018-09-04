@@ -9,6 +9,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
@@ -17,26 +19,39 @@ var (
 	isRunning bool
 	// logs-agent
 	agent *Agent
+	// scheduler is plugged to autodiscovery to collect integration configs and schedule log collection for different kind of inputs
+	adScheduler *scheduler.Scheduler
 )
 
 // Start starts logs-agent
 func Start() error {
-	sources, serverConfig, err := config.Build()
+	// setup the server config
+	serverConfig, err := config.BuildServerConfig()
 	if err != nil {
-		// could not parse the configuration
 		return err
 	}
 
-	log.Info("Starting logs-agent")
+	// setup the log-sources
+	sources := config.NewLogSources()
+	for _, source := range config.DefaultSources() {
+		sources.AddSource(source)
+	}
 
-	// setup and start the agent
-	agent = NewAgent(sources, serverConfig)
-	agent.Start()
+	// setup the services
+	services := service.NewServices()
+
+	// initialize the config scheduler
+	adScheduler = scheduler.NewScheduler(sources, services)
 
 	// setup the status
 	status.Initialize(sources)
 
+	// setup and start the agent
+	agent = NewAgent(sources, services, serverConfig)
+	log.Info("Starting logs-agent")
+	agent.Start()
 	isRunning = true
+
 	return nil
 }
 
@@ -49,10 +64,20 @@ func Stop() {
 	}
 }
 
+// IsAgentRunning returns true if the logs-agent is running.
+func IsAgentRunning() bool {
+	return isRunning
+}
+
 // GetStatus returns logs-agent status
 func GetStatus() status.Status {
 	if !isRunning {
 		return status.Status{IsRunning: false}
 	}
 	return status.Get()
+}
+
+// GetScheduler returns the logs-config scheduler if set.
+func GetScheduler() *scheduler.Scheduler {
+	return adScheduler
 }

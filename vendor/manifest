@@ -64,7 +64,7 @@
 			"importpath": "github.com/DataDog/datadog-agent",
 			"repository": "https://github.com/DataDog/datadog-agent",
 			"vcs": "git",
-			"revision": "001b8a5eb587a853d68a93b5d9d821c6b0d4db08",
+			"revision": "9b3444c6fdcbe9a122a0bdacdd1476a78d326a97",
 			"branch": "master",
 			"notests": true
 		}
