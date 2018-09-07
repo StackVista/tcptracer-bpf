@@ -8,7 +8,7 @@ import (
 
 const (
 	DefaultLogFilePath    = "/var/log/datadog/network-tracer.log"
-	DefaultUnixSocketPath = "/var/run/datadog/nettracer.sock"
+	DefaultUnixSocketPath = "/opt/datadog-agent/run/nettracer.sock"
 )
 
 // Config is the global config for the network-tracer. This information is sourced from config files and
