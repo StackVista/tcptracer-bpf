@@ -41,7 +41,7 @@ func NewYamlIfExists(configPath string) (*YamlConfig, error) {
 }
 
 func mergeYamlConfig(agentConf *Config, yc *YamlConfig) (*Config, error) {
-	if enabled, err := isAffirmative(yc.Process.NetworkTracingEnabled); err != nil {
+	if enabled, err := isAffirmative(yc.Process.NetworkTracingEnabled); err == nil {
 		agentConf.Enabled = enabled
 	}
 
