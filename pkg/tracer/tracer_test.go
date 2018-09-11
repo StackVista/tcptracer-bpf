@@ -1,4 +1,6 @@
-package main
+// +build linux_bpf
+
+package tracer
 
 import (
 	"bufio"
@@ -12,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/tcptracer-bpf/pkg/tracer"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,9 +23,9 @@ var (
 	payloadSizes      = []int{2 << 5, 2 << 8, 2 << 10, 2 << 12, 2 << 14, 2 << 15}
 )
 
-func TestTCPSendAndReceiveWithBPF(t *testing.T) {
+func TestTCPSendAndReceive(t *testing.T) {
 	// Enable BPF-based network tracer
-	tr, err := tracer.NewTracer(tracer.DefaultConfig)
+	tr, err := NewTracer(DefaultConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +72,7 @@ func TestTCPSendAndReceiveWithBPF(t *testing.T) {
 
 func TestTCPClosedConnectionsAreCleanedUp(t *testing.T) {
 	// Enable BPF-based network tracer
-	tr, err := tracer.NewTracer(tracer.DefaultConfig)
+	tr, err := NewTracer(DefaultConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +117,7 @@ func TestTCPClosedConnectionsAreCleanedUp(t *testing.T) {
 	doneChan <- struct{}{}
 }
 
-func findConnection(l, r net.Addr, c *tracer.Connections) (*tracer.ConnectionStats, bool) {
+func findConnection(l, r net.Addr, c *Connections) (*ConnectionStats, bool) {
 	for _, conn := range c.Conns {
 		localAddr := fmt.Sprintf("%s:%d", conn.Source, conn.SPort)
 		remoteAddr := fmt.Sprintf("%s:%d", conn.Dest, conn.DPort)
@@ -138,7 +139,7 @@ func BenchmarkTCPEcho(b *testing.B) {
 	runBenchtests(b, "", benchEchoTCP)
 
 	// Enable BPF-based network tracer
-	t, err := tracer.NewTracer(tracer.DefaultConfig)
+	t, err := NewTracer(DefaultConfig)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -152,7 +153,7 @@ func BenchmarkTCPSend(b *testing.B) {
 	runBenchtests(b, "", benchSendTCP)
 
 	// Enable BPF-based network tracer
-	t, err := tracer.NewTracer(tracer.DefaultConfig)
+	t, err := NewTracer(DefaultConfig)
 	if err != nil {
 		b.Fatal(err)
 	}
