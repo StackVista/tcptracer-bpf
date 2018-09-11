@@ -41,6 +41,7 @@ func TestTCPSendAndReceiveWithBPF(t *testing.T) {
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
 
+	// Connect to server
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
@@ -87,6 +88,7 @@ func TestTCPClosedConnectionsAreCleanedUp(t *testing.T) {
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
 
+	// Connect to server
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
