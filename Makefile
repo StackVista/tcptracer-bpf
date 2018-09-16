@@ -82,5 +82,4 @@ codegen:
 	easyjson pkg/tracer/event_common.go
 
 test:
-	xargs -help
-	go list ./... | grep -v vendor | GOCACHE=off xargs go test -tags 'linux_bpf'
+	go list ./... | grep -v vendor | sudo PATH=$PATH GOCACHE=off xargs go test -tags 'linux_bpf'
