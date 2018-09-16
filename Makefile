@@ -80,3 +80,6 @@ build-agent:
 codegen:
 	go get -u github.com/mailru/easyjson
 	easyjson pkg/tracer/event_common.go
+
+test:
+	go list ./... | grep -v vendor | sudo GOCACHE=off xargs go test -tags 'linux_bpf'
