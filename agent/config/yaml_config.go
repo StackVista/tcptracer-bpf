@@ -12,16 +12,18 @@ import (
 // YamlConfig is a structure used for marshaling the datadog.yaml configuration
 // available in Agent versions >= 6
 type YamlConfig struct {
-	LogToConsole bool   `yaml:"log_to_console"`
-	LogLevel     string `yaml:"log_level"`
-	Process      struct {
+	Network struct {
 		// A string indicating the enabled state of the network tracer.
 		NetworkTracingEnabled string `yaml:"network_tracing_enabled"`
-		// The full path to the file where process-agent logs will be written.
+		// The full path to the file where network-tracer logs will be written.
 		LogFile string `yaml:"log_file"`
+		// Boolean whether the logs should also be output to stdout
+		LogToConsole bool `yaml:"log_to_console"`
+		// String indicating log level (e.g. info, debug, warn)
+		LogLevel string `yaml:"log_level"`
 		// The full path to the location of the unix socket where network traces will be accessed
 		UnixSocketPath string `yaml:"nettracer_socket"`
-	} `yaml:"process_config"`
+	} `yaml:"network_tracer_config"`
 }
 
 // NewYamlIfExists returns a new YamlConfig if the given configPath is exists.
@@ -41,23 +43,23 @@ func NewYamlIfExists(configPath string) (*YamlConfig, error) {
 }
 
 func mergeYamlConfig(agentConf *Config, yc *YamlConfig) (*Config, error) {
-	if enabled, err := isAffirmative(yc.Process.NetworkTracingEnabled); err == nil {
+	if enabled, err := isAffirmative(yc.Network.NetworkTracingEnabled); err == nil {
 		agentConf.Enabled = enabled
 	}
 
-	if socketPath := yc.Process.UnixSocketPath; socketPath != "" {
+	if socketPath := yc.Network.UnixSocketPath; socketPath != "" {
 		agentConf.UnixSocketPath = socketPath
 	}
 
-	if yc.LogToConsole {
+	if yc.Network.LogToConsole {
 		agentConf.LogToConsole = true
 	}
-	if yc.Process.LogFile != "" {
-		agentConf.LogFile = yc.Process.LogFile
+	if yc.Network.LogFile != "" {
+		agentConf.LogFile = yc.Network.LogFile
 	}
 
 	// Pull additional parameters from the global config file.
-	agentConf.LogLevel = yc.LogLevel
+	agentConf.LogLevel = yc.Network.LogLevel
 
 	return agentConf, nil
 }

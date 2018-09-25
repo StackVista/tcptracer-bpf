@@ -36,7 +36,7 @@ var (
 
 func main() {
 	// Parse flags
-	flag.StringVar(&opts.configPath, "config", "/etc/datadog-agent/datadog.yaml", "Path to datadog config formatted as YAML")
+	flag.StringVar(&opts.configPath, "config", "/etc/datadog-agent/network-tracer.yaml", "Path to network-tracerconfig formatted as YAML")
 	flag.StringVar(&opts.pidFilePath, "pid", "", "Path to set pidfile for process")
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 	flag.Parse()
@@ -138,7 +138,7 @@ func versionString() string {
 
 func parseConfig() *config.Config {
 	yamlConf, err := config.NewYamlIfExists(opts.configPath) // --yamlConfig
-	if err != nil {
+	if err != nil {                                          // Will return nil if no Yaml file exists
 		log.Criticalf("Error reading YAML formatted config: %s", err)
 		os.Exit(1)
 	}
