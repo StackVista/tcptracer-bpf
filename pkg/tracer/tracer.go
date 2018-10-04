@@ -17,32 +17,21 @@ import (
 import "C"
 
 const (
-	v4UDPMapName           = "udp_stats_ipv4"
-	v6UDPMapName           = "udp_stats_ipv6"
-	v4TCPMapName           = "tcp_stats_ipv4"
-	v6TCPMapName           = "tcp_stats_ipv6"
-	latestTimestampMapName = "latest_ts"
-	statsMapName           = "connections"
+	statsMapName = "connections"
 )
 
 var (
 	// Feature versions sourced from: https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
 	// Minimum kernel version -> max(3.15 - eBPF,
-	//                               3.18 - tables/maps,
-	//                               4.1 - kprobes,
-	//                               4.3 - perf events)
-	// 	                      -> 4.3
-	minRequiredKernelCode = linuxKernelVersionCode(4, 3, 0)
+	//                               3.18 - tables/maps)
+	// 	                      -> 3.18
+	minRequiredKernelCode = linuxKernelVersionCode(3, 18, 0)
 )
 
 type Tracer struct {
 	m      *bpflib.Module
 	config *Config
 }
-
-// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
-// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
-const maxActive = 128
 
 // CurrentKernelVersion exposes calculated kernel version - exposed in LINUX_VERSION_CODE format
 // That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
@@ -74,12 +63,12 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, err
 	}
 
-	if err := initialize(m); err != nil {
+	t := &Tracer{m: m, config: config}
+	if err := t.initialize(); err != nil {
 		return nil, fmt.Errorf("failed to init module: %s", err)
 	}
 
-	// TODO: Improve performance by detaching unnecessary kprobes, once offsets have been figured out in initialize()
-	return &Tracer{m: m, config: config}, nil
+	return t, nil
 }
 
 func (t *Tracer) Start() error {
@@ -114,7 +103,7 @@ func (t *Tracer) getConnections() ([]ConnectionStats, error) {
 		if !hasNext {
 			break
 		} else {
-			conns = append(conns, connStatsFromTCPv4(nextKey, val))
+			conns = append(conns, formatConnStats(nextKey, val))
 
 			// We already read the connection data so we can now remove it
 			err := t.m.DeleteElement(mp, unsafe.Pointer(nextKey))
@@ -138,27 +127,37 @@ func (t *Tracer) getMap(mapName string) (*bpflib.Map, error) {
 	return mp, nil
 }
 
-func initialize(m *bpflib.Module) error {
-	filter := m.SocketFilter("socket_tracer")
+func (t *Tracer) initialize() error {
+	filter := t.m.SocketFilter("socket_tracer")
 
-	fmt.Println("Loading socket filters...")
-	tcp, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_TCP)
-	if err != nil {
-		return fmt.Errorf("Couldn't bind to tcp socket: %s", err)
+	if t.config.CollectTCPConns {
+		tcp, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_TCP)
+		if err != nil {
+			return fmt.Errorf("Couldn't create tcp socket: %s", err)
+		}
+
+		err = bpflib.AttachSocketFilter(filter, int(tcp))
+		if err != nil {
+			return fmt.Errorf("Coudln't bind socket filter to the tcp socket: %s", err)
+		}
+		fmt.Println("TCP loaded")
 	}
 
-	fmt.Println("TCP loaded")
-	udp, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_UDP)
-	if err != nil {
-		return fmt.Errorf("Couldn't bind to udp socket: %s", err)
+	if t.config.CollectUDPConns {
+		udp, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_UDP)
+		if err != nil {
+			return fmt.Errorf("Couldn't create udp socket: %s", err)
+		}
+
+		err = bpflib.AttachSocketFilter(filter, int(udp))
+		if err != nil {
+			return fmt.Errorf("Coudln't bind socket filter to the udp socket: %s", err)
+		}
+		fmt.Println("UDP loaded")
 	}
-	fmt.Println("UDP loaded")
 
-	bpflib.AttachSocketFilter(filter, int(tcp))
-	bpflib.AttachSocketFilter(filter, int(udp))
-	// TODO close this
+	// TODO detach the filters when they are done
 
-	fmt.Println("Attached !")
 	return nil
 }
 

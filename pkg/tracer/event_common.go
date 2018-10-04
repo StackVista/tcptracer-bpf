@@ -14,10 +14,14 @@ const (
 )
 
 func (c ConnectionType) String() string {
-	if c == TCP {
+	switch c {
+	case TCP:
 		return "TCP"
+	case UDP:
+		return "UDP"
+	default:
+		return "???"
 	}
-	return "UDP"
 }
 
 const (
