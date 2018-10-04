@@ -12,6 +12,18 @@ import (
 */
 import "C"
 
+/* struct_Key
+u32 src_ip;
+u32 dst_ip;
+*/
+type ConnKey C.struct_Key
+
+/* struct_Leaf
+u64 pkts;
+u64 bytes;
+*/
+type ConnLeaf C.struct_Leaf
+
 /*  struct_ipv4_tuple_t
 __u32 saddr;
 __u32 daddr;
@@ -75,17 +87,22 @@ func (cs *ConnStatsWithTimestamp) isExpired(latestTime int64, timeout int64) boo
 	return latestTime-int64(cs.timestamp) > timeout
 }
 
-func connStatsFromTCPv4(t *ConnTupleV4, s *ConnStats) ConnectionStats {
+var protocolType = map[uint32]ConnectionType{
+	0x06: TCP,
+	0x11: UDP,
+}
+
+func connStatsFromTCPv4(t *ConnKey, s *ConnLeaf) ConnectionStats {
 	return ConnectionStats{
-		Pid:       uint32(t.pid),
-		Type:      TCP,
+		Pid:       0,
+		Type:      protocolType[uint32(t.protocol)],
 		Family:    AF_INET,
-		Source:    v4IPString(uint32(t.saddr)),
-		Dest:      v4IPString(uint32(t.daddr)),
-		SPort:     uint16(t.sport),
-		DPort:     uint16(t.dport),
-		SendBytes: uint64(s.send_bytes),
-		RecvBytes: uint64(s.recv_bytes),
+		Source:    v4IPString(uint32(t.src_ip)),
+		Dest:      v4IPString(uint32(t.dst_ip)),
+		SPort:     uint16(t.src_port),
+		DPort:     uint16(t.dst_port),
+		SendBytes: uint64(s.bytes),
+		RecvBytes: uint64(0),
 	}
 }
 

@@ -53,6 +53,7 @@ func CreateNetworkTracer(cfg *config.Config) (*NetworkTracer, error) {
 }
 
 func (nt *NetworkTracer) Run() {
+	fmt.Println("Starting the tracer...")
 	nt.tracer.Start()
 
 	http.HandleFunc("/status", func(w http.ResponseWriter, req *http.Request) {})

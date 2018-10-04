@@ -27,7 +27,7 @@ func main() {
 
 	t, err := tracer.NewTracer(tracer.DefaultConfig)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		fmt.Fprintf(os.Stderr, "Error creating tracer: %v\n", err)
 		os.Exit(1)
 	}
 

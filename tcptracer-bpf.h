@@ -53,37 +53,22 @@ struct ipv6_tuple_t {
 	__u32 netns;
 	__u32 pid;
 };
+#endif
 
-#define TCPTRACER_STATE_UNINITIALIZED 0
-#define TCPTRACER_STATE_CHECKING      1
-#define TCPTRACER_STATE_CHECKED       2
-#define TCPTRACER_STATE_READY         3
+typedef unsigned int u32;
+typedef unsigned long long u64;
 
-struct tcptracer_status_t {
-	__u64 state;
-
-	/* checking */
-	struct proc_t proc;
-	__u64 what;
-	__u64 offset_saddr;
-	__u64 offset_daddr;
-	__u64 offset_sport;
-	__u64 offset_dport;
-	__u64 offset_netns;
-	__u64 offset_ino;
-	__u64 offset_family;
-	__u64 offset_daddr_ipv6;
-
-	__u64 err;
-
-	__u32 daddr_ipv6[4];
-	__u32 netns;
-	__u32 saddr;
-	__u32 daddr;
-	__u16 sport;
-	__u16 dport;
-	__u16 family;
-	__u16 padding;
+// Key used as key in the connections hash map
+struct Key {
+	u32 src_ip;               // source ip
+	u32 dst_ip;               // destination ip
+    u32 protocol;             // protocol (TCP, UDP, ICMP, ...)
+	unsigned short src_port;  // source port
+	unsigned short dst_port;  // destination port
 };
 
-#endif
+// Leaf used as leaf in the connections hash map
+struct Leaf {
+	u64 pkts;
+	u64 bytes;
+};

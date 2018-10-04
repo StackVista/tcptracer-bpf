@@ -5,6 +5,7 @@ package tracer
 import (
 	"bytes"
 	"fmt"
+	"syscall"
 	"unsafe"
 
 	bpflib "github.com/iovisor/gobpf/elf"
@@ -21,6 +22,7 @@ const (
 	v4TCPMapName           = "tcp_stats_ipv4"
 	v6TCPMapName           = "tcp_stats_ipv6"
 	latestTimestampMapName = "latest_ts"
+	statsMapName           = "connections"
 )
 
 var (
@@ -72,12 +74,6 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, err
 	}
 
-	// TODO: Only enable kprobes for traffic collection defined in config
-	err = m.EnableKprobes(maxActive)
-	if err != nil {
-		return nil, err
-	}
-
 	if err := initialize(m); err != nil {
 		return nil, fmt.Errorf("failed to init module: %s", err)
 	}
@@ -95,149 +91,38 @@ func (t *Tracer) Stop() {
 }
 
 func (t *Tracer) GetActiveConnections() (*Connections, error) {
-	conns := make([]ConnectionStats, 0)
-	if t.config.CollectTCPConns {
-		v4, err := t.getTCPv4Connections()
-		if err != nil {
-			return nil, err
-		}
-		v6, err := t.getTCPv6Connections()
-		if err != nil {
-			return nil, err
-		}
-		conns = append(conns, append(v4, v6...)...)
+	conns, err := t.getConnections()
+	if err != nil {
+		return nil, err
 	}
 
-	if t.config.CollectUDPConns {
-		v4, err := t.getUDPv4Connections()
-		if err != nil {
-			return nil, err
-		}
-		v6, err := t.getUDPv6Connections()
-		if err != nil {
-			return nil, err
-		}
-		conns = append(conns, append(v4, v6...)...)
-	}
 	return &Connections{Conns: conns}, nil
 }
 
-func (t *Tracer) getUDPv4Connections() ([]ConnectionStats, error) {
-	mp, err := t.getMap(v4UDPMapName)
-	if err != nil {
-		return nil, err
-	}
-
-	tsMp, err := t.getMap(latestTimestampMapName)
-	if err != nil {
-		return nil, err
-	}
-
-	var latestTime int64
-	err = t.m.LookupElement(tsMp, unsafe.Pointer(&zero), unsafe.Pointer(&latestTime))
-	if err != nil { // If we can't find latest timestamp, there probably hasn't been any UDP messages yet
-		return nil, nil
-	}
-
-	// Iterate through all key-value pairs in map
-	key, nextKey, stats := &ConnTupleV4{}, &ConnTupleV4{}, &ConnStatsWithTimestamp{}
-	active := make([]ConnectionStats, 0)
-	expired := make([]*ConnTupleV4, 0)
-	for {
-		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
-		if !hasNext {
-			break
-		} else if stats.isExpired(latestTime, t.config.UDPConnTimeout.Nanoseconds()) {
-			expired = append(expired, nextKey.copy())
-		} else {
-			active = append(active, connStatsFromUDPv4(nextKey, stats))
-		}
-		key = nextKey
-	}
-
-	// Remove expired entries
-	for i := range expired {
-		t.m.DeleteElement(mp, unsafe.Pointer(expired[i]))
-	}
-	return active, nil
-}
-
-func (t *Tracer) getUDPv6Connections() ([]ConnectionStats, error) {
-	mp, err := t.getMap(v6UDPMapName)
-	if err != nil {
-		return nil, err
-	}
-
-	tsMp, err := t.getMap(latestTimestampMapName)
-	if err != nil {
-		return nil, err
-	}
-
-	var latestTime int64
-	err = t.m.LookupElement(tsMp, unsafe.Pointer(&zero), unsafe.Pointer(&latestTime))
-	if err != nil { // If we can't find latest timestamp, there probably hasn't been any UDP messages yet
-		return nil, nil
-	}
-
-	// Iterate through all key-value pairs in map
-	key, nextKey, stats := &ConnTupleV6{}, &ConnTupleV6{}, &ConnStatsWithTimestamp{}
-	active := make([]ConnectionStats, 0)
-	expired := make([]*ConnTupleV6, 0)
-	for {
-		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
-		if !hasNext {
-			break
-		} else if stats.isExpired(latestTime, t.config.UDPConnTimeout.Nanoseconds()) {
-			expired = append(expired, nextKey.copy())
-		} else {
-			active = append(active, connStatsFromUDPv6(nextKey, stats))
-		}
-		key = nextKey
-	}
-
-	// Remove expired entries
-	for i := range expired {
-		t.m.DeleteElement(mp, unsafe.Pointer(expired[i]))
-	}
-	return active, nil
-}
-
-func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
-	mp, err := t.getMap(v4TCPMapName)
+func (t *Tracer) getConnections() ([]ConnectionStats, error) {
+	mp, err := t.getMap(statsMapName)
 	if err != nil {
 		return nil, err
 	}
 
 	// Iterate through all key-value pairs in map
-	key, nextKey, val := &ConnTupleV4{}, &ConnTupleV4{}, &ConnStats{}
+	key, nextKey, val := &ConnKey{}, &ConnKey{}, &ConnLeaf{}
 	conns := make([]ConnectionStats, 0)
+	keys := make([]*ConnKey, 0)
 	for {
 		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
 		if !hasNext {
 			break
 		} else {
 			conns = append(conns, connStatsFromTCPv4(nextKey, val))
-			key = nextKey
-		}
-	}
-	return conns, nil
-}
 
-func (t *Tracer) getTCPv6Connections() ([]ConnectionStats, error) {
-	mp, err := t.getMap(v6TCPMapName)
-	if err != nil {
-		return nil, err
-	}
+			// We already read the connection data so we can now remove it
+			err := t.m.DeleteElement(mp, unsafe.Pointer(nextKey))
+			if err != nil {
+				fmt.Printf("Warning couldn't delete key %+v: %s\n", key, err)
+			}
 
-	// Iterate through all key-value pairs in map
-	key, nextKey, val := &ConnTupleV6{}, &ConnTupleV6{}, &ConnStats{}
-	conns := make([]ConnectionStats, 0)
-	for {
-		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
-		if !hasNext {
-			break
-		} else {
-			conns = append(conns, connStatsFromTCPv6(nextKey, val))
+			keys = append(keys, nextKey)
 			key = nextKey
 		}
 	}
@@ -254,9 +139,26 @@ func (t *Tracer) getMap(mapName string) (*bpflib.Map, error) {
 }
 
 func initialize(m *bpflib.Module) error {
-	if err := guess(m); err != nil {
-		return fmt.Errorf("error guessing offsets: %v", err)
+	filter := m.SocketFilter("socket_tracer")
+
+	fmt.Println("Loading socket filters...")
+	tcp, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_TCP)
+	if err != nil {
+		return fmt.Errorf("Couldn't bind to tcp socket: %s", err)
 	}
+
+	fmt.Println("TCP loaded")
+	udp, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_UDP)
+	if err != nil {
+		return fmt.Errorf("Couldn't bind to udp socket: %s", err)
+	}
+	fmt.Println("UDP loaded")
+
+	bpflib.AttachSocketFilter(filter, int(tcp))
+	bpflib.AttachSocketFilter(filter, int(udp))
+	// TODO close this
+
+	fmt.Println("Attached !")
 	return nil
 }
 

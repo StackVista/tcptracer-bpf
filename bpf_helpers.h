@@ -7,6 +7,12 @@
  */
 #define SEC(NAME) __attribute__((section(NAME), used))
 
+// packet parsing state machine helper
+#define cursor_advance(_cursor, _len) \
+  ({ void *_tmp = _cursor; _cursor += _len; _tmp; })
+
+#define lock_xadd(ptr, val) ((void)__sync_fetch_and_add(ptr, val))
+
 /* helper functions called from eBPF programs written in C */
 static void *(*bpf_map_lookup_elem)(void *map, void *key) =
 	(void *) BPF_FUNC_map_lookup_elem;

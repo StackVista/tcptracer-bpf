@@ -6,7 +6,7 @@ build:
 	go build -tags 'linux_bpf' -o nettop nettop.go
 
 build-in-docker:
-	sudo docker build -t "datadog/tcptracer-bpf-ci" . -f Dockerfile-nettop
+	sudo docker build -t "datadog/tcptracer-bpf-ci" ../ -f Dockerfile-nettop
 	sudo docker run \
 		-v $(GOPATH)/src/github.com/DataDog/tcptracer-bpf:/go/src/github.com/DataDog/tcptracer-bpf \
 		--env GOPATH=/go \

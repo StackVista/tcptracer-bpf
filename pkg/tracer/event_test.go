@@ -26,7 +26,7 @@ var (
 func BenchmarkUniqueConnKeyString(b *testing.B) {
 	c := testConn
 	for n := 0; n < b.N; n++ {
-		fmt.Sprintf("%d-%d-%d-%s-%d-%s-%d", c.Pid, c.Type, c.Family, c.Source, c.SPort, c.Dest, c.DPort)
+		_ = fmt.Sprintf("%d-%d-%d-%s-%d-%s-%d", c.Pid, c.Type, c.Family, c.Source, c.SPort, c.Dest, c.DPort)
 	}
 }
 
