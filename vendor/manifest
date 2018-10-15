@@ -43,30 +43,6 @@
 			"revision": "f561c5e57575bb1e0a2167028b7339b3a8d16fb4",
 			"branch": "master",
 			"notests": true
-		},
-		{
-			"importpath": "gopkg.in/yaml.v2",
-			"repository": "https://github.com/go-yaml/yaml",
-			"vcs": "git",
-			"revision": "5420a8b6744d3b0345ab293f6fcba19c978f1183",
-			"branch": "v2",
-			"notests": true
-		},
-		{
-			"importpath": "github.com/mailru/easyjson",
-			"repository": "https://github.com/mailru/easyjson",
-			"vcs": "git",
-			"revision": "60711f1a8329503b04e1c88535f419d0bb440bff",
-			"branch": "master",
-			"notests": true
-		},
-		{
-			"importpath": "github.com/DataDog/datadog-agent",
-			"repository": "https://github.com/DataDog/datadog-agent",
-			"vcs": "git",
-			"revision": "9b3444c6fdcbe9a122a0bdacdd1476a78d326a97",
-			"branch": "master",
-			"notests": true
 		}
 	]
 }
