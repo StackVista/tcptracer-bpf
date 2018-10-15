@@ -387,32 +387,35 @@ func NewUDPServer(onMessage func(b []byte, n int) []byte) *UDPServer {
 }
 
 func (s *UDPServer) Run(done chan struct{}, payloadSize int) {
-	onError := func(err error) {
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+	ln, err := net.ListenPacket("udp", s.address)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	ln, err := net.ListenPacket("udp", s.address)
-	onError(err)
 	s.address = ln.LocalAddr().String()
 
 	go func() {
-		<-done
-		ln.Close()
-	}()
-
-	go func() {
+		buf := make([]byte, payloadSize)
 		for {
-			buf := make([]byte, payloadSize)
-			n, addr, err := ln.ReadFrom(buf)
-			if err != nil { // Not an error, likely just the conn was closed
-				return
+			select {
+			case <-done:
+				break
+			default:
+				ln.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+				n, addr, err := ln.ReadFrom(buf)
+				if err != nil {
+					break
+				}
+				_, err = ln.WriteTo(s.onMessage(buf, n), addr)
+				if err != nil {
+					fmt.Println(err)
+					break
+				}
 			}
-			_, err = ln.WriteTo(s.onMessage(buf, n), addr)
-			onError(err)
 		}
+
+		ln.Close()
 	}()
 }
 

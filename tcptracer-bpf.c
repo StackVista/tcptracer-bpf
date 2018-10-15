@@ -99,7 +99,7 @@ struct bpf_map_def SEC("maps/connectsock_ipv6") connectsock_ipv6 = {
 	.namespace = "",
 };
 
-/* This map are used to match the kprobe & kretprobe of udp_recvmsg */
+/* This map is used to match the kprobe & kretprobe of udp_recvmsg */
 /* This is a key/value store with the keys being a pid
  * and the values being a struct sock *.
  */
