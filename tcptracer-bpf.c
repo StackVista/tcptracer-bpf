@@ -26,7 +26,7 @@
 	})
 
 /* This is a key/value store with the keys being an ipv4_tuple_t for send & recv calls
- * and the values being the a struct conn_stats_t *.
+ * and the values being the struct conn_stats_ts_t *.
  */
 struct bpf_map_def SEC("maps/udp_stats_ipv4") udp_stats_ipv4 = {
 	.type = BPF_MAP_TYPE_HASH,
@@ -38,7 +38,7 @@ struct bpf_map_def SEC("maps/udp_stats_ipv4") udp_stats_ipv4 = {
 };
 
 /* This is a key/value store with the keys being an ipv4_tuple_t for send & recv calls
- * and the values being the a struct conn_stats_t *.
+ * and the values being the struct conn_stats_ts_t *.
  */
 struct bpf_map_def SEC("maps/udp_stats_ipv6") udp_stats_ipv6 = {
 	.type = BPF_MAP_TYPE_HASH,
@@ -50,7 +50,7 @@ struct bpf_map_def SEC("maps/udp_stats_ipv6") udp_stats_ipv6 = {
 };
 
 /* This is a key/value store with the keys being an ipv4_tuple_t for send & recv calls
- * and the values being the a struct conn_stats_t *.
+ * and the values being the struct conn_stats_t *.
  */
 struct bpf_map_def SEC("maps/tcp_stats_ipv4") tcp_stats_ipv4 = {
 	.type = BPF_MAP_TYPE_HASH,
@@ -62,7 +62,7 @@ struct bpf_map_def SEC("maps/tcp_stats_ipv4") tcp_stats_ipv4 = {
 };
 
 /* This is a key/value store with the keys being an ipv6_tuple_t for send & recv calls
- * and the values being the a struct conn_stats_t *.
+ * and the values being the struct conn_stats_t *.
  */
 struct bpf_map_def SEC("maps/tcp_stats_ipv6") tcp_stats_ipv6 = {
 	.type = BPF_MAP_TYPE_HASH,
@@ -73,8 +73,7 @@ struct bpf_map_def SEC("maps/tcp_stats_ipv6") tcp_stats_ipv6 = {
 	.namespace = "",
 };
 
-/* These maps are used to match the kprobe & kretprobe of connect */
-
+/* These maps are used to match the kprobe & kretprobe of connect for IPv4 */
 /* This is a key/value store with the keys being a pid
  * and the values being a struct sock *.
  */
@@ -87,10 +86,24 @@ struct bpf_map_def SEC("maps/connectsock_ipv4") connectsock_ipv4 = {
 	.namespace = "",
 };
 
+/* These maps are used to match the kprobe & kretprobe of connect for IPv6 */
 /* This is a key/value store with the keys being a pid
  * and the values being a struct sock *.
  */
 struct bpf_map_def SEC("maps/connectsock_ipv6") connectsock_ipv6 = {
+	.type = BPF_MAP_TYPE_HASH,
+	.key_size = sizeof(__u64),
+	.value_size = sizeof(void *),
+	.max_entries = 1024,
+	.pinning = 0,
+	.namespace = "",
+};
+
+/* This map is used to match the kprobe & kretprobe of udp_recvmsg */
+/* This is a key/value store with the keys being a pid
+ * and the values being a struct sock *.
+ */
+struct bpf_map_def SEC("maps/udp_recv_sock") udp_recv_sock = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(__u64),
 	.value_size = sizeof(void *),
@@ -508,15 +521,18 @@ static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *statu
 }
 
 __attribute__((always_inline))
-static int increment_udp_stats(struct sock *sk, struct tcptracer_status_t *status, size_t send_bytes, size_t recv_bytes) {
+static int increment_udp_stats(struct sock *sk,
+                               struct tcptracer_status_t *status,
+                               u64 pid_tgid,
+                               size_t send_bytes,
+                               size_t recv_bytes) {
 	struct conn_stats_ts_t *val;
 
 	u64 zero = 0;
-	u64 pid = bpf_get_current_pid_tgid();
 	u64 ts = bpf_ktime_get_ns();
 
 	if (check_family(sk, status, AF_INET)) {
-		if (!are_offsets_ready_v4(status, sk, pid)) {
+		if (!are_offsets_ready_v4(status, sk, pid_tgid)) {
 			return 0;
 		}
 
@@ -525,7 +541,7 @@ static int increment_udp_stats(struct sock *sk, struct tcptracer_status_t *statu
 			return 0;
 		}
 
-		t.pid = pid >> 32;
+		t.pid = pid_tgid >> 32;
 		// Making ports human-readable
 		t.sport = ntohs(t.sport);
 		t.dport = ntohs(t.dport);
@@ -545,7 +561,7 @@ static int increment_udp_stats(struct sock *sk, struct tcptracer_status_t *statu
 			bpf_map_update_elem(&udp_stats_ipv4, &t, &s, BPF_ANY);
 		}
 	} else if (check_family(sk, status, AF_INET6)) {
-		if (!are_offsets_ready_v6(status, sk, pid)) {
+		if (!are_offsets_ready_v6(status, sk, pid_tgid)) {
 			return 0;
 		}
 
@@ -562,7 +578,7 @@ static int increment_udp_stats(struct sock *sk, struct tcptracer_status_t *statu
 				t2.sport = ntohs(t.sport),
 				t2.dport = ntohs(t.dport),
 				t2.netns = t.netns,
-				t2.pid = pid >> 32,
+				t2.pid = pid_tgid >> 32,
 			};
 
 			val = bpf_map_lookup_elem(&udp_stats_ipv4, &t2);
@@ -578,7 +594,7 @@ static int increment_udp_stats(struct sock *sk, struct tcptracer_status_t *statu
 				bpf_map_update_elem(&udp_stats_ipv4, &t2, &s, BPF_ANY);
 			}
 		} else { // It's IPv6
-			t.pid = pid >> 32;
+			t.pid = pid_tgid >> 32;
 			t.sport = ntohs(t.sport); // Making ports human-readable
 			t.dport = ntohs(t.dport);
 
@@ -801,6 +817,7 @@ SEC("kprobe/udp_sendmsg")
 int kprobe__udp_sendmsg(struct pt_regs *ctx) {
 	struct sock *sk = (struct sock *) PT_REGS_PARM1(ctx);
 	size_t size = (size_t) PT_REGS_PARM3(ctx);
+	u64 pid_tgid = bpf_get_current_pid_tgid();
 	u64 zero = 0;
 
 	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
@@ -808,28 +825,60 @@ int kprobe__udp_sendmsg(struct pt_regs *ctx) {
 		return 0;
 	}
 
-	increment_udp_stats(sk, status, size, 0);
+	increment_udp_stats(sk, status, pid_tgid, size, 0);
 
 	return 0;
 }
 
+// We can only get the accurate number of copied bytes from the return value, so we pass our
+// sock* pointer from the kprobe to the kretprobe via a map (udp_recv_sock) to get all required info
+//
+// The same issue exists for TCP, but we can conveniently use the downstream function tcp_cleanup_rbuf
+//
+// On UDP side, no similar function exists in all kernel versions, though we may be able to use something like
+// skb_consume_udp (v4.10+, https://elixir.bootlin.com/linux/v4.10/source/net/ipv4/udp.c#L1500)
 SEC("kprobe/udp_recvmsg")
 int kprobe__udp_recvmsg(struct pt_regs *ctx) {
 	struct sock *sk = (struct sock *) PT_REGS_PARM1(ctx);
-	size_t size = (size_t) PT_REGS_PARM3(ctx);
+	u64 pid_tgid = bpf_get_current_pid_tgid();
+
+	// Store pointer to the socket using the pid/tgid
+	bpf_map_update_elem(&udp_recv_sock, &pid_tgid, &sk, BPF_ANY);
+
+	return 0;
+}
+
+SEC("kretprobe/udp_recvmsg")
+int kretprobe__udp_recvmsg(struct pt_regs *ctx) {
+	u64 pid_tgid = bpf_get_current_pid_tgid();
 	u64 zero = 0;
+
+	// Retrieve socket pointer from kprobe via pid/tgid
+	struct sock **skpp = bpf_map_lookup_elem(&udp_recv_sock, &pid_tgid);
+	if (skpp == 0) { // Missed entry
+		return 0;
+	}
+	struct sock *sk = *skpp;
+
+	// Make sure we clean up that pointer reference
+	bpf_map_delete_elem(&udp_recv_sock, &pid_tgid);
+
+	int copied = (int) PT_REGS_RC(ctx);
+	if (copied < 0) { // Non-zero values are errors (e.g -EINVAL)
+		return 0;
+	}
 
 	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
 	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
 		return 0;
 	}
 
-	increment_udp_stats(sk, status, 0, size);
+	increment_udp_stats(sk, status, pid_tgid, 0, copied);
 
 	return 0;
 }
 
-char _license[] SEC("license") = "GPL";
-// this number will be interpreted by gobpf-elf-loader to set the current
-// running kernel version
+// This number will be interpreted by gobpf-elf-loader to set the current running kernel version
 __u32 _version SEC("version") = 0xFFFFFFFE;
+
+char _license[] SEC("license") = "GPL";
