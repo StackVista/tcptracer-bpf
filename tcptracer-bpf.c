@@ -666,7 +666,7 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
 	// We should figure out offsets if they're not already figured out
 	are_offsets_ready_v4(status, skp, pid);
 
-	return 0;
+	return increment_tcp_stats(skp, status, 0, 0);
 }
 
 // Used for offset guessing (see: pkg/offsetguess.go)
@@ -706,7 +706,7 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
 	// We should figure out offsets if they're not already figured out
 	are_offsets_ready_v6(status, skp, pid);
 
-	return 0;
+  return increment_tcp_stats(skp, status, 0, 0);
 }
 
 SEC("kprobe/tcp_sendmsg")
