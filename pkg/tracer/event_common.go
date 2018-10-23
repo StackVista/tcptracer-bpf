@@ -27,6 +27,24 @@ const (
 
 type ConnectionFamily uint8
 
+const (
+  UNKNOWN  Direction = 0
+	OUTGOING Direction = 1
+	INCOMING Direction = 2
+)
+
+type Direction uint8
+
+func (d Direction) String() string {
+	if d == UNKNOWN {
+		return "UNKNOWN"
+	}
+	if d == OUTGOING {
+		return "OUTGOING"
+	}
+	return "INCOMING"
+}
+
 //easyjson:json
 type Connections struct {
 	Conns []ConnectionStats `json:"connections"`
@@ -43,14 +61,15 @@ type ConnectionStats struct {
 	Dest   string `json:"dest"`
 	SPort  uint16 `json:"sport"`
 	DPort  uint16 `json:"dport"`
+  Direction Direction `josn:"incoming"`
 
 	SendBytes uint64 `json:"send_bytes"`
 	RecvBytes uint64 `json:"recv_bytes"`
 }
 
 func (c ConnectionStats) String() string {
-	return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] %d bytes sent, %d bytes received",
-		c.Type, c.Pid, c.Source, c.SPort, c.Dest, c.DPort, c.SendBytes, c.RecvBytes)
+	return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s %d bytes sent, %d bytes received",
+		c.Type, c.Pid, c.Source, c.SPort, c.Dest, c.DPort, c.Direction, c.SendBytes, c.RecvBytes)
 }
 
 func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {

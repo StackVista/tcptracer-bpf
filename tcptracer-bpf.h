@@ -15,6 +15,10 @@
 #define TASK_COMM_LEN 16
 #endif
 
+#define DIRECTION_UNKNOWN 0
+#define DIRECTION_OUTGOING 1
+#define DIRECTION_INCOMING 2
+
 struct proc_t {
     char comm[TASK_COMM_LEN];
 };
@@ -22,6 +26,7 @@ struct proc_t {
 struct conn_stats_t {
 	__u64 send_bytes;
 	__u64 recv_bytes;
+  __u64  direction; // This is big to have a 64 bit aligned struct
 };
 
 struct conn_stats_ts_t {
