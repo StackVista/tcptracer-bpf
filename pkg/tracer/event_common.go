@@ -83,8 +83,8 @@ func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 	if _, err := buffer.WriteString(c.Source); err != nil {
 		return nil, err
 	}
-	// Family (8 bits) + Type (8 bits) = 16 bits
-	p1 := uint16(c.Family)<<8 | uint16(c.Type)
+	// Family (8 bits) + Type (8 bits) + Direction (8 bits) = 32 bits
+	p1 := uint32(c.Direction)<<16 | uint32(c.Family)<<8 | uint32(c.Type)
 	if err := binary.Write(buffer, binary.LittleEndian, p1); err != nil {
 		return nil, err
 	}

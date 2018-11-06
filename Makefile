@@ -86,4 +86,4 @@ test:
 
 # TODO: Add linux_bpf tag so it runs CI tests w/ eBPF enabled
 ci-test:
-	go list ./... | grep -v vendor | sudo -E PATH=${PATH} GOCACHE=off xargs go test -tags ''
+	go list ./... | grep -v vendor | PATH=${PATH} GOCACHE=off xargs go test -tags ''
