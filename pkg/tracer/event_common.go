@@ -61,7 +61,7 @@ type ConnectionStats struct {
 	Dest   string `json:"dest"`
 	SPort  uint16 `json:"sport"`
 	DPort  uint16 `json:"dport"`
-  Direction Direction `josn:"incoming"`
+	Direction Direction `json:"direction"`
 
 	SendBytes uint64 `json:"send_bytes"`
 	RecvBytes uint64 `json:"recv_bytes"`

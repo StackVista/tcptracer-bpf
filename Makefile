@@ -49,7 +49,7 @@ build-ebpf-object:
 		--workdir=/src \
 		$(DOCKER_IMAGE) \
 		make -f ebpf.mk build
-	sudo chown -R $(UID):$(UID) ebpf
+	$(SUDO) chown -R $(UID):$(UID) ebpf
 
 install-generated-go:
 	cp ebpf/tcptracer-ebpf.go pkg/tracer/tcptracer-ebpf.go
@@ -64,8 +64,8 @@ lint:
 # Build & run dockerized `nettop` command for testing 
 # $ make all run-nettop
 run-nettop:
-	sudo docker build -t "tcptracer-bpf-dd-nettop" . -f tests/Dockerfile-nettop
-	sudo docker run \
+	$(SUDO) docker build -t "tcptracer-bpf-dd-nettop" . -f tests/Dockerfile-nettop
+	$(SUDO) docker run \
 		--net=host \
 		--cap-add=SYS_ADMIN \
 		--privileged \
