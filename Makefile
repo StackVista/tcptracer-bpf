@@ -41,7 +41,7 @@ all: build-docker-image build-ebpf-object install-generated-go
 build-docker-image:
 	$(SUDO) docker build -t $(DOCKER_IMAGE) -f $(DOCKER_FILE) .
 
-build-ebpf-object:
+build-ebpf-object: build-docker-image
 	$(SUDO) docker run --rm -e DEBUG=$(DEBUG) \
 		-e CIRCLE_BUILD_URL=$(CIRCLE_BUILD_URL) \
 		-v $(PWD):/src:ro \
@@ -85,5 +85,5 @@ test:
 	go list ./... | grep -v vendor | sudo -E PATH=${PATH} GOCACHE=off xargs go test -tags 'linux_bpf'
 
 # TODO: Add linux_bpf tag so it runs CI tests w/ eBPF enabled
-ci-test:
+ci-test: build-ebpf-object
 	go list ./... | grep -v vendor | sudo -E PATH=${PATH} GOCACHE=off xargs go test -tags ''
