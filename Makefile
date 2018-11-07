@@ -49,7 +49,7 @@ build-ebpf-object:
 		--workdir=/src \
 		$(DOCKER_IMAGE) \
 		make -f ebpf.mk build
-	$(SUDO) chown -R $(UID):$(UID) ebpf
+	sudo chown -R $(UID):$(UID) ebpf
 
 install-generated-go:
 	cp ebpf/tcptracer-ebpf.go pkg/tracer/tcptracer-ebpf.go
