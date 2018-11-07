@@ -14,6 +14,9 @@ sudo add-apt-repository \
    $(lsb_release -cs) \
    stable"
 
-sudo apt-get update && sudo apt-get install -y docker-ce
+sudo add-apt-repository ppa:gophers/archive
 
+sudo apt-get update && sudo apt-get install -y golang-1.10-go docker-ce
+
+sudo cp /usr/lib/go-1.10/bin/go /usr/bin/go
 echo "GOPATH=/opt/stackstate-go" > /etc/environment
