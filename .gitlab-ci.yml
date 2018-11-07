@@ -1,0 +1,17 @@
+image: stackstate/stackstate-agent-runner-circle:master
+
+stages:
+  - test
+
+test:
+  stage: test
+  script:
+    - mkdir -p /go/src/github.com/StackVista
+    - cp -a $CI_PROJECT_DIR /go/src/github.com/StackVista/tcptracer-bpf
+    - export GOPATH=/go
+    - cd /go/src/github.com/StackVista/tcptracer-bpf
+    - make test
+  tags:
+    # Run on sts hardware to be able to test ebpf
+    - sts-aws
+
