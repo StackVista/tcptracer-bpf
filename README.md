@@ -41,6 +41,15 @@ make
 sudo ./run
 ```
 
+### Using Vagrant VM
+
+```
+$ vagrant up tcptracer
+...
+$ vagrant ssh tcptracer
+$ cd /opt/stackstate-go/src/github.com/StackVista/tcptracer-bpf
+```
+
 ## Vendoring
 
 We use [gvt](https://github.com/FiloSottile/gvt).
