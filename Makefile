@@ -4,7 +4,7 @@ UID=$(shell id -u)
 PWD=$(shell pwd)
 
 DOCKER_FILE?=Dockerfile
-DOCKER_IMAGE?=datadog/tcptracer-bpf-builder
+DOCKER_IMAGE?=stackstate/tcptracer-bpf-builder
 
 # If you can use docker without being root, you can do "make SUDO="
 SUDO=$(shell docker info >/dev/null 2>&1 || echo "sudo -E")
@@ -51,6 +51,9 @@ build-ebpf-object: build-docker-image
 		make -f ebpf.mk build
 	sudo chown -R $(UID):$(UID) ebpf
 
+build-ebpf-object-ci:
+	make DEST_DIR=./ebpf -f ebpf.mk build
+
 install-generated-go:
 	cp ebpf/tcptracer-ebpf.go pkg/tracer/tcptracer-ebpf.go
 
@@ -84,6 +87,5 @@ codegen:
 test: build-ebpf-object
 	go list ./... | grep -v vendor | sudo -E PATH=${PATH} GOCACHE=off xargs go test -tags 'linux_bpf'
 
-# TODO: Add linux_bpf tag so it runs CI tests w/ eBPF enabled
-ci-test: build-ebpf-object
-	go list ./... | grep -v vendor | sudo -E PATH=${PATH} GOCACHE=off xargs go test -tags ''
+ci-test: build-ebpf-object-ci
+	go list ./... | grep -v vendor | sudo -E PATH=${PATH} GOCACHE=off xargs go test -tags 'linux_bpf'
