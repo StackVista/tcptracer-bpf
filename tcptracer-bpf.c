@@ -773,9 +773,13 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 {
 	struct sock *newsk = (struct sock *)PT_REGS_RC(ctx);
 
+  bpf_debug("trace_tcp4accep");
+
   // STS TODO: Determine what to do when the call return non-null value
   if (newsk == NULL)
 		return 0;
+
+  // bpf_trace_printk("data %x %x %d\\n", saddr, daddr, ntohs(dport));
 
 	u64 zero = 0;
 	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);

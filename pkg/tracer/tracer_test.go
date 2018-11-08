@@ -39,6 +39,8 @@ func TestTCPSendAndReceive(t *testing.T) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
+		r.ReadBytes(byte('\n'))
+		c.Close()
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
@@ -76,6 +78,11 @@ func TestTCPSendAndReceive(t *testing.T) {
 	assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
 	assert.Equal(t, conn2.Direction, INCOMING)
 
+	// Write clientMessageSize to server, to shut down the connection
+	if _, err = c.Write(genPayload(0)); err != nil {
+		t.Fatal(err)
+	}
+
 	doneChan <- struct{}{}
 }
 
@@ -88,8 +95,14 @@ func TestTCPNoData(t *testing.T) {
 	tr.Start()
 	defer tr.Stop()
 
+	connectChan := make(chan struct{})
+
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := NewTCPServer(func(c net.Conn) {
+		connectChan <- struct{}{}
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		c.Close()
 	})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
@@ -101,6 +114,8 @@ func TestTCPNoData(t *testing.T) {
 	}
 	defer c.Close()
 
+	// Waddressit for the connection to be established
+	<-connectChan
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections, err := tr.GetActiveConnections()
 	if err != nil {
@@ -120,6 +135,10 @@ func TestTCPNoData(t *testing.T) {
 	assert.Equal(t, 0, int(conn2.SendBytes))
 	assert.Equal(t, conn2.Direction, INCOMING)
 
+	// Write to server to shut down the connection
+	if _, err = c.Write(genPayload(0)); err != nil {
+		t.Fatal(err)
+	}
 	doneChan <- struct{}{}
 }
 
@@ -217,7 +236,9 @@ func TestUDPSendAndReceive(t *testing.T) {
 }
 
 func findConnection(l, r net.Addr, c *Connections) (*ConnectionStats, bool) {
+	fmt.Println("Looking for conn")
 	for _, conn := range c.Conns {
+		fmt.Println("conn", conn)
 		localAddr := fmt.Sprintf("%s:%d", conn.Source, conn.SPort)
 		remoteAddr := fmt.Sprintf("%s:%d", conn.Dest, conn.DPort)
 		if localAddr == l.String() && remoteAddr == r.String() {
