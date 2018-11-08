@@ -5,4 +5,5 @@ weaveworks-tcptracer-bpf-ci-latest.aci
 nettracer
 network-tracer
 .vagrant/
-ubuntu-bionic-18.04-cloudimg-console*
+*.log
+nettop

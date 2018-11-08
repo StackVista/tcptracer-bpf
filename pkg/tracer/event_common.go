@@ -28,7 +28,7 @@ const (
 type ConnectionFamily uint8
 
 const (
-  UNKNOWN  Direction = 0
+	UNKNOWN  Direction = 0
 	OUTGOING Direction = 1
 	INCOMING Direction = 2
 )
@@ -57,14 +57,13 @@ type ConnectionStats struct {
 	Family ConnectionFamily `json:"family"`
 
 	// Source & Dest represented as a string to handle both IPv4 & IPv6
-	Source string `json:"source"`
-	Dest   string `json:"dest"`
-	SPort  uint16 `json:"sport"`
-	DPort  uint16 `json:"dport"`
+	Source    string    `json:"source"`
+	Dest      string    `json:"dest"`
+	SPort     uint16    `json:"sport"`
+	DPort     uint16    `json:"dport"`
 	Direction Direction `json:"direction"`
-
-	SendBytes uint64 `json:"send_bytes"`
-	RecvBytes uint64 `json:"recv_bytes"`
+	SendBytes uint64    `json:"send_bytes"`
+	RecvBytes uint64    `json:"recv_bytes"`
 }
 
 func (c ConnectionStats) String() string {
