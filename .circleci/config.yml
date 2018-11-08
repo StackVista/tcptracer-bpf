@@ -1,8 +1,8 @@
 version: 2
 jobs:
   build:
-    docker:
-      - image: circleci/buildpack-deps:xenial
+    machine:
+      docker_layer_caching: true
     environment:
       - GODIST: "go1.10.1.linux-amd64.tar.gz"
       - GOPATH: /home/circleci/project/.go_workspace

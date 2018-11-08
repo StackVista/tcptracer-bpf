@@ -3,7 +3,7 @@ DEST_DIR?=/dist
 LINUX_HEADERS=$(shell rpm -q kernel-devel --last | head -n 1 | awk -F'kernel-devel-' '{print "/usr/src/kernels/"$$2}' | cut -d " " -f 1)
 
 build:
-	@mkdir -p "$(DEST_DIR)"
+	@sudo mkdir -p "$(DEST_DIR)"
 	clang -D__KERNEL__ -D__ASM_SYSREG_H -D__BPF_TRACING__ \
 		-DCIRCLE_BUILD_URL=\"$(CIRCLE_BUILD_URL)\" \
 		-Wno-unused-value \
