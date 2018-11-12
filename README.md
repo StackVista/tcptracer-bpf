@@ -27,7 +27,7 @@ See `tests/tracer.go` for an example how to use tcptracer-bpf.
 
 ## History
 
-This is a StackStateb fork from the github.com/DataDog/tcptracer-bpf, which was
+This is a StackState fork from the github.com/DataDog/tcptracer-bpf, which was
 itself forked from weavescope. We use the 'dd' branch from datadog as an upstream when
 merging.
 
