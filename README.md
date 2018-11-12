@@ -25,6 +25,16 @@ userspace by the Go library using a state machine.
 
 See `tests/tracer.go` for an example how to use tcptracer-bpf.
 
+## History
+
+This is a StackState fork from the github.com/DataDog/tcptracer-bpf, which was
+itself forked from weavescope. We use the 'dd' branch from datadog as an upstream when
+merging.
+
+DataDog's adaptation forcusses on gathering network metrics (also for UDP),
+StackState is adding connection tracking to the code again, loosely based
+on what the original weavescope tcptracer does.
+
 ## Build the elf object
 
 ```
@@ -39,6 +49,15 @@ The object file can be found in `ebpf/tcptracer-ebpf.o`.
 cd tests
 make
 sudo ./run
+```
+
+### Using Vagrant VM
+
+```
+$ vagrant up tcptracer
+...
+$ vagrant ssh tcptracer
+$ cd /opt/stackstate-go/src/github.com/StackVista/tcptracer-bpf
 ```
 
 ## Vendoring

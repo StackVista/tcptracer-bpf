@@ -435,8 +435,12 @@ static int read_ipv6_tuple(struct ipv6_tuple_t *tuple, struct tcptracer_status_t
 	return 1;
 }
 
+/**
+ * Create a new TCP record with a direction. Only created records will be added to the
+ * tcp_stats map, because w ewant to know the direction first.
+ */
 __attribute__((always_inline))
-static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *status, size_t send_bytes, size_t recv_bytes) {
+static int create_tcp_record(struct sock *sk, struct tcptracer_status_t *status, __u8 direction) {
 	struct conn_stats_t *val;
 
 	u64 pid = bpf_get_current_pid_tgid();
@@ -456,13 +460,11 @@ static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *statu
 		t.dport = ntohs(t.dport);
 
 		val = bpf_map_lookup_elem(&tcp_stats_ipv4, &t);
-		if (val != NULL) { // If already in our map, increment size in-place
-			(*val).send_bytes += send_bytes;
-			(*val).recv_bytes += recv_bytes;
-		} else { // Otherwise add the key, value to the map
+		if (val == NULL) {
 			struct conn_stats_t s = {
-				.send_bytes = send_bytes,
-				.recv_bytes = recv_bytes,
+				.send_bytes = 0,
+				.recv_bytes = 0,
+        .direction  = direction
 			};
 			bpf_map_update_elem(&tcp_stats_ipv4, &t, &s, BPF_ANY);
 		}
@@ -488,13 +490,11 @@ static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *statu
 			};
 
 			val = bpf_map_lookup_elem(&tcp_stats_ipv4, &t2);
-			if (val != NULL) { // If already in our map, increment size in-place
-				(*val).send_bytes += send_bytes;
-				(*val).recv_bytes += recv_bytes;
-			} else { // Otherwise add the key, value to the map
+			if (val == NULL) {
 				struct conn_stats_t s = {
-					.send_bytes = send_bytes,
-					.recv_bytes = recv_bytes,
+					.send_bytes = 0,
+					.recv_bytes = 0,
+          .direction  = direction
 				};
 				bpf_map_update_elem(&tcp_stats_ipv4, &t2, &s, BPF_ANY);
 			}
@@ -504,18 +504,84 @@ static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *statu
 			t.dport = ntohs(t.dport);
 
 			val = bpf_map_lookup_elem(&tcp_stats_ipv6, &t);
-			// If already in our map, increment size in-place
-			if (val != NULL) {
-				(*val).send_bytes += send_bytes;
-				(*val).recv_bytes += recv_bytes;
-			} else { // Otherwise add the key, value to the map
+			if (val == NULL) {
 				struct conn_stats_t s = {
-					.send_bytes = send_bytes,
-					.recv_bytes = recv_bytes,
+					.send_bytes = 0,
+					.recv_bytes = 0,
+          .direction  = direction
 				};
 				bpf_map_update_elem(&tcp_stats_ipv6, &t, &s, BPF_ANY);
 			}
 		}
+	}
+	return 0;
+}
+
+/*
+ * Will increment the tcp stats, only if the connection was already observed.
+ */
+__attribute__((always_inline))
+static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *status, size_t send_bytes, size_t recv_bytes) {
+	struct conn_stats_t *val;
+
+	u64 pid = bpf_get_current_pid_tgid();
+
+	if (check_family(sk, status, AF_INET)) {
+		if (!are_offsets_ready_v4(status, sk, pid)) {
+			return 0;
+		}
+
+		struct ipv4_tuple_t t = {};
+		if (!read_ipv4_tuple(&t, status, sk)) {
+			return 0;
+		}
+
+		t.pid = pid >> 32;
+		t.sport = ntohs(t.sport); // Making ports human-readable
+		t.dport = ntohs(t.dport);
+
+		val = bpf_map_lookup_elem(&tcp_stats_ipv4, &t);
+		if (val != NULL) {
+			(*val).send_bytes += send_bytes;
+			(*val).recv_bytes += recv_bytes;
+		}
+  } else if (check_family(sk, status, AF_INET6)) {
+		if (!are_offsets_ready_v6(status, sk, pid)) {
+			return 0;
+		}
+
+		struct ipv6_tuple_t t = {};
+		if (!read_ipv6_tuple(&t, status, sk)) {
+			return 0;
+		}
+
+		// IPv4 can be mapped as IPv6
+		if (is_ipv4_mapped_ipv6(t.saddr_h, t.saddr_l, t.daddr_h, t.daddr_l)) {
+			struct ipv4_tuple_t t2 = {
+				t2.saddr = (u32)(t.saddr_l >> 32),
+				t2.daddr = (u32)(t.daddr_l >> 32),
+				t2.sport = ntohs(t.sport),
+				t2.dport = ntohs(t.dport),
+				t2.netns = t.netns,
+				t2.pid = pid >> 32,
+			};
+
+			val = bpf_map_lookup_elem(&tcp_stats_ipv4, &t2);
+			if (val != NULL) {
+				(*val).send_bytes += send_bytes;
+				(*val).recv_bytes += recv_bytes;
+			}
+		} else {
+			t.pid = pid >> 32;
+			t.sport = ntohs(t.sport); // Making ports human-readable
+			t.dport = ntohs(t.dport);
+
+			val = bpf_map_lookup_elem(&tcp_stats_ipv6, &t);
+			if (val != NULL) {
+				(*val).send_bytes += send_bytes;
+				(*val).recv_bytes += recv_bytes;
+			}
+    }
 	}
 	return 0;
 }
@@ -666,7 +732,7 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
 	// We should figure out offsets if they're not already figured out
 	are_offsets_ready_v4(status, skp, pid);
 
-	return 0;
+	return create_tcp_record(skp, status, DIRECTION_OUTGOING);
 }
 
 // Used for offset guessing (see: pkg/offsetguess.go)
@@ -706,7 +772,24 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
 	// We should figure out offsets if they're not already figured out
 	are_offsets_ready_v6(status, skp, pid);
 
-	return 0;
+  return create_tcp_record(skp, status, DIRECTION_OUTGOING);
+}
+
+SEC("kretprobe/inet_csk_accept")
+int kretprobe__inet_csk_accept(struct pt_regs *ctx)
+{
+	struct sock *newsk = (struct sock *)PT_REGS_RC(ctx);
+
+  if (newsk == NULL)
+		return 0;
+
+	u64 zero = 0;
+	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
+	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
+		return 0;
+	}
+
+  return create_tcp_record(newsk, status, DIRECTION_INCOMING);
 }
 
 SEC("kprobe/tcp_sendmsg")

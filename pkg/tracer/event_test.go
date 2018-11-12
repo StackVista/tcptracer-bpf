@@ -98,6 +98,14 @@ func TestConnStatsByteKey(t *testing.T) {
 			b: ConnectionStats{},
 		},
 		{
+			a: ConnectionStats{Direction: INCOMING},
+      b: ConnectionStats{},
+		},
+		{
+			a: ConnectionStats{Direction: OUTGOING},
+      b: ConnectionStats{},
+		},
+		{
 			a: ConnectionStats{Pid: 1, Family: 0, Type: 1, Source: "a"},
 			b: ConnectionStats{Pid: 1, Family: 0, Type: 1, Source: "b"},
 		},
