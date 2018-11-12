@@ -435,6 +435,10 @@ static int read_ipv6_tuple(struct ipv6_tuple_t *tuple, struct tcptracer_status_t
 	return 1;
 }
 
+/**
+ * Create a new TCP record with a direction. Only created records will be added to the
+ * tcp_stats map, because w ewant to know the direction first.
+ */
 __attribute__((always_inline))
 static int create_tcp_record(struct sock *sk, struct tcptracer_status_t *status, __u8 direction) {
 	struct conn_stats_t *val;
@@ -513,6 +517,9 @@ static int create_tcp_record(struct sock *sk, struct tcptracer_status_t *status,
 	return 0;
 }
 
+/*
+ * Will increment the tcp stats, only if the connection was already observed.
+ */
 __attribute__((always_inline))
 static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *status, size_t send_bytes, size_t recv_bytes) {
 	struct conn_stats_t *val;
@@ -773,7 +780,6 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 {
 	struct sock *newsk = (struct sock *)PT_REGS_RC(ctx);
 
-  // STS TODO: Determine what to do when the call return non-null value
   if (newsk == NULL)
 		return 0;
 
