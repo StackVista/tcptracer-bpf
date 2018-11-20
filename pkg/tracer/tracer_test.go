@@ -116,7 +116,7 @@ func TestTCPSendPage(t *testing.T) {
 	}
 	defer c.Close()
 
-	// Write clientMessageSize to server, and read response
+	// Write filedata directly to socket, this triggers tcp_sendpage kernel call
 	file, err := os.Open("./testdata.txt")
 	if err != nil {
 		t.Fatal(err)
