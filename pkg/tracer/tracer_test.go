@@ -20,6 +20,7 @@ import (
 
 var (
 	clientMessageSize = 2 << 8
+	clientMessageFileSize = 44
 	serverMessageSize = 2 << 14
 	payloadSizesTCP   = []int{2 << 5, 2 << 8, 2 << 10, 2 << 12, 2 << 14, 2 << 15}
 	payloadSizesUDP   = []int{2 << 5, 2 << 8, 2 << 12, 2 << 14}
@@ -75,6 +76,76 @@ func TestTCPSendAndReceive(t *testing.T) {
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
 	assert.Equal(t, clientMessageSize, int(conn2.RecvBytes))
+	assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
+	assert.Equal(t, conn2.Direction, INCOMING)
+
+	// Write clientMessageSize to server, to shut down the connection
+	if _, err = c.Write(genPayload(0)); err != nil {
+		t.Fatal(err)
+	}
+
+	doneChan <- struct{}{}
+}
+
+func TestTCPSendPage(t *testing.T) {
+	// Enable BPF-based network tracer
+	tr, err := NewTracer(DefaultConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr.Start()
+	defer tr.Stop()
+
+	// Create TCP Server which sends back serverMessageSize bytes
+	server := NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		c.Write(genPayload(serverMessageSize))
+		r.ReadBytes(byte('\n'))
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	fmt.Printf("Addr: %s", server.address)
+	tcpAddr, err := net.ResolveTCPAddr("tcp4", server.address)
+	// Connect to server
+	c, err := net.DialTCP("tcp", nil, tcpAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	// Write clientMessageSize to server, and read response
+	file, err := os.Open("./testdata.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lr := &io.LimitedReader{N: int64(clientMessageFileSize), R: file}
+	_, err = c.ReadFrom(lr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r := bufio.NewReader(c)
+	r.ReadBytes(byte('\n'))
+
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts
+	connections, err := tr.GetActiveConnections()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// One direction
+	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	assert.True(t, ok)
+	assert.Equal(t, clientMessageFileSize, int(conn1.SendBytes))
+	assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
+	assert.Equal(t, conn1.Direction, OUTGOING)
+
+	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	assert.True(t, ok)
+	assert.Equal(t, clientMessageFileSize, int(conn2.RecvBytes))
 	assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
 	assert.Equal(t, conn2.Direction, INCOMING)
 

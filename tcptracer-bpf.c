@@ -809,6 +809,20 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
 	return increment_tcp_stats(sk, status, size, 0);
 }
 
+SEC("kprobe/tcp_sendpage")
+int kprobe__tcp_sendpage(struct pt_regs *ctx) {
+	struct sock *sk = (struct sock *) PT_REGS_PARM1(ctx);
+	size_t size = (size_t) PT_REGS_PARM4(ctx);
+	u64 zero = 0;
+
+	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
+	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
+		return 0;
+	}
+
+	return increment_tcp_stats(sk, status, size, 0);
+}
+
 SEC("kprobe/tcp_cleanup_rbuf")
 int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx) {
 	struct sock *sk = (struct sock *) PT_REGS_PARM1(ctx);
