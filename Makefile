@@ -54,7 +54,7 @@ build-ebpf-object: build-docker-image
 build-ebpf-object-ci:
 	make DEST_DIR=./ebpf -f ebpf.mk build
 
-install-generated-go:
+install-generated-go: build-ebpf-object
 	cp ebpf/tcptracer-ebpf.go pkg/tracer/tcptracer-ebpf.go
 
 delete-docker-image:
