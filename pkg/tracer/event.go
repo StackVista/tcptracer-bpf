@@ -61,7 +61,8 @@ func (t *ConnTupleV6) copy() *ConnTupleV6 {
 /* struct conn_stats_t
 __u64 send_bytes;
 __u64 recv_bytes;
-__u64 direction;
+__u32 direction;
+__u32 state;
 */
 type ConnStats C.struct_conn_stats_t
 
@@ -85,7 +86,8 @@ func connStatsFromTCPv4(t *ConnTupleV4, s *ConnStats) ConnectionStats {
 		Dest:      v4IPString(uint32(t.daddr)),
 		SPort:     uint16(t.sport),
 		DPort:     uint16(t.dport),
-    Direction: Direction(s.direction),
+        Direction: Direction(s.direction),
+		State:     State(s.state),
 		SendBytes: uint64(s.send_bytes),
 		RecvBytes: uint64(s.recv_bytes),
 	}
@@ -100,7 +102,8 @@ func connStatsFromTCPv6(t *ConnTupleV6, s *ConnStats) ConnectionStats {
 		Dest:      v6IPString(uint64(t.daddr_h), uint64(t.daddr_l)),
 		SPort:     uint16(t.sport),
 		DPort:     uint16(t.dport),
-    Direction: Direction(s.direction),
+    	Direction: Direction(s.direction),
+		State:	   State(s.state),
 		SendBytes: uint64(s.send_bytes),
 		RecvBytes: uint64(s.recv_bytes),
 	}
@@ -115,7 +118,7 @@ func connStatsFromUDPv4(t *ConnTupleV4, s *ConnStatsWithTimestamp) ConnectionSta
 		Dest:      v4IPString(uint32(t.daddr)),
 		SPort:     uint16(t.sport),
 		DPort:     uint16(t.dport),
-    Direction: UNKNOWN,
+    	Direction: UNKNOWN,
 		SendBytes: uint64(s.send_bytes),
 		RecvBytes: uint64(s.recv_bytes),
 	}
@@ -130,7 +133,7 @@ func connStatsFromUDPv6(t *ConnTupleV6, s *ConnStatsWithTimestamp) ConnectionSta
 		Dest:      v6IPString(uint64(t.daddr_h), uint64(t.daddr_l)),
 		SPort:     uint16(t.sport),
 		DPort:     uint16(t.dport),
-    Direction: UNKNOWN,
+    	Direction: UNKNOWN,
 		SendBytes: uint64(s.send_bytes),
 		RecvBytes: uint64(s.recv_bytes),
 	}

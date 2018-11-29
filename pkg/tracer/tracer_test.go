@@ -61,7 +61,7 @@ func TestTCPSendAndReceive(t *testing.T) {
 	r.ReadBytes(byte('\n'))
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetActiveConnections()
+	connections, err := tr.GetConnections()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,12 +72,14 @@ func TestTCPSendAndReceive(t *testing.T) {
 	assert.Equal(t, clientMessageSize, int(conn1.SendBytes))
 	assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
 	assert.Equal(t, conn1.Direction, OUTGOING)
+	assert.Equal(t, conn1.State, ACTIVE)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
 	assert.Equal(t, clientMessageSize, int(conn2.RecvBytes))
 	assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
 	assert.Equal(t, conn2.Direction, INCOMING)
+	assert.Equal(t, conn2.State, ACTIVE)
 
 	// Write clientMessageSize to server, to shut down the connection
 	if _, err = c.Write(genPayload(0)); err != nil {
@@ -131,7 +133,7 @@ func TestTCPSendPage(t *testing.T) {
 	r.ReadBytes(byte('\n'))
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetActiveConnections()
+	connections, err := tr.GetConnections()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,12 +144,14 @@ func TestTCPSendPage(t *testing.T) {
 	assert.Equal(t, clientMessageFileSize, int(conn1.SendBytes))
 	assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
 	assert.Equal(t, conn1.Direction, OUTGOING)
+	assert.Equal(t, conn1.State, ACTIVE)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
 	assert.Equal(t, clientMessageFileSize, int(conn2.RecvBytes))
 	assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
 	assert.Equal(t, conn2.Direction, INCOMING)
+	assert.Equal(t, conn2.State, ACTIVE)
 
 	// Write clientMessageSize to server, to shut down the connection
 	if _, err = c.Write(genPayload(0)); err != nil {
@@ -188,7 +192,7 @@ func TestTCPNoData(t *testing.T) {
 	// Waddressit for the connection to be established
 	<-connectChan
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetActiveConnections()
+	connections, err := tr.GetConnections()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,12 +203,14 @@ func TestTCPNoData(t *testing.T) {
 	assert.Equal(t, 0, int(conn1.SendBytes))
 	assert.Equal(t, 0, int(conn1.RecvBytes))
 	assert.Equal(t, conn1.Direction, OUTGOING)
+	assert.Equal(t, conn1.State, ACTIVE)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
 	assert.Equal(t, 0, int(conn2.RecvBytes))
 	assert.Equal(t, 0, int(conn2.SendBytes))
 	assert.Equal(t, conn2.Direction, INCOMING)
+	assert.Equal(t, conn2.State, ACTIVE)
 
 	// Write to server to shut down the connection
 	if _, err = c.Write(genPayload(0)); err != nil {
@@ -213,7 +219,7 @@ func TestTCPNoData(t *testing.T) {
 	doneChan <- struct{}{}
 }
 
-func TestTCPClosedConnectionsAreCleanedUp(t *testing.T) {
+func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
 	// Enable BPF-based network tracer
 	tr, err := NewTracer(DefaultConfig)
 	if err != nil {
@@ -248,13 +254,24 @@ func TestTCPClosedConnectionsAreCleanedUp(t *testing.T) {
 	// Explicitly close this TCP connection
 	c.Close()
 
-	connections, err := tr.GetActiveConnections()
+	// First run, should contain the closed connection
+	connections, err := tr.GetConnections()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	assert.True(t, ok)
+	assert.Equal(t, conn.State, CLOSED)
+
+	// Second run, connection should be cleaned up
+	connections, err = tr.GetConnections()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Confirm that we could not find connection created above
-	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	_, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.False(t, ok)
 
 	doneChan <- struct{}{}
@@ -292,7 +309,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 	c.Read(make([]byte, serverMessageSize))
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetActiveConnections()
+	connections, err := tr.GetConnections()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -435,12 +435,22 @@ static int read_ipv6_tuple(struct ipv6_tuple_t *tuple, struct tcptracer_status_t
 	return 1;
 }
 
+static void update_conn_direction_state(struct conn_stats_t *stats, __u8 direction, __u8 state) {
+    if (direction != DIRECTION_UNKNOWN) {
+        (*stats).direction = direction;
+    }
+    if (state == STATE_CLOSED) {
+        (*stats).state = state;
+    }
+}
+
 /**
- * Create a new TCP record with a direction. Only created records will be added to the
- * tcp_stats map, because w ewant to know the direction first.
+ * Assure a tcp record is created.
+ *  - If the direction becomes known, updates the direction
+ *  - If the state changes to closed, changes the state
  */
 __attribute__((always_inline))
-static int create_tcp_record(struct sock *sk, struct tcptracer_status_t *status, __u8 direction) {
+static int assert_tcp_record(struct sock *sk, struct tcptracer_status_t *status, __u8 direction, __u8 state) {
 	struct conn_stats_t *val;
 
 	u64 pid = bpf_get_current_pid_tgid();
@@ -464,9 +474,12 @@ static int create_tcp_record(struct sock *sk, struct tcptracer_status_t *status,
 			struct conn_stats_t s = {
 				.send_bytes = 0,
 				.recv_bytes = 0,
-        .direction  = direction
+                .direction  = direction,
+                .state = state
 			};
 			bpf_map_update_elem(&tcp_stats_ipv4, &t, &s, BPF_ANY);
+		} else {
+		    update_conn_direction_state(val, direction, state);
 		}
 	} else if (check_family(sk, status, AF_INET6)) {
 		if (!are_offsets_ready_v6(status, sk, pid)) {
@@ -494,9 +507,12 @@ static int create_tcp_record(struct sock *sk, struct tcptracer_status_t *status,
 				struct conn_stats_t s = {
 					.send_bytes = 0,
 					.recv_bytes = 0,
-          .direction  = direction
+                    .direction  = direction,
+                    .state = state
 				};
 				bpf_map_update_elem(&tcp_stats_ipv4, &t2, &s, BPF_ANY);
+			} else {
+			    update_conn_direction_state(val, direction, state);
 			}
 		} else {
 			t.pid = pid >> 32;
@@ -508,9 +524,12 @@ static int create_tcp_record(struct sock *sk, struct tcptracer_status_t *status,
 				struct conn_stats_t s = {
 					.send_bytes = 0,
 					.recv_bytes = 0,
-          .direction  = direction
+                    .direction  = direction,
+                    .state = state
 				};
 				bpf_map_update_elem(&tcp_stats_ipv6, &t, &s, BPF_ANY);
+			} else {
+			    update_conn_direction_state(val, direction, state);
 			}
 		}
 	}
@@ -522,6 +541,9 @@ static int create_tcp_record(struct sock *sk, struct tcptracer_status_t *status,
  */
 __attribute__((always_inline))
 static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *status, size_t send_bytes, size_t recv_bytes) {
+    // Make sure the record exists
+    assert_tcp_record(sk, status, DIRECTION_UNKNOWN, STATE_ACTIVE);
+
 	struct conn_stats_t *val;
 
 	u64 pid = bpf_get_current_pid_tgid();
@@ -732,7 +754,7 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
 	// We should figure out offsets if they're not already figured out
 	are_offsets_ready_v4(status, skp, pid);
 
-	return create_tcp_record(skp, status, DIRECTION_OUTGOING);
+	return assert_tcp_record(skp, status, DIRECTION_OUTGOING, STATE_ACTIVE);
 }
 
 // Used for offset guessing (see: pkg/offsetguess.go)
@@ -772,24 +794,24 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
 	// We should figure out offsets if they're not already figured out
 	are_offsets_ready_v6(status, skp, pid);
 
-  return create_tcp_record(skp, status, DIRECTION_OUTGOING);
+  return assert_tcp_record(skp, status, DIRECTION_OUTGOING, STATE_ACTIVE);
 }
 
 SEC("kretprobe/inet_csk_accept")
 int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 {
-	struct sock *newsk = (struct sock *)PT_REGS_RC(ctx);
+  struct sock *newsk = (struct sock *)PT_REGS_RC(ctx);
 
   if (newsk == NULL)
-		return 0;
+	return 0;
 
-	u64 zero = 0;
-	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
-		return 0;
-	}
+    u64 zero = 0;
+    struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
+    if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
+        return 0;
+    }
 
-  return create_tcp_record(newsk, status, DIRECTION_INCOMING);
+  return assert_tcp_record(newsk, status, DIRECTION_INCOMING, STATE_ACTIVE);
 }
 
 SEC("kprobe/tcp_sendmsg")
@@ -845,7 +867,6 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 	struct sock *sk;
 	struct tcptracer_status_t *status;
 	u64 zero = 0;
-	u64 pid = bpf_get_current_pid_tgid();
 	sk = (struct sock *) PT_REGS_PARM1(ctx);
 
 	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
@@ -853,61 +874,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 		return 0;
 	}
 
-	u32 net_ns_inum;
-	u16 sport, dport;
-	sport = 0;
-	dport = 0;
-
-	// Get network namespace id
-	possible_net_t *skc_net;
-
-	skc_net = NULL;
-	net_ns_inum = 0;
-	bpf_probe_read(&skc_net, sizeof(possible_net_t *), ((char *) sk) + status->offset_netns);
-	bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char *) skc_net) + status->offset_ino);
-
-	if (check_family(sk, status, AF_INET)) {
-		struct ipv4_tuple_t t = {};
-
-		if (!read_ipv4_tuple(&t, status, sk)) {
-			return 0;
-		}
-
-		t.pid = pid >> 32;
-		t.sport = ntohs(t.sport); // Making ports human-readable
-		t.dport = ntohs(t.dport);
-
-		// Delete this connection from our stats map
-		bpf_map_delete_elem(&tcp_stats_ipv4, &t);
-	} else if (check_family(sk, status, AF_INET6)) {
-		struct ipv6_tuple_t t = {};
-		if (!read_ipv6_tuple(&t, status, sk)) {
-			return 0;
-		}
-
-		// IPv4 can be mapped as IPv6
-		if (is_ipv4_mapped_ipv6(t.saddr_h, t.saddr_l, t.daddr_h, t.daddr_l)) {
-			struct ipv4_tuple_t t2 = {
-				t2.saddr = (u32)(t.saddr_l >> 32),
-				t2.daddr = (u32)(t.daddr_l >> 32),
-				t2.sport = ntohs(t.sport),
-				t2.dport = ntohs(t.dport),
-				t2.netns = t.netns,
-				t2.pid = pid >> 32,
-			};
-
-			// Delete this connection from our stats map, and return
-			bpf_map_delete_elem(&tcp_stats_ipv4, &t2);
-			return 0;
-		} else { // Otherwise it's IPv6
-			t.pid = pid >> 32;
-			t.sport = ntohs(t.sport); // Making ports human-readable
-			t.dport = ntohs(t.dport);
-
-			bpf_map_delete_elem(&tcp_stats_ipv6, &t);
-		}
-	}
-	return 0;
+    return assert_tcp_record(sk, status, DIRECTION_UNKNOWN, STATE_CLOSED);
 }
 
 SEC("kprobe/udp_sendmsg")

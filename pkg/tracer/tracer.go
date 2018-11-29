@@ -94,7 +94,7 @@ func (t *Tracer) Stop() {
 	t.m.Close()
 }
 
-func (t *Tracer) GetActiveConnections() (*Connections, error) {
+func (t *Tracer) GetConnections() (*Connections, error) {
 	conns := make([]ConnectionStats, 0)
 	if t.config.CollectTCPConns {
 		v4, err := t.getTCPv4Connections()
@@ -211,14 +211,24 @@ func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
 	// Iterate through all key-value pairs in map
 	key, nextKey, val := &ConnTupleV4{}, &ConnTupleV4{}, &ConnStats{}
 	conns := make([]ConnectionStats, 0)
+	closed := make([]*ConnTupleV4, 0)
 	for {
 		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
 		if !hasNext {
 			break
 		} else {
-			conns = append(conns, connStatsFromTCPv4(nextKey, val))
+			stats := connStatsFromTCPv4(nextKey, val)
+			conns = append(conns, stats)
+			if stats.State == CLOSED {
+				closed = append(closed, nextKey.copy())
+			}
 			key = nextKey
 		}
+	}
+
+	// Remove closed entries
+	for i := range closed {
+		t.m.DeleteElement(mp, unsafe.Pointer(closed[i]))
 	}
 	return conns, nil
 }
@@ -232,16 +242,25 @@ func (t *Tracer) getTCPv6Connections() ([]ConnectionStats, error) {
 	// Iterate through all key-value pairs in map
 	key, nextKey, val := &ConnTupleV6{}, &ConnTupleV6{}, &ConnStats{}
 	conns := make([]ConnectionStats, 0)
+	closed := make([]*ConnTupleV6, 0)
 	for {
 		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
 		if !hasNext {
 			break
 		} else {
-			conns = append(conns, connStatsFromTCPv6(nextKey, val))
+			stats := connStatsFromTCPv6(nextKey, val)
+			conns = append(conns, stats)
+			if stats.State == CLOSED {
+				closed = append(closed, nextKey.copy())
+			}
 			key = nextKey
 		}
 	}
 
+	// Remove closed entries
+	for i := range closed {
+		t.m.DeleteElement(mp, unsafe.Pointer(closed[i]))
+	}
 	return conns, nil
 }
 

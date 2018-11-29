@@ -45,6 +45,21 @@ func (d Direction) String() string {
 	return "INCOMING"
 }
 
+const (
+	ACTIVE State = 0
+	CLOSED State = 1
+)
+
+type State uint8
+
+func (s State) String() string {
+	if s == ACTIVE {
+		return "ACTIVE"
+	}
+	return "CLOSED"
+}
+
+
 //easyjson:json
 type Connections struct {
 	Conns []ConnectionStats `json:"connections"`
@@ -62,13 +77,14 @@ type ConnectionStats struct {
 	SPort     uint16    `json:"sport"`
 	DPort     uint16    `json:"dport"`
 	Direction Direction `json:"direction"`
+	State     State     `json:"state""`
 	SendBytes uint64    `json:"send_bytes"`
 	RecvBytes uint64    `json:"recv_bytes"`
 }
 
 func (c ConnectionStats) String() string {
-	return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s %d bytes sent, %d bytes received",
-		c.Type, c.Pid, c.Source, c.SPort, c.Dest, c.DPort, c.Direction, c.SendBytes, c.RecvBytes)
+	return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s %d bytes sent, %d bytes received",
+		c.Type, c.Pid, c.Source, c.SPort, c.Dest, c.DPort, c.Direction, c.State, c.SendBytes, c.RecvBytes)
 }
 
 func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
@@ -83,7 +99,7 @@ func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 		return nil, err
 	}
 	// Family (8 bits) + Type (8 bits) + Direction (8 bits) = 32 bits
-	p1 := uint32(c.Direction)<<16 | uint32(c.Family)<<8 | uint32(c.Type)
+	p1 := uint32(c.State) << 24 | uint32(c.Direction)<<16 | uint32(c.Family)<<8 | uint32(c.Type)
 	if err := binary.Write(buffer, binary.LittleEndian, p1); err != nil {
 		return nil, err
 	}
