@@ -45,22 +45,22 @@ struct conn_stats_ts_t {
 // connection so we need to store a map TUPLE -> PID to send the right PID on
 // the event
 struct ipv4_tuple_t {
-	__u32 saddr;
-	__u32 daddr;
-	__u16 sport;
-	__u16 dport;
+	__u32 laddr;
+	__u32 raddr;
+	__u16 lport;
+	__u16 rport;
 	__u32 netns;
 	__u32 pid;
 };
 
 struct ipv6_tuple_t {
 	/* Using the type unsigned __int128 generates an error in the ebpf verifier */
-	__u64 saddr_h;
-	__u64 saddr_l;
-	__u64 daddr_h;
-	__u64 daddr_l;
-	__u16 sport;
-	__u16 dport;
+	__u64 laddr_h;
+	__u64 laddr_l;
+	__u64 raddr_h;
+	__u64 raddr_l;
+	__u16 lport;
+	__u16 rport;
 	__u32 netns;
 	__u32 pid;
 };

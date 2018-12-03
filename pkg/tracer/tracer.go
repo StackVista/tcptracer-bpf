@@ -34,8 +34,10 @@ var (
 )
 
 type Tracer struct {
-	m      *bpflib.Module
-	config *Config
+	m        *bpflib.Module
+	config   *Config
+	// In flight connections are the connections that already existed before the EBPF module was loaded.
+	inFlight map[string] ConnectionStats
 }
 
 // maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
@@ -94,6 +96,9 @@ func (t *Tracer) Stop() {
 	t.m.Close()
 }
 
+func getProcConnections() {
+
+}
 func (t *Tracer) GetConnections() (*Connections, error) {
 	conns := make([]ConnectionStats, 0)
 	if t.config.CollectTCPConns {

@@ -71,31 +71,31 @@ type ConnectionStats struct {
 	Type   ConnectionType   `json:"type"`
 	Family ConnectionFamily `json:"family"`
 
-	// Source & Dest represented as a string to handle both IPv4 & IPv6
-	Source    string    `json:"source"`
-	Dest      string    `json:"dest"`
-	SPort     uint16    `json:"sport"`
-	DPort     uint16    `json:"dport"`
-	Direction Direction `json:"direction"`
-	State     State     `json:"state""`
-	SendBytes uint64    `json:"send_bytes"`
-	RecvBytes uint64    `json:"recv_bytes"`
+	// Local & Remote represented as a string to handle both IPv4 & IPv6
+	Local      string    `json:"local"`
+	Remote     string    `json:"remote"`
+	LocalPort  uint16    `json:"lport"`
+	RemotePort uint16    `json:"rport"`
+	Direction  Direction `json:"direction"`
+	State      State     `json:"state""`
+	SendBytes  uint64    `json:"send_bytes"`
+	RecvBytes  uint64    `json:"recv_bytes"`
 }
 
 func (c ConnectionStats) String() string {
 	return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s %d bytes sent, %d bytes received",
-		c.Type, c.Pid, c.Source, c.SPort, c.Dest, c.DPort, c.Direction, c.State, c.SendBytes, c.RecvBytes)
+		c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.SendBytes, c.RecvBytes)
 }
 
 func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 	buffer.Reset()
 	// Byte-packing to improve creation speed
-	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
-	p0 := uint64(c.Pid)<<32 | uint64(c.SPort)<<16 | uint64(c.DPort)
+	// PID (32 bits) + LocalPort (16 bits) + RemotePort (16 bits) = 64 bits
+	p0 := uint64(c.Pid)<<32 | uint64(c.LocalPort)<<16 | uint64(c.RemotePort)
 	if err := binary.Write(buffer, binary.LittleEndian, p0); err != nil {
 		return nil, err
 	}
-	if _, err := buffer.WriteString(c.Source); err != nil {
+	if _, err := buffer.WriteString(c.Local); err != nil {
 		return nil, err
 	}
 	// Family (8 bits) + Type (8 bits) + Direction (8 bits) = 32 bits
@@ -103,7 +103,7 @@ func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 	if err := binary.Write(buffer, binary.LittleEndian, p1); err != nil {
 		return nil, err
 	}
-	if _, err := buffer.WriteString(c.Dest); err != nil {
+	if _, err := buffer.WriteString(c.Remote); err != nil {
 		return nil, err
 	}
 	return buffer.Bytes(), nil

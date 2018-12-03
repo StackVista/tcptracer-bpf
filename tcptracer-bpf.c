@@ -379,10 +379,10 @@ static int read_ipv4_tuple(struct ipv4_tuple_t *tuple, struct tcptracer_status_t
 	bpf_probe_read(&skc_net, sizeof(void *), ((char *) skp) + status->offset_netns);
 	bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char *) skc_net) + status->offset_ino);
 
-	tuple->saddr = saddr;
-	tuple->daddr = daddr;
-	tuple->sport = sport;
-	tuple->dport = dport;
+	tuple->laddr = saddr;
+	tuple->raddr = daddr;
+	tuple->lport = sport;
+	tuple->rport = dport;
 	tuple->netns = net_ns_inum;
 
 	// if addresses or ports are 0, ignore
@@ -419,12 +419,12 @@ static int read_ipv6_tuple(struct ipv6_tuple_t *tuple, struct tcptracer_status_t
 	bpf_probe_read(&skc_net, sizeof(void *), ((char *) skp) + status->offset_netns);
 	bpf_probe_read(&net_ns_inum, sizeof(net_ns_inum), ((char *) skc_net) + status->offset_ino);
 
-	tuple->saddr_h = saddr_h;
-	tuple->saddr_l = saddr_l;
-	tuple->daddr_h = daddr_h;
-	tuple->daddr_l = daddr_l;
-	tuple->sport = sport;
-	tuple->dport = dport;
+	tuple->laddr_h = saddr_h;
+	tuple->laddr_l = saddr_l;
+	tuple->raddr_h = daddr_h;
+	tuple->raddr_l = daddr_l;
+	tuple->lport = sport;
+	tuple->rport = dport;
 	tuple->netns = net_ns_inum;
 
 	// if addresses or ports are 0, ignore
@@ -466,8 +466,8 @@ static int assert_tcp_record(struct sock *sk, struct tcptracer_status_t *status,
 		}
 
 		t.pid = pid >> 32;
-		t.sport = ntohs(t.sport); // Making ports human-readable
-		t.dport = ntohs(t.dport);
+		t.lport = ntohs(t.lport); // Making ports human-readable
+		t.rport = ntohs(t.rport);
 
 		val = bpf_map_lookup_elem(&tcp_stats_ipv4, &t);
 		if (val == NULL) {
@@ -492,12 +492,12 @@ static int assert_tcp_record(struct sock *sk, struct tcptracer_status_t *status,
 		}
 
 		// IPv4 can be mapped as IPv6
-		if (is_ipv4_mapped_ipv6(t.saddr_h, t.saddr_l, t.daddr_h, t.daddr_l)) {
+		if (is_ipv4_mapped_ipv6(t.laddr_h, t.laddr_l, t.raddr_h, t.raddr_l)) {
 			struct ipv4_tuple_t t2 = {
-				t2.saddr = (u32)(t.saddr_l >> 32),
-				t2.daddr = (u32)(t.daddr_l >> 32),
-				t2.sport = ntohs(t.sport),
-				t2.dport = ntohs(t.dport),
+				t2.laddr = (u32)(t.laddr_l >> 32),
+				t2.raddr = (u32)(t.raddr_l >> 32),
+				t2.lport = ntohs(t.lport),
+				t2.rport = ntohs(t.rport),
 				t2.netns = t.netns,
 				t2.pid = pid >> 32,
 			};
@@ -516,8 +516,8 @@ static int assert_tcp_record(struct sock *sk, struct tcptracer_status_t *status,
 			}
 		} else {
 			t.pid = pid >> 32;
-			t.sport = ntohs(t.sport); // Making ports human-readable
-			t.dport = ntohs(t.dport);
+			t.lport = ntohs(t.lport); // Making ports human-readable
+			t.rport = ntohs(t.rport);
 
 			val = bpf_map_lookup_elem(&tcp_stats_ipv6, &t);
 			if (val == NULL) {
@@ -559,8 +559,8 @@ static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *statu
 		}
 
 		t.pid = pid >> 32;
-		t.sport = ntohs(t.sport); // Making ports human-readable
-		t.dport = ntohs(t.dport);
+		t.lport = ntohs(t.lport); // Making ports human-readable
+		t.rport = ntohs(t.rport);
 
 		val = bpf_map_lookup_elem(&tcp_stats_ipv4, &t);
 		if (val != NULL) {
@@ -578,12 +578,12 @@ static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *statu
 		}
 
 		// IPv4 can be mapped as IPv6
-		if (is_ipv4_mapped_ipv6(t.saddr_h, t.saddr_l, t.daddr_h, t.daddr_l)) {
+		if (is_ipv4_mapped_ipv6(t.laddr_h, t.laddr_l, t.raddr_h, t.raddr_l)) {
 			struct ipv4_tuple_t t2 = {
-				t2.saddr = (u32)(t.saddr_l >> 32),
-				t2.daddr = (u32)(t.daddr_l >> 32),
-				t2.sport = ntohs(t.sport),
-				t2.dport = ntohs(t.dport),
+				t2.laddr = (u32)(t.laddr_l >> 32),
+				t2.raddr = (u32)(t.raddr_l >> 32),
+				t2.lport = ntohs(t.lport),
+				t2.rport = ntohs(t.rport),
 				t2.netns = t.netns,
 				t2.pid = pid >> 32,
 			};
@@ -595,8 +595,8 @@ static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *statu
 			}
 		} else {
 			t.pid = pid >> 32;
-			t.sport = ntohs(t.sport); // Making ports human-readable
-			t.dport = ntohs(t.dport);
+			t.lport = ntohs(t.lport); // Making ports human-readable
+			t.rport = ntohs(t.rport);
 
 			val = bpf_map_lookup_elem(&tcp_stats_ipv6, &t);
 			if (val != NULL) {
@@ -631,8 +631,8 @@ static int increment_udp_stats(struct sock *sk,
 
 		t.pid = pid_tgid >> 32;
 		// Making ports human-readable
-		t.sport = ntohs(t.sport);
-		t.dport = ntohs(t.dport);
+		t.lport = ntohs(t.lport);
+		t.rport = ntohs(t.rport);
 
 		val = bpf_map_lookup_elem(&udp_stats_ipv4, &t);
 		// If already in our map, increment stats in-place
@@ -659,12 +659,12 @@ static int increment_udp_stats(struct sock *sk,
 		}
 
 		// IPv4 can be mapped as IPv6
-		if (is_ipv4_mapped_ipv6(t.saddr_h, t.saddr_l, t.daddr_h, t.daddr_l)) {
+		if (is_ipv4_mapped_ipv6(t.laddr_h, t.laddr_l, t.raddr_h, t.raddr_l)) {
 			struct ipv4_tuple_t t2 = {
-				t2.saddr = (u32)(t.saddr_l >> 32),
-				t2.daddr = (u32)(t.daddr_l >> 32),
-				t2.sport = ntohs(t.sport),
-				t2.dport = ntohs(t.dport),
+				t2.laddr = (u32)(t.laddr_l >> 32),
+				t2.raddr = (u32)(t.raddr_l >> 32),
+				t2.lport = ntohs(t.lport),
+				t2.rport = ntohs(t.rport),
 				t2.netns = t.netns,
 				t2.pid = pid_tgid >> 32,
 			};
@@ -683,8 +683,8 @@ static int increment_udp_stats(struct sock *sk,
 			}
 		} else { // It's IPv6
 			t.pid = pid_tgid >> 32;
-			t.sport = ntohs(t.sport); // Making ports human-readable
-			t.dport = ntohs(t.dport);
+			t.lport = ntohs(t.lport); // Making ports human-readable
+			t.rport = ntohs(t.rport);
 
 			val = bpf_map_lookup_elem(&udp_stats_ipv6, &t);
 			// If already in our map, increment size in-place

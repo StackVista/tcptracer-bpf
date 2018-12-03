@@ -13,10 +13,10 @@ import (
 import "C"
 
 /*  struct_ipv4_tuple_t
-__u32 saddr;
-__u32 daddr;
-__u16 sport;
-__u16 dport;
+__u32 laddr;
+__u32 raddr;
+__u16 lport;
+__u16 rport;
 __u32 netns;
 __u32 pid;
 */
@@ -24,22 +24,22 @@ type ConnTupleV4 C.struct_ipv4_tuple_t
 
 func (t *ConnTupleV4) copy() *ConnTupleV4 {
 	return &ConnTupleV4{
-		saddr: t.saddr,
-		daddr: t.daddr,
-		sport: t.sport,
-		dport: t.dport,
+		laddr: t.laddr,
+		raddr: t.raddr,
+		lport: t.lport,
+		rport: t.rport,
 		netns: t.netns,
 		pid:   t.pid,
 	}
 }
 
 /* struct_ipv6_tuple_t
-__u64 saddr_h;
-__u64 saddr_l;
-__u64 daddr_h;
-__u64 daddr_l;
-__u16 sport;
-__u16 dport;
+__u64 laddr_h;
+__u64 laddr_l;
+__u64 raddr_h;
+__u64 raddr_l;
+__u16 lport;
+__u16 rport;
 __u32 netns;
 __u32 pid;
 */
@@ -47,12 +47,12 @@ type ConnTupleV6 C.struct_ipv6_tuple_t
 
 func (t *ConnTupleV6) copy() *ConnTupleV6 {
 	return &ConnTupleV6{
-		saddr_h: t.saddr_h,
-		saddr_l: t.saddr_l,
-		daddr_h: t.daddr_h,
-		daddr_l: t.daddr_l,
-		sport:   t.sport,
-		dport:   t.dport,
+		laddr_h: t.laddr_h,
+		laddr_l: t.laddr_l,
+		raddr_h: t.raddr_h,
+		raddr_l: t.raddr_l,
+		lport:   t.lport,
+		rport:   t.rport,
 		netns:   t.netns,
 		pid:     t.pid,
 	}
@@ -79,63 +79,63 @@ func (cs *ConnStatsWithTimestamp) isExpired(latestTime int64, timeout int64) boo
 
 func connStatsFromTCPv4(t *ConnTupleV4, s *ConnStats) ConnectionStats {
 	return ConnectionStats{
-		Pid:       uint32(t.pid),
-		Type:      TCP,
-		Family:    AF_INET,
-		Source:    v4IPString(uint32(t.saddr)),
-		Dest:      v4IPString(uint32(t.daddr)),
-		SPort:     uint16(t.sport),
-		DPort:     uint16(t.dport),
-        Direction: Direction(s.direction),
-		State:     State(s.state),
-		SendBytes: uint64(s.send_bytes),
-		RecvBytes: uint64(s.recv_bytes),
+		Pid:        uint32(t.pid),
+		Type:       TCP,
+		Family:     AF_INET,
+		Local:      v4IPString(uint32(t.laddr)),
+		Remote:     v4IPString(uint32(t.raddr)),
+		LocalPort:  uint16(t.lport),
+		RemotePort: uint16(t.rport),
+        Direction:  Direction(s.direction),
+		State:      State(s.state),
+		SendBytes:  uint64(s.send_bytes),
+		RecvBytes:  uint64(s.recv_bytes),
 	}
 }
 
 func connStatsFromTCPv6(t *ConnTupleV6, s *ConnStats) ConnectionStats {
 	return ConnectionStats{
-		Pid:       uint32(t.pid),
-		Type:      TCP,
-		Family:    AF_INET6,
-		Source:    v6IPString(uint64(t.saddr_h), uint64(t.saddr_l)),
-		Dest:      v6IPString(uint64(t.daddr_h), uint64(t.daddr_l)),
-		SPort:     uint16(t.sport),
-		DPort:     uint16(t.dport),
-    	Direction: Direction(s.direction),
-		State:	   State(s.state),
-		SendBytes: uint64(s.send_bytes),
-		RecvBytes: uint64(s.recv_bytes),
+		Pid:        uint32(t.pid),
+		Type:       TCP,
+		Family:     AF_INET6,
+		Local:      v6IPString(uint64(t.laddr_h), uint64(t.laddr_l)),
+		Remote:     v6IPString(uint64(t.raddr_h), uint64(t.raddr_l)),
+		LocalPort:  uint16(t.lport),
+		RemotePort: uint16(t.rport),
+    	Direction:  Direction(s.direction),
+		State:      State(s.state),
+		SendBytes:  uint64(s.send_bytes),
+		RecvBytes:  uint64(s.recv_bytes),
 	}
 }
 
 func connStatsFromUDPv4(t *ConnTupleV4, s *ConnStatsWithTimestamp) ConnectionStats {
 	return ConnectionStats{
-		Pid:       uint32(t.pid),
-		Type:      UDP,
-		Family:    AF_INET,
-		Source:    v4IPString(uint32(t.saddr)),
-		Dest:      v4IPString(uint32(t.daddr)),
-		SPort:     uint16(t.sport),
-		DPort:     uint16(t.dport),
-    	Direction: UNKNOWN,
-		SendBytes: uint64(s.send_bytes),
-		RecvBytes: uint64(s.recv_bytes),
+		Pid:        uint32(t.pid),
+		Type:       UDP,
+		Family:     AF_INET,
+		Local:      v4IPString(uint32(t.laddr)),
+		Remote:     v4IPString(uint32(t.raddr)),
+		LocalPort:  uint16(t.lport),
+		RemotePort: uint16(t.rport),
+    	Direction:  UNKNOWN,
+		SendBytes:  uint64(s.send_bytes),
+		RecvBytes:  uint64(s.recv_bytes),
 	}
 }
 
 func connStatsFromUDPv6(t *ConnTupleV6, s *ConnStatsWithTimestamp) ConnectionStats {
 	return ConnectionStats{
-		Pid:       uint32(t.pid),
-		Type:      UDP,
-		Family:    AF_INET6,
-		Source:    v6IPString(uint64(t.saddr_h), uint64(t.saddr_l)),
-		Dest:      v6IPString(uint64(t.daddr_h), uint64(t.daddr_l)),
-		SPort:     uint16(t.sport),
-		DPort:     uint16(t.dport),
-    	Direction: UNKNOWN,
-		SendBytes: uint64(s.send_bytes),
-		RecvBytes: uint64(s.recv_bytes),
+		Pid:        uint32(t.pid),
+		Type:       UDP,
+		Family:     AF_INET6,
+		Local:      v6IPString(uint64(t.laddr_h), uint64(t.laddr_l)),
+		Remote:     v6IPString(uint64(t.raddr_h), uint64(t.raddr_l)),
+		LocalPort:  uint16(t.lport),
+		RemotePort: uint16(t.rport),
+    	Direction:  UNKNOWN,
+		SendBytes:  uint64(s.send_bytes),
+		RecvBytes:  uint64(s.recv_bytes),
 	}
 }
 

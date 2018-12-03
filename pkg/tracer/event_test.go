@@ -11,22 +11,22 @@ import (
 
 var (
 	testConn = ConnectionStats{
-		Pid:       123,
-		Type:      1,
-		Family:    0,
-		Source:    "192.168.0.1",
-		Dest:      "192.168.0.103",
-		SPort:     123,
-		DPort:     35000,
-		SendBytes: 123123,
-		RecvBytes: 312312,
+		Pid:        123,
+		Type:       1,
+		Family:     0,
+		Local:      "192.168.0.1",
+		Remote:     "192.168.0.103",
+		LocalPort:  123,
+		RemotePort: 35000,
+		SendBytes:  123123,
+		RecvBytes:  312312,
 	}
 )
 
 func BenchmarkUniqueConnKeyString(b *testing.B) {
 	c := testConn
 	for n := 0; n < b.N; n++ {
-		fmt.Sprintf("%d-%d-%d-%s-%d-%s-%d", c.Pid, c.Type, c.Family, c.Source, c.SPort, c.Dest, c.DPort)
+		fmt.Sprintf("%d-%d-%d-%s-%d-%s-%d", c.Pid, c.Type, c.Family, c.Local, c.LocalPort, c.Remote, c.RemotePort)
 	}
 }
 
@@ -35,13 +35,13 @@ func BenchmarkUniqueConnKeyByteBuffer(b *testing.B) {
 	buf := new(bytes.Buffer)
 	for n := 0; n < b.N; n++ {
 		buf.Reset()
-		buf.WriteString(c.Source)
-		buf.WriteString(c.Dest)
+		buf.WriteString(c.Local)
+		buf.WriteString(c.Remote)
 		binary.Write(buf, binary.LittleEndian, c.Pid)
 		binary.Write(buf, binary.LittleEndian, c.Type)
 		binary.Write(buf, binary.LittleEndian, c.Family)
-		binary.Write(buf, binary.LittleEndian, c.SPort)
-		binary.Write(buf, binary.LittleEndian, c.DPort)
+		binary.Write(buf, binary.LittleEndian, c.LocalPort)
+		binary.Write(buf, binary.LittleEndian, c.RemotePort)
 		buf.Bytes()
 	}
 }
@@ -51,14 +51,14 @@ func BenchmarkUniqueConnKeyByteBufferPacked(b *testing.B) {
 	buf := new(bytes.Buffer)
 	for n := 0; n < b.N; n++ {
 		buf.Reset()
-		// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
-		p0 := uint64(c.Pid)<<32 | uint64(c.SPort)<<16 | uint64(c.DPort)
+		// PID (32 bits) + LocalPort (16 bits) + RemotePort (16 bits) = 64 bits
+		p0 := uint64(c.Pid)<<32 | uint64(c.LocalPort)<<16 | uint64(c.RemotePort)
 		binary.Write(buf, binary.LittleEndian, p0)
-		buf.WriteString(c.Source)
+		buf.WriteString(c.Local)
 		// Family (8 bits) + Type (8 bits) = 16 bits
 		p1 := uint16(c.Family)<<8 | uint16(c.Type)
 		binary.Write(buf, binary.LittleEndian, p1)
-		buf.WriteString(c.Dest)
+		buf.WriteString(c.Remote)
 		buf.Bytes()
 	}
 }
@@ -82,19 +82,19 @@ func TestConnStatsByteKey(t *testing.T) {
 			b: ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{Source: "hello"},
+			a: ConnectionStats{Local: "hello"},
 			b: ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{Dest: "goodbye"},
+			a: ConnectionStats{Remote: "goodbye"},
 			b: ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{SPort: 1},
+			a: ConnectionStats{LocalPort: 1},
 			b: ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{DPort: 1},
+			a: ConnectionStats{RemotePort: 1},
 			b: ConnectionStats{},
 		},
 		{
@@ -110,28 +110,28 @@ func TestConnStatsByteKey(t *testing.T) {
 			b: ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Family: 0, Type: 1, Source: "a"},
-			b: ConnectionStats{Pid: 1, Family: 0, Type: 1, Source: "b"},
+			a: ConnectionStats{Pid: 1, Family: 0, Type: 1, Local: "a"},
+			b: ConnectionStats{Pid: 1, Family: 0, Type: 1, Local: "b"},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Dest: "b", Family: 0, Type: 1, Source: "a"},
-			b: ConnectionStats{Pid: 1, Dest: "a", Family: 0, Type: 1, Source: "b"},
+			a: ConnectionStats{Pid: 1, Remote: "b", Family: 0, Type: 1, Local: "a"},
+			b: ConnectionStats{Pid: 1, Remote: "a", Family: 0, Type: 1, Local: "b"},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Dest: "", Family: 0, Type: 1, Source: "a"},
-			b: ConnectionStats{Pid: 1, Dest: "a", Family: 0, Type: 1, Source: ""},
+			a: ConnectionStats{Pid: 1, Remote: "", Family: 0, Type: 1, Local: "a"},
+			b: ConnectionStats{Pid: 1, Remote: "a", Family: 0, Type: 1, Local: ""},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Dest: "b", Family: 0, Type: 1},
-			b: ConnectionStats{Pid: 1, Family: 0, Type: 1, Source: "b"},
+			a: ConnectionStats{Pid: 1, Remote: "b", Family: 0, Type: 1},
+			b: ConnectionStats{Pid: 1, Family: 0, Type: 1, Local: "b"},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Dest: "b", Family: 1},
-			b: ConnectionStats{Pid: 1, Dest: "b", Type: 1},
+			a: ConnectionStats{Pid: 1, Remote: "b", Family: 1},
+			b: ConnectionStats{Pid: 1, Remote: "b", Type: 1},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Dest: "b", Type: 0, SPort: 3},
-			b: ConnectionStats{Pid: 1, Dest: "b", Type: 0, DPort: 3},
+			a: ConnectionStats{Pid: 1, Remote: "b", Type: 0, LocalPort: 3},
+			b: ConnectionStats{Pid: 1, Remote: "b", Type: 0, RemotePort: 3},
 		},
 	} {
 		var keyA, keyB string

@@ -331,8 +331,8 @@ func findConnection(l, r net.Addr, c *Connections) (*ConnectionStats, bool) {
 	fmt.Println("Looking for conn")
 	for _, conn := range c.Conns {
 		fmt.Println("conn", conn)
-		localAddr := fmt.Sprintf("%s:%d", conn.Source, conn.SPort)
-		remoteAddr := fmt.Sprintf("%s:%d", conn.Dest, conn.DPort)
+		localAddr := fmt.Sprintf("%s:%d", conn.Local, conn.LocalPort)
+		remoteAddr := fmt.Sprintf("%s:%d", conn.Remote, conn.RemotePort)
 		if localAddr == l.String() && remoteAddr == r.String() {
 			return &conn, true
 		}
