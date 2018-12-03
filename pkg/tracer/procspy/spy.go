@@ -10,9 +10,7 @@ import (
 const (
 	// according to /include/net/tcp_states.h
 	tcpEstablished = 1
-	tcpFinWait1    = 4
-	tcpFinWait2    = 5
-	tcpCloseWait   = 8
+	tcpListen      = 10
 )
 
 // Connection is a (TCP) connection. The Proc struct might not be filled in.
@@ -24,12 +22,12 @@ type Connection struct {
 	RemotePort    uint16
 	Inode         uint64
 	Proc          Proc
+	Listening 	  bool
 }
 
 // Proc is a single process with PID and process name.
 type Proc struct {
 	PID            uint
-	Name           string
 	NetNamespaceID uint64
 }
 

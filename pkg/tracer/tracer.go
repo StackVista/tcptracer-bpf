@@ -30,7 +30,7 @@ var (
 	//                               4.1 - kprobes,
 	//                               4.3 - perf events)
 	// 	                      -> 4.3
-	minRequiredKernelCode = linuxKernelVersionCode(4, 3, 0)
+	minRequiredKernelCode = LinuxKernelVersionCode(4, 3, 0)
 )
 
 type Tracer struct {

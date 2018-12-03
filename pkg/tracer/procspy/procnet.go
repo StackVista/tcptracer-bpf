@@ -49,7 +49,10 @@ again:
 	state, b = nextField(b)
 	switch parseHex(state) {
 	// Only process established or half-closed connections
-	case tcpEstablished, tcpFinWait1, tcpFinWait2, tcpCloseWait:
+	case tcpEstablished:
+		p.c.Listening = false
+	case tcpListen:
+		p.c.Listening = true
 	default:
 		p.b = nextLine(b)
 		goto again

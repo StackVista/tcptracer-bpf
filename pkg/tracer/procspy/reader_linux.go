@@ -6,9 +6,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
-	"github.com/weaveworks/scope/probe/process"
+	log "github.com/cihub/seelog"
 )
 
 const (
@@ -32,6 +30,17 @@ type backgroundReader struct {
 	latestSockets map[uint64]*Proc
 }
 
+// starts a rate-limited background goroutine to read the expensive files from
+// proc.
+func newBackgroundReader(walker Walker) reader {
+	br := &backgroundReader{
+		stopc:         make(chan struct{}),
+		latestSockets: map[uint64]*Proc{},
+	}
+	go br.loop(walker)
+	return br
+}
+
 func (br *backgroundReader) stop() {
 	close(br.stopc)
 }
@@ -50,7 +59,7 @@ func (br *backgroundReader) getWalkedProcPid(buf *bytes.Buffer) (map[uint64]*Pro
 	return br.latestSockets, err
 }
 
-func (br *backgroundReader) loop(walker process.Walker) {
+func (br *backgroundReader) loop(walker Walker) {
 	var (
 		begin           time.Time                      // when we started the last performWalk
 		tickc           = time.After(time.Millisecond) // fire immediately
@@ -102,7 +111,7 @@ type foregroundReader struct {
 }
 
 // reads synchronously files from /proc
-func newForegroundReader(walker process.Walker) reader {
+func newForegroundReader(walker Walker) reader {
 	fr := &foregroundReader{
 		stopc:         make(chan struct{}),
 		latestSockets: map[uint64]*Proc{},
@@ -159,3 +168,25 @@ func performWalk(w pidWalker, c chan<- walkResult) {
 	c <- result
 }
 
+// Adjust rate limit for next walk and calculate when it should be started
+func scheduleNextWalk(rateLimitPeriod time.Duration, took time.Duration) (newRateLimitPeriod time.Duration, restInterval time.Duration) {
+	log.Debugf("background /proc reader: full pass took %s", took)
+	if float64(took)/float64(targetWalkTime) > 1.5 {
+		log.Warnf(
+			"background /proc reader: full pass took %s: 50%% more than expected (%s)",
+			took,
+			targetWalkTime,
+		)
+	}
+
+	// Adjust rate limit to more-accurately meet the target walk time in next iteration
+	newRateLimitPeriod = time.Duration(float64(targetWalkTime) / float64(took) * float64(rateLimitPeriod))
+	if newRateLimitPeriod > maxRateLimitPeriod {
+		newRateLimitPeriod = maxRateLimitPeriod
+	} else if newRateLimitPeriod < minRateLimitPeriod {
+		newRateLimitPeriod = minRateLimitPeriod
+	}
+	log.Debugf("background /proc reader: new rate limit period %s", newRateLimitPeriod)
+
+	return newRateLimitPeriod, targetWalkTime - took
+}

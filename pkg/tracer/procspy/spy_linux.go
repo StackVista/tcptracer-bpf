@@ -36,8 +36,21 @@ func (c *pnConnIter) Next() *Connection {
 }
 
 // NewConnectionScanner creates a new Linux ConnectionScanner
-func NewConnectionScanner() ConnectionScanner {
-	return &linuxScanner{}
+func NewConnectionScanner(walker Walker, processes bool) ConnectionScanner {
+	scanner := &linuxScanner{}
+	if processes {
+		scanner.r = newBackgroundReader(walker)
+	}
+	return scanner
+}
+
+// NewSyncConnectionScanner creates a new synchronous Linux ConnectionScanner
+func NewSyncConnectionScanner(walker Walker, processes bool) ConnectionScanner {
+	scanner := &linuxScanner{}
+	if processes {
+		scanner.r = newForegroundReader(walker)
+	}
+	return scanner
 }
 
 type linuxScanner struct {

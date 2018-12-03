@@ -9,6 +9,8 @@ type Config struct {
 	CollectUDPConns bool
 	// BackfillFromProc enables using /proc to find connections which were already active when the tracer started
 	BackfillFromProc bool
+	// Location of /proc
+	ProcRoot string
 	// UDPConnTimeout determines the length of traffic inactivity between two (IP, port)-pairs before declaring a UDP
 	// connection as inactive.
 	// Note: As UDP traffic is technically "connection-less", for tracking, we consider a UDP connection to be traffic
