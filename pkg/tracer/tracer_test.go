@@ -592,6 +592,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 	assert.Equal(t, clientMessageSize, int(conn.SendBytes))
 	assert.Equal(t, serverMessageSize, int(conn.RecvBytes))
 	assert.Equal(t, UNKNOWN, conn.Direction)
+	assert.Equal(t, ACTIVE, conn.State)
 
 	doneChan <- struct{}{}
 }

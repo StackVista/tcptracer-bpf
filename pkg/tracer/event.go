@@ -120,6 +120,7 @@ func connStatsFromUDPv4(t *ConnTupleV4, s *ConnStatsWithTimestamp) ConnectionSta
 		LocalPort:  uint16(t.lport),
 		RemotePort: uint16(t.rport),
     	Direction:  UNKNOWN,
+		State:		ACTIVE,
 		SendBytes:  uint64(s.send_bytes),
 		RecvBytes:  uint64(s.recv_bytes),
 	}
@@ -135,6 +136,7 @@ func connStatsFromUDPv6(t *ConnTupleV6, s *ConnStatsWithTimestamp) ConnectionSta
 		LocalPort:  uint16(t.lport),
 		RemotePort: uint16(t.rport),
     	Direction:  UNKNOWN,
+		State: 		ACTIVE,
 		SendBytes:  uint64(s.send_bytes),
 		RecvBytes:  uint64(s.recv_bytes),
 	}
