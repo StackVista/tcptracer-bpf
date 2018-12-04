@@ -1,4 +1,4 @@
-package tracer
+package common
 
 import (
 	"github.com/stretchr/testify/assert"

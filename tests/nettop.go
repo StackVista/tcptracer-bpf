@@ -6,11 +6,12 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer"
 )
 
 func main() {
-	kernelVersion, err := tracer.CurrentKernelVersion()
+	kernelVersion, err := common.CurrentKernelVersion()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)

@@ -4,14 +4,14 @@ package procspy
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
-	"os"
 
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	log "github.com/cihub/seelog"
-	"github.com/StackVista/tcptracer-bpf/pkg/tracer"
 )
 
 var (
@@ -62,14 +62,14 @@ func getNetNamespacePathSuffix() string {
 		return netNamespacePathSuffix
 	}
 
-	version, err := tracer.CurrentKernelVersion()
+	version, err := common.CurrentKernelVersion()
 	if err != nil {
 		log.Errorf("getNamespacePathSuffix: cannot get kernel version: %s", err)
 		netNamespacePathSuffix = post38Path
 		return netNamespacePathSuffix
 	}
 
-	if version < tracer.LinuxKernelVersionCode(3, 8, 0) {
+	if version < common.LinuxKernelVersionCode(3, 8, 0) {
 		netNamespacePathSuffix = pre38Path
 	} else {
 		netNamespacePathSuffix = post38Path

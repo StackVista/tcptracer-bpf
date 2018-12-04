@@ -4,6 +4,7 @@ package tracer
 
 import (
 	"encoding/binary"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
 	"net"
 )
 
@@ -136,6 +137,26 @@ func connStatsFromUDPv6(t *ConnTupleV6, s *ConnStatsWithTimestamp) ConnectionSta
     	Direction:  UNKNOWN,
 		SendBytes:  uint64(s.send_bytes),
 		RecvBytes:  uint64(s.recv_bytes),
+	}
+}
+
+func connStatsFromProcSpy(t *procspy.Connection) ConnectionStats {
+	var family = AF_INET
+	if t.LocalAddress.To4() == nil {
+		family = AF_INET6
+	}
+
+	return ConnectionStats{
+		Pid:        uint32(t.Proc.PID),
+		Type:       TCP,
+		Family:     family,
+		Local:      t.LocalAddress.To16().String(),
+		Remote:     t.RemoteAddress.To16().String(),
+		LocalPort:  t.LocalPort,
+		RemotePort: t.RemotePort,
+		Direction:  UNKNOWN,
+		SendBytes:  0,
+		RecvBytes:  0,
 	}
 }
 

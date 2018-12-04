@@ -4,6 +4,7 @@ package tracer
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -23,6 +24,25 @@ import (
 #include "../../tcptracer-bpf.h"
 */
 import "C"
+
+var (
+	ErrNotImplemented = errors.New("BPF-based network tracing not implemented on non-linux systems")
+
+	nativeEndian binary.ByteOrder
+)
+
+// In lack of binary.NativeEndian ...
+func init() {
+	var i int32 = 0x01020304
+	u := unsafe.Pointer(&i)
+	pb := (*byte)(u)
+	b := *pb
+	if b == 0x04 {
+		nativeEndian = binary.LittleEndian
+	} else {
+		nativeEndian = binary.BigEndian
+	}
+}
 
 type tcpTracerStatus C.struct_tcptracer_status_t
 

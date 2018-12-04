@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/StackVista/tcptracer-bpf/pkg/tracer"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 )
 
 func TestTCPListenConnection(t *testing.T) {
 
 	// Create TCP Server server
-	server := tracer.NewTCPServer(func(c net.Conn) {})
+	server := common.NewTCPServer(func(c net.Conn) {})
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
 
@@ -28,7 +28,7 @@ func TestTCPListenConnection(t *testing.T) {
 
 func TestTCPConnection(t *testing.T) {
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := tracer.NewTCPServer(func(c net.Conn) {
+	server := common.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Close()

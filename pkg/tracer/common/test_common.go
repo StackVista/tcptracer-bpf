@@ -1,4 +1,4 @@
-package tracer
+package common
 
 import (
 	"fmt"
@@ -44,25 +44,25 @@ func (s *TCPServer) Run(done chan struct{}) {
 }
 
 type UDPServer struct {
-	address   string
+	Address   string
 	onMessage func(b []byte, n int) []byte
 }
 
 func NewUDPServer(onMessage func(b []byte, n int) []byte) *UDPServer {
 	return &UDPServer{
-		address:   "127.0.0.1:0",
+		Address:   "127.0.0.1:0",
 		onMessage: onMessage,
 	}
 }
 
 func (s *UDPServer) Run(done chan struct{}, payloadSize int) {
-	ln, err := net.ListenPacket("udp", s.address)
+	ln, err := net.ListenPacket("udp", s.Address)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	s.address = ln.LocalAddr().String()
+	s.Address = ln.LocalAddr().String()
 
 	go func() {
 		buf := make([]byte, payloadSize)

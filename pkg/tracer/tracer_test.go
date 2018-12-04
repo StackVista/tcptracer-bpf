@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"io"
 	"math/rand"
 	"net"
@@ -36,7 +37,7 @@ func TestTCPSendAndReceive(t *testing.T) {
 	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
+	server := common.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -99,7 +100,7 @@ func TestTCPSendPage(t *testing.T) {
 	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
+	server := common.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -173,7 +174,7 @@ func TestTCPNoData(t *testing.T) {
 	connectChan := make(chan struct{})
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
+	server := common.NewTCPServer(func(c net.Conn) {
 		connectChan <- struct{}{}
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
@@ -220,7 +221,187 @@ func TestTCPNoData(t *testing.T) {
 }
 
 func TestListenBeforeTraceStartResultInConnectionWhenAccepted(t *testing.T) {
-	t.Fatal("Not implemented yet.")
+	connectChan := make(chan struct{})
+
+	// Create TCP Server which sends back serverMessageSize bytes
+	server := common.NewTCPServer(func(c net.Conn) {
+		connectChan <- struct{}{}
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	// First we listened to the port, no make the tracer
+	// Enable BPF-based network tracer
+	tr, err := NewTracer(DefaultConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr.Start()
+	defer tr.Stop()
+
+	// Connect to server
+	c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	// Waddressit for the connection to be established
+	<-connectChan
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts
+	connections, err := tr.GetConnections()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// One direction
+	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	assert.True(t, ok)
+	assert.Equal(t, 0, int(conn1.SendBytes))
+	assert.Equal(t, 0, int(conn1.RecvBytes))
+	assert.Equal(t, conn1.Direction, OUTGOING)
+	assert.Equal(t, conn1.State, ACTIVE)
+
+	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	assert.True(t, ok)
+	assert.Equal(t, 0, int(conn2.RecvBytes))
+	assert.Equal(t, 0, int(conn2.SendBytes))
+	assert.Equal(t, conn2.Direction, INCOMING)
+	assert.Equal(t, conn2.State, ACTIVE)
+
+	// Write to server to shut down the connection
+	if _, err = c.Write(genPayload(0)); err != nil {
+		t.Fatal(err)
+	}
+	doneChan <- struct{}{}
+}
+
+func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
+	// Create TCP Server which sends back serverMessageSize bytes
+	server := common.NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		c.Write(genPayload(serverMessageSize))
+		r.ReadBytes(byte('\n'))
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	// Connect to server
+	c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	// Connection established, setup tracer
+	tr, err := NewTracer(DefaultConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr.Start()
+	defer tr.Stop()
+
+	// Write clientMessageSize to server, and read response
+	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
+		t.Fatal(err)
+	}
+	r := bufio.NewReader(c)
+	r.ReadBytes(byte('\n'))
+
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts
+	connections, err := tr.GetConnections()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// One direction
+	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	assert.True(t, ok)
+	assert.Equal(t, clientMessageSize, int(conn1.SendBytes))
+	assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
+	assert.Equal(t, conn1.Direction, UNKNOWN)
+	assert.Equal(t, conn1.State, ACTIVE)
+
+	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	assert.True(t, ok)
+	assert.Equal(t, clientMessageSize, int(conn2.RecvBytes))
+	assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
+	assert.Equal(t, conn2.Direction, INCOMING)
+	assert.Equal(t, conn2.State, ACTIVE)
+
+	// Write clientMessageSize to server, to shut down the connection
+	if _, err = c.Write(genPayload(0)); err != nil {
+		t.Fatal(err)
+	}
+
+	doneChan <- struct{}{}
+}
+
+func TestCloseInFlightTCPConnectionWithEBPF(t *testing.T) {
+	// Create TCP Server which sends back serverMessageSize bytes
+	server := common.NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		c.Write(genPayload(serverMessageSize))
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	// Connect to server
+	c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Connection established, now setup tracer
+	tr, err := NewTracer(DefaultConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr.Start()
+	defer tr.Stop()
+
+	// Write clientMessageSize to server, and read response
+	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
+		t.Fatal(err)
+	}
+	r := bufio.NewReader(c)
+	r.ReadBytes(byte('\n'))
+
+	// Explicitly close this TCP connection
+	c.Close()
+
+	// First run, should contain the closed connection
+	connections, err := tr.GetConnections()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	assert.True(t, ok)
+	assert.Equal(t, conn1.State, CLOSED)
+
+	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	assert.True(t, ok)
+	assert.Equal(t, conn2.State, CLOSED)
+
+	// Second run, connection should be cleaned up
+	connections, err = tr.GetConnections()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Confirm that we could not find connection created above
+	_, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	assert.False(t, ok)
+
+	doneChan <- struct{}{}
 }
 
 func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
@@ -233,7 +414,7 @@ func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
 	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
+	server := common.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -268,6 +449,10 @@ func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, conn.State, CLOSED)
 
+	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	assert.True(t, ok)
+	assert.Equal(t, conn2.State, CLOSED)
+
 	// Second run, connection should be cleaned up
 	connections, err = tr.GetConnections()
 	if err != nil {
@@ -291,7 +476,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 	defer tr.Stop()
 
 	// Create UDP Server which sends back serverMessageSize bytes
-	server := NewUDPServer(func(b []byte, n int) []byte {
+	server := common.NewUDPServer(func(b []byte, n int) []byte {
 		return genPayload(serverMessageSize)
 	})
 
@@ -299,7 +484,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 	server.Run(doneChan, clientMessageSize)
 
 	// Connect to server
-	c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
+	c, err := net.DialTimeout("udp", server.Address, 50*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -371,10 +556,10 @@ func benchEchoUDP(size int) func(b *testing.B) {
 
 	return func(b *testing.B) {
 		end := make(chan struct{})
-		server := NewUDPServer(echoOnMessage)
+		server := common.NewUDPServer(echoOnMessage)
 		server.Run(end, size)
 
-		c, err := net.DialTimeout("udp", server.address, 50*time.Millisecond)
+		c, err := net.DialTimeout("udp", server.Address, 50*time.Millisecond)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -441,7 +626,7 @@ func benchEchoTCP(size int) func(b *testing.B) {
 
 	return func(b *testing.B) {
 		end := make(chan struct{})
-		server := NewTCPServer(echoOnMessage)
+		server := common.NewTCPServer(echoOnMessage)
 		server.Run(end)
 
 		c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
@@ -481,7 +666,7 @@ func benchSendTCP(size int) func(b *testing.B) {
 
 	return func(b *testing.B) {
 		end := make(chan struct{})
-		server := NewTCPServer(dropOnMessage)
+		server := common.NewTCPServer(dropOnMessage)
 		server.Run(end)
 
 		c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)

@@ -106,10 +106,6 @@ func TestConnStatsByteKey(t *testing.T) {
       		b: ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{State: CLOSED},
-			b: ConnectionStats{},
-		},
-		{
 			a: ConnectionStats{Pid: 1, Family: 0, Type: 1, Local: "a"},
 			b: ConnectionStats{Pid: 1, Family: 0, Type: 1, Local: "b"},
 		},

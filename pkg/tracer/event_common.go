@@ -82,6 +82,54 @@ type ConnectionStats struct {
 	RecvBytes  uint64    `json:"recv_bytes"`
 }
 
+func (c ConnectionStats) WithOnlyLocal() ConnectionStats {
+	return ConnectionStats{
+		Pid: c.Pid,
+		Type: c.Type,
+		Family: c.Family,
+		Local: c.Local,
+		Remote: "",
+		LocalPort: c.LocalPort,
+		RemotePort: 0,
+		Direction: UNKNOWN,
+		State: ACTIVE,
+		SendBytes: 0,
+		RecvBytes: 0,
+	}
+}
+
+func (c ConnectionStats) WithUnknownDirection() ConnectionStats {
+	return ConnectionStats{
+		Pid: c.Pid,
+		Type: c.Type,
+		Family: c.Family,
+		Local: c.Local,
+		Remote: c.Remote,
+		LocalPort: c.LocalPort,
+		RemotePort: c.RemotePort,
+		Direction: UNKNOWN,
+		State: c.State,
+		SendBytes: c.SendBytes,
+		RecvBytes: c.RecvBytes,
+	}
+}
+
+func (c ConnectionStats) Copy() ConnectionStats {
+	return ConnectionStats{
+		Pid: c.Pid,
+		Type: c.Type,
+		Family: c.Family,
+		Local: c.Local,
+		Remote: c.Remote,
+		LocalPort: c.LocalPort,
+		RemotePort: c.RemotePort,
+		Direction: c.Direction,
+		State: c.State,
+		SendBytes: c.SendBytes,
+		RecvBytes: c.RecvBytes,
+	}
+}
+
 func (c ConnectionStats) String() string {
 	return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s %d bytes sent, %d bytes received",
 		c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.SendBytes, c.RecvBytes)
@@ -99,7 +147,7 @@ func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 		return nil, err
 	}
 	// Family (8 bits) + Type (8 bits) + Direction (8 bits) = 32 bits
-	p1 := uint32(c.State) << 24 | uint32(c.Direction)<<16 | uint32(c.Family)<<8 | uint32(c.Type)
+	p1 := uint32(c.Direction)<<16 | uint32(c.Family)<<8 | uint32(c.Type)
 	if err := binary.Write(buffer, binary.LittleEndian, p1); err != nil {
 		return nil, err
 	}

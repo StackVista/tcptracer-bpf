@@ -11,6 +11,8 @@ type Config struct {
 	BackfillFromProc bool
 	// Location of /proc
 	ProcRoot string
+	// Mximum connections we keep track of
+	MaxConnections int
 	// UDPConnTimeout determines the length of traffic inactivity between two (IP, port)-pairs before declaring a UDP
 	// connection as inactive.
 	// Note: As UDP traffic is technically "connection-less", for tracking, we consider a UDP connection to be traffic
@@ -23,5 +25,7 @@ var DefaultConfig = &Config{
 	CollectTCPConns: true,
 	CollectUDPConns: true,
 	BackfillFromProc: true,
+	ProcRoot: "/proc",
+	MaxConnections: 10000,
 	UDPConnTimeout:  30 * time.Second,
 }

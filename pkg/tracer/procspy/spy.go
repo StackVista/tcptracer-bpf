@@ -15,7 +15,6 @@ const (
 
 // Connection is a (TCP) connection. The Proc struct might not be filled in.
 type Connection struct {
-	Transport     string
 	LocalAddress  net.IP
 	LocalPort     uint16
 	RemoteAddress net.IP
