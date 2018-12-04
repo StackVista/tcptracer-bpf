@@ -19,8 +19,15 @@
 #define DIRECTION_OUTGOING 1
 #define DIRECTION_INCOMING 2
 
-#define STATE_ACTIVE 0
-#define STATE_CLOSED 1
+// We observed the connection being initialized
+#define STATE_INITIALIZING 0
+// We observed the connection being active
+#define STATE_ACTIVE 1
+// We observed the connection being active and then closed
+#define STATE_ACTIVE_CLOSED 2
+// We just observed the closing of the connection. We did not see any activity, so we treat this as a failed connection
+// It is still reported to be able to close connections coming from /proc
+#define STATE_CLOSED 3
 
 struct proc_t {
     char comm[TASK_COMM_LEN];

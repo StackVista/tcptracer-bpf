@@ -180,7 +180,7 @@ func (t* Tracer) getTcpConnectionsFromInFlight() []ConnectionStats {
 		conns = append(conns, *conn)
 		// Closed connection we only report once. After reporting,
 		// they get removed from inFlight
-		if conn.State == CLOSED {
+		if conn.State == ACTIVE_CLOSED || conn.State == CLOSED {
 			delete(t.inFlightTCP, key)
 		}
 	}
@@ -205,7 +205,13 @@ func (t *Tracer) updateInFlightTCPWithEBPF() error {
 			return fmt.Errorf("failed to write to byte buffer: %s", err)
 		}
 
-		if conn.Direction != UNKNOWN {
+		fmt.Printf("Found ebpf %s\n", conn)
+		// We are not interested in connections which are still initializing
+		if conn.State == INITIALIZING {
+			continue
+		}
+
+		if conn.Direction != UNKNOWN && conn.State != CLOSED {
 			// If we already know the direction, we do not need previous in-flight connections and can just put this in, EBPF knows all
 			t.addInFlight(string(connKey), conn)
 		} else {
@@ -214,6 +220,10 @@ func (t *Tracer) updateInFlightTCPWithEBPF() error {
 				inFlight.RecvBytes = conn.RecvBytes
 				inFlight.SendBytes = conn.SendBytes
 				inFlight.State = conn.State
+				// If we observe just a close, we know it was active before (its in inFlight). So we make it ACTIVE_CLOSED
+				if conn.State == CLOSED {
+					inFlight.State = ACTIVE_CLOSED
+				}
 			}
 		}
 	}
@@ -357,7 +367,7 @@ func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
 		} else {
 			stats := connStatsFromTCPv4(nextKey, val)
 			conns = append(conns, stats)
-			if stats.State == CLOSED {
+			if stats.State == ACTIVE_CLOSED || stats.State == CLOSED {
 				closed = append(closed, nextKey.copy())
 			}
 			key = nextKey
@@ -388,7 +398,7 @@ func (t *Tracer) getTCPv6Connections() ([]ConnectionStats, error) {
 		} else {
 			stats := connStatsFromTCPv6(nextKey, val)
 			conns = append(conns, stats)
-			if stats.State == CLOSED {
+			if stats.State == ACTIVE_CLOSED || stats.State == CLOSED {
 				closed = append(closed, nextKey.copy())
 			}
 			key = nextKey

@@ -46,19 +46,24 @@ func (d Direction) String() string {
 }
 
 const (
-	ACTIVE State = 0
-	CLOSED State = 1
+	INITIALIZING  State = 0
+	ACTIVE        State = 1
+	ACTIVE_CLOSED State = 2
+	CLOSED        State = 3
 )
 
 type State uint8
 
 func (s State) String() string {
-	if s == ACTIVE {
+	if s == INITIALIZING {
+		return "INITIALIZING"
+	} else if s == ACTIVE {
 		return "ACTIVE"
+	} else if s == ACTIVE_CLOSED {
+		return "ACTIVE_CLOSED"
 	}
 	return "CLOSED"
 }
-
 
 //easyjson:json
 type Connections struct {

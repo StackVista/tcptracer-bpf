@@ -439,8 +439,17 @@ static void update_conn_direction_state(struct conn_stats_t *stats, __u8 directi
     if (direction != DIRECTION_UNKNOWN) {
         (*stats).direction = direction;
     }
-    if (state == STATE_CLOSED) {
-        (*stats).state = state;
+
+    if (stats->state == STATE_INITIALIZING && state == STATE_ACTIVE) {
+        // We can move from initializing to active
+        (*stats).state = STATE_ACTIVE;
+    } else if (stats->state == STATE_ACTIVE && state == STATE_CLOSED) {
+        // We can move from active to closed
+        (*stats).state = STATE_ACTIVE_CLOSED;
+    } else if (stats->state == STATE_INITIALIZING && state == STATE_CLOSED) {
+        // We can move from initializing to closed
+        // If we did not see any activity we report the connection as closed without activity, meaning we treat it as failed
+        (*stats).state = STATE_CLOSED;
     }
 }
 
@@ -541,6 +550,11 @@ static int assert_tcp_record(struct sock *sk, struct tcptracer_status_t *status,
  */
 __attribute__((always_inline))
 static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *status, size_t send_bytes, size_t recv_bytes) {
+    // If no data went over the line, we do not treat this as an active connection
+    if (send_bytes <= 0 && recv_bytes <= 0) {
+        return 0;
+    }
+
     // Make sure the record exists
     assert_tcp_record(sk, status, DIRECTION_UNKNOWN, STATE_ACTIVE);
 
@@ -754,7 +768,7 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
 	// We should figure out offsets if they're not already figured out
 	are_offsets_ready_v4(status, skp, pid);
 
-	return assert_tcp_record(skp, status, DIRECTION_OUTGOING, STATE_ACTIVE);
+	return assert_tcp_record(skp, status, DIRECTION_OUTGOING, STATE_INITIALIZING);
 }
 
 // Used for offset guessing (see: pkg/offsetguess.go)
@@ -773,6 +787,7 @@ int kprobe__tcp_v6_connect(struct pt_regs *ctx) {
 // Used for offset guessing (see: pkg/offsetguess.go)
 SEC("kretprobe/tcp_v6_connect")
 int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
+    int ret = PT_REGS_RC(ctx);
 	u64 pid = bpf_get_current_pid_tgid();
 	u64 zero = 0;
 	struct sock **skpp;
@@ -794,7 +809,13 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
 	// We should figure out offsets if they're not already figured out
 	are_offsets_ready_v6(status, skp, pid);
 
-  return assert_tcp_record(skp, status, DIRECTION_OUTGOING, STATE_ACTIVE);
+    if (ret != 0) {
+    		// failed to send SYNC packet, may not have populated
+    		// socket __sk_common.{skc_rcv_saddr, ...}
+    	return 0;
+    }
+
+    return assert_tcp_record(skp, status, DIRECTION_OUTGOING, STATE_INITIALIZING);
 }
 
 SEC("kretprobe/inet_csk_accept")
@@ -811,7 +832,7 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
         return 0;
     }
 
-  return assert_tcp_record(newsk, status, DIRECTION_INCOMING, STATE_ACTIVE);
+  return assert_tcp_record(newsk, status, DIRECTION_INCOMING, STATE_INITIALIZING);
 }
 
 SEC("kprobe/tcp_sendmsg")

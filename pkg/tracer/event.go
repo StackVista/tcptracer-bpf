@@ -155,6 +155,7 @@ func connStatsFromProcSpy(t *procspy.Connection) ConnectionStats {
 		LocalPort:  t.LocalPort,
 		RemotePort: t.RemotePort,
 		Direction:  UNKNOWN,
+		State:		ACTIVE,
 		SendBytes:  0,
 		RecvBytes:  0,
 	}
