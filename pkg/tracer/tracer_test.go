@@ -436,7 +436,7 @@ func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
 
 	closeChan<- struct {}{}
 	<-closedChan
-	
+
 	c.Close()
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts

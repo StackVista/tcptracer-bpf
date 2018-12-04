@@ -205,7 +205,6 @@ func (t *Tracer) updateInFlightTCPWithEBPF() error {
 			return fmt.Errorf("failed to write to byte buffer: %s", err)
 		}
 
-		fmt.Printf("Found ebpf %s\n", conn)
 		// We are not interested in connections which are still initializing
 		if conn.State == INITIALIZING {
 			continue
