@@ -47,11 +47,13 @@ func TestTCPConnection(t *testing.T) {
 	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr())
 	assert.True(t, ok)
 	assert.False(t, conn1.Listening)
+	assert.NotEqual(t, conn1.Proc.PID, 0)
 
 	// Other direction
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr())
-	assert.True(t, ok)
+	assert.False(t, ok)
 	assert.False(t, conn2.Listening)
+	assert.NotEqual(t, conn1.Proc.PID, 0)
 
 	// Write to server, to shut down the connection
 	if _, err = c.Write(make([]byte, 1)); err != nil {
@@ -63,7 +65,7 @@ func TestTCPConnection(t *testing.T) {
 
 func findConnection(l, r net.Addr) (*Connection, bool) {
 	fmt.Println("Looking for conn")
-	procRoot := "/proc"
+	procRoot := common.TestRoot()
 	procWalker := NewWalker(procRoot)
 	scanner := NewSyncConnectionScanner(procWalker, true)
 	defer scanner.Stop()
@@ -86,8 +88,7 @@ func findConnection(l, r net.Addr) (*Connection, bool) {
 
 func findListener(l string) (*Connection, bool) {
 	fmt.Println("Looking for conn")
-	procRoot := "/proc"
-	procWalker := NewWalker(procRoot)
+	procWalker := NewWalker(common.TestRoot())
 	scanner := NewSyncConnectionScanner(procWalker, true)
 	defer scanner.Stop()
 	conns, err := scanner.Connections()

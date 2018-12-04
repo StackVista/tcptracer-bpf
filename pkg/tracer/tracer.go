@@ -126,6 +126,10 @@ func (t *Tracer) getProcConnections() error {
 		connWithStats := connStatsFromProcSpy(conn)
 		localKey, err := connWithStats.WithOnlyLocal().ByteKey(buffer)
 
+		if conn.Proc.PID == 0 {
+			continue
+		}
+
 		if err != nil {
 			return fmt.Errorf("failed to write to byte buffer: %s", err)
 		}
