@@ -107,7 +107,7 @@ func (t *Tracer) Stop() {
 
 func (t *Tracer) getProcConnections() error {
 	procWalker := procspy.NewWalker(t.config.ProcRoot)
-	scanner := procspy.NewSyncConnectionScanner(procWalker, true)
+	scanner := procspy.NewSyncConnectionScanner(procWalker, t.config.ProcRoot, true)
 	defer scanner.Stop()
 	conns, err := scanner.Connections()
 

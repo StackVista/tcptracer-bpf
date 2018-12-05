@@ -51,7 +51,7 @@ func TestTCPConnection(t *testing.T) {
 
 	// Other direction
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr())
-	assert.False(t, ok)
+	assert.True(t, ok)
 	assert.False(t, conn2.Listening)
 	assert.NotEqual(t, conn1.Proc.PID, 0)
 
@@ -67,7 +67,7 @@ func findConnection(l, r net.Addr) (*Connection, bool) {
 	fmt.Println("Looking for conn")
 	procRoot := common.TestRoot()
 	procWalker := NewWalker(procRoot)
-	scanner := NewSyncConnectionScanner(procWalker, true)
+	scanner := NewSyncConnectionScanner(procWalker,  common.TestRoot(),true)
 	defer scanner.Stop()
 	conns, err := scanner.Connections()
 
@@ -89,7 +89,7 @@ func findConnection(l, r net.Addr) (*Connection, bool) {
 func findListener(l string) (*Connection, bool) {
 	fmt.Println("Looking for conn")
 	procWalker := NewWalker(common.TestRoot())
-	scanner := NewSyncConnectionScanner(procWalker, true)
+	scanner := NewSyncConnectionScanner(procWalker, common.TestRoot(), true)
 	defer scanner.Stop()
 	conns, err := scanner.Connections()
 
