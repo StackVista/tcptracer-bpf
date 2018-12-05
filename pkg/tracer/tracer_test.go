@@ -407,6 +407,68 @@ func TestCloseInFlightTCPConnectionWithEBPFWithData(t *testing.T) {
 	doneChan <- struct{}{}
 }
 
+func TestInFlightDirectionListenAllInterfaces(t *testing.T) {
+	connectChan := make(chan struct{})
+	closeChan := make(chan struct{})
+	closedChan := make(chan struct{})
+
+	// Create TCP Server which sends back serverMessageSize bytes
+	server := common.NewTCPServerAllPorts(func(c net.Conn) {
+		connectChan <- struct{}{}
+		<-closeChan
+		c.Close()
+		closedChan <- struct{}{}
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	// Connect to server
+	c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	// Wait for the connection to be established
+	<-connectChan
+
+	// Enable BPF-based network tracer
+	tr, err := NewTracer(testConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr.Start()
+	defer tr.Stop()
+
+	closeChan <- struct{}{}
+	<-closedChan
+
+	c.Close()
+
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts
+	connections, err := tr.GetConnections()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// One direction
+	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	assert.True(t, ok)
+	assert.Equal(t, 0, int(conn1.SendBytes))
+	assert.Equal(t, 0, int(conn1.RecvBytes))
+	assert.Equal(t, conn1.Direction, UNKNOWN)
+	assert.Equal(t, conn1.State, ACTIVE_CLOSED)
+
+	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	assert.True(t, ok)
+	assert.Equal(t, 0, int(conn2.RecvBytes))
+	assert.Equal(t, 0, int(conn2.SendBytes))
+	assert.Equal(t, conn2.Direction, INCOMING)
+	assert.Equal(t, conn2.State, ACTIVE_CLOSED)
+
+	doneChan <- struct{}{}
+}
+
 func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
 	connectChan := make(chan struct{})
 	closeChan := make(chan struct{})

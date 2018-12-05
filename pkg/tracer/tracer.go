@@ -116,7 +116,10 @@ func (t *Tracer) getProcConnections() error {
 	}
 
 	// No set in go, so we use a map... identify using connectionstats key from local port
-	listeningPorts := make(map[string]bool)
+	// Listening ports on specific interfaces
+	listeningOnSpecificInterfaces := make(map[string]bool)
+	listeningPortsOnAllInterfaces := make(map[uint16]bool)
+
 	var connections []struct {
 		ConnectionStats
 		string
@@ -138,7 +141,11 @@ func (t *Tracer) getProcConnections() error {
 		}
 
 		if conn.Listening {
-			listeningPorts[string(localKey)] = true
+			if conn.LocalAddress.IsUnspecified() {
+				listeningPortsOnAllInterfaces[conn.LocalPort] = true
+			} else {
+				listeningOnSpecificInterfaces[string(localKey)] = true
+			}
 		} else {
 			connections = append(connections, struct {
 				ConnectionStats
@@ -150,7 +157,11 @@ func (t *Tracer) getProcConnections() error {
 	// Set the direction based on listening ports and add to inFlightTCP connections
 	for _, connAndKey := range connections {
 		conn := connAndKey.ConnectionStats
-		if _, exists := listeningPorts[connAndKey.string]; exists {
+		if _, exists := listeningOnSpecificInterfaces[connAndKey.string]; exists {
+			conn.Direction = INCOMING
+		}
+
+		if _, exists := listeningPortsOnAllInterfaces[conn.LocalPort]; exists {
 			conn.Direction = INCOMING
 		}
 

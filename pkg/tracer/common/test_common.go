@@ -19,6 +19,13 @@ func NewTCPServer(onMessage func(c net.Conn)) *TCPServer {
 	}
 }
 
+func NewTCPServerAllPorts(onMessage func(c net.Conn)) *TCPServer {
+	return &TCPServer{
+		Address:   "0.0.0.0:0",
+		onMessage: onMessage,
+	}
+}
+
 func (s *TCPServer) Run(done chan struct{}) {
 	ln, err := net.Listen("tcp", s.Address)
 	if err != nil {
