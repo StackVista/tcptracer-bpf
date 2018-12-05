@@ -4,24 +4,20 @@ package procspy
 
 import (
 	"bytes"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
+	log "github.com/cihub/seelog"
 	"os"
 	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
-
-	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
-	log "github.com/cihub/seelog"
 )
 
 var (
-	procRoot               = "/proc"
-	namespaceKey           = []string{"procspy", "namespaces"}
 	netNamespacePathSuffix = ""
-	ipv6IsSupported        = tcp6FileExists()
 )
 
-func tcp6FileExists() bool {
+func tcp6FileExists(procRoot string) bool {
 	filename := filepath.Join(procRoot, "self/net/tcp6")
 	f, err := os.Open(filename)
 	if err != nil {
@@ -32,14 +28,16 @@ func tcp6FileExists() bool {
 }
 
 type pidWalker struct {
+	procRoot    string
 	walker      Walker
 	tickc       <-chan time.Time // Rate-limit clock. Sets the pace when traversing namespaces and /proc/PID/fd/* files.
 	stopc       chan struct{}    // Abort walk
 	fdBlockSize uint64           // Maximum number of /proc/PID/fd/* files to stat() per tick
 }
 
-func newPidWalker(walker Walker, tickc <-chan time.Time, fdBlockSize uint64) pidWalker {
+func newPidWalker(walker Walker, procRoot string, tickc <-chan time.Time, fdBlockSize uint64) pidWalker {
 	w := pidWalker{
+		procRoot:    procRoot,
 		walker:      walker,
 		tickc:       tickc,
 		fdBlockSize: fdBlockSize,
@@ -78,7 +76,7 @@ func getNetNamespacePathSuffix() string {
 }
 
 // ReadTCPFiles reads the proc files tcp and tcp6 for a pid
-func ReadTCPFiles(pid int, buf *bytes.Buffer) (int64, error) {
+func ReadTCPFiles(procRoot string, pid int, buf *bytes.Buffer) (int64, error) {
 	var (
 		errRead  error
 		errRead6 error
@@ -90,7 +88,7 @@ func ReadTCPFiles(pid int, buf *bytes.Buffer) (int64, error) {
 
 	dirName := strconv.Itoa(pid)
 	read, errRead = readFile(filepath.Join(procRoot, dirName, "/net/tcp"), buf)
-	if ipv6IsSupported {
+	if tcp6FileExists(procRoot) {
 		read6, errRead6 = readFile(filepath.Join(procRoot, dirName, "/net/tcp6"), buf)
 	}
 
@@ -103,13 +101,13 @@ func ReadTCPFiles(pid int, buf *bytes.Buffer) (int64, error) {
 // Read the connections for a group of processes living in the same namespace,
 // which are found (identically) in /proc/PID/net/tcp{,6} for any of the
 // processes.
-func readProcessConnections(buf *bytes.Buffer, namespaceProcs []*Process) (bool, error) {
+func readProcessConnections(procRoot string, buf *bytes.Buffer, namespaceProcs []*Process) (bool, error) {
 	var (
 		read int64
 		err  error
 	)
 	for _, p := range namespaceProcs {
-		read, err = ReadTCPFiles(p.PID, buf)
+		read, err = ReadTCPFiles(procRoot, p.PID, buf)
 		if err != nil {
 			// try next process
 			continue
@@ -129,7 +127,7 @@ func readProcessConnections(buf *bytes.Buffer, namespaceProcs []*Process) (bool,
 // walkNamespace does the work of walk for a single namespace
 func (w pidWalker) walkNamespace(namespaceID uint64, buf *bytes.Buffer, sockets map[uint64]*Proc, namespaceProcs []*Process) error {
 
-	if found, err := readProcessConnections(buf, namespaceProcs); err != nil || !found {
+	if found, err := readProcessConnections(w.procRoot, buf, namespaceProcs); err != nil || !found {
 		return err
 	}
 
@@ -139,7 +137,7 @@ func (w pidWalker) walkNamespace(namespaceID uint64, buf *bytes.Buffer, sockets 
 
 		// Get the sockets for all the processes in the namespace
 		dirName := strconv.Itoa(p.PID)
-		fdBase := filepath.Join(procRoot, dirName, "fd")
+		fdBase := filepath.Join(w.procRoot, dirName, "fd")
 
 		if fdBlockCount > w.fdBlockSize {
 			// we surpassed the filedescriptor rate limit
@@ -152,7 +150,7 @@ func (w pidWalker) walkNamespace(namespaceID uint64, buf *bytes.Buffer, sockets 
 			fdBlockCount = 0
 			// read the connections again to
 			// avoid the race between between /net/tcp{,6} and /proc/PID/fd/*
-			if found, err := readProcessConnections(buf, namespaceProcs[i:]); err != nil || !found {
+			if found, err := readProcessConnections(w.procRoot, buf, namespaceProcs[i:]); err != nil || !found {
 				return err
 			}
 		}
@@ -196,7 +194,7 @@ func (w pidWalker) walkNamespace(namespaceID uint64, buf *bytes.Buffer, sockets 
 }
 
 // ReadNetnsFromPID gets the netns inode of the specified pid
-func ReadNetnsFromPID(pid int) (uint64, error) {
+func ReadNetnsFromPID(procRoot string, pid int) (uint64, error) {
 	var statT syscall.Stat_t
 
 	dirName := strconv.Itoa(pid)
@@ -227,7 +225,7 @@ func (w pidWalker) walk(buf *bytes.Buffer) (map[uint64]*Proc, error) {
 	// the processes living in that namespace.
 
 	w.walker.Walk(func(p, _ Process) {
-		namespaceID, err := ReadNetnsFromPID(p.PID)
+		namespaceID, err := ReadNetnsFromPID(w.procRoot, p.PID)
 		if err != nil {
 			return
 		}

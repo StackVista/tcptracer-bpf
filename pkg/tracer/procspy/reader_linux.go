@@ -24,6 +24,7 @@ type reader interface {
 }
 
 type backgroundReader struct {
+	procRoot      string
 	stopc         chan struct{}
 	mtx           sync.Mutex
 	latestBuf     *bytes.Buffer
@@ -32,8 +33,9 @@ type backgroundReader struct {
 
 // starts a rate-limited background goroutine to read the expensive files from
 // proc.
-func newBackgroundReader(walker Walker) reader {
+func newBackgroundReader(procRoot string, walker Walker) reader {
 	br := &backgroundReader{
+		procRoot:      procRoot,
 		stopc:         make(chan struct{}),
 		latestSockets: map[uint64]*Proc{},
 	}
@@ -67,7 +69,7 @@ func (br *backgroundReader) loop(walker Walker) {
 		rateLimitPeriod = initialRateLimitPeriod
 		restInterval    time.Duration
 		ticker          = time.NewTicker(rateLimitPeriod)
-		pWalker         = newPidWalker(walker, ticker.C, fdBlockSize)
+		pWalker         = newPidWalker(walker, br.procRoot, ticker.C, fdBlockSize)
 	)
 
 	for {
@@ -111,7 +113,7 @@ type foregroundReader struct {
 }
 
 // reads synchronously files from /proc
-func newForegroundReader(walker Walker) reader {
+func newForegroundReader(procRoot string, walker Walker) reader {
 	fr := &foregroundReader{
 		stopc:         make(chan struct{}),
 		latestSockets: map[uint64]*Proc{},
@@ -119,7 +121,7 @@ func newForegroundReader(walker Walker) reader {
 	var (
 		walkc   = make(chan walkResult)
 		ticker  = time.NewTicker(time.Millisecond) // fire every millisecond
-		pWalker = newPidWalker(walker, ticker.C, fdBlockSize)
+		pWalker = newPidWalker(walker, procRoot, ticker.C, fdBlockSize)
 	)
 
 	go performWalk(pWalker, walkc)

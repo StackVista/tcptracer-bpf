@@ -36,24 +36,25 @@ func (c *pnConnIter) Next() *Connection {
 }
 
 // NewConnectionScanner creates a new Linux ConnectionScanner
-func NewConnectionScanner(walker Walker, processes bool) ConnectionScanner {
-	scanner := &linuxScanner{}
+func NewConnectionScanner(walker Walker, procRoot string, processes bool) ConnectionScanner {
+	scanner := &linuxScanner{ procRoot: procRoot }
 	if processes {
-		scanner.r = newBackgroundReader(walker)
+		scanner.r = newBackgroundReader(procRoot, walker)
 	}
 	return scanner
 }
 
 // NewSyncConnectionScanner creates a new synchronous Linux ConnectionScanner
-func NewSyncConnectionScanner(walker Walker, processes bool) ConnectionScanner {
-	scanner := &linuxScanner{}
+func NewSyncConnectionScanner(walker Walker, procRoot string, processes bool) ConnectionScanner {
+	scanner := &linuxScanner{ procRoot: procRoot }
 	if processes {
-		scanner.r = newForegroundReader(walker)
+		scanner.r = newForegroundReader(procRoot, walker)
 	}
 	return scanner
 }
 
 type linuxScanner struct {
+	procRoot string
 	r reader
 }
 
@@ -71,9 +72,9 @@ func (s *linuxScanner) Connections() (ConnIter, error) {
 	}
 
 	if buf.Len() == 0 {
-		readFile(procRoot+"/net/tcp", buf)
-		if ipv6IsSupported {
-			readFile(procRoot+"/net/tcp6", buf)
+		readFile(s.procRoot+"/net/tcp", buf)
+		if tcp6FileExists(s.procRoot) {
+			readFile(s.procRoot+"/net/tcp6", buf)
 		}
 	}
 
