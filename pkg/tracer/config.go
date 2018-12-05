@@ -22,10 +22,10 @@ type Config struct {
 
 // DefaultConfig enables traffic collection for all connection types
 var DefaultConfig = &Config{
-	CollectTCPConns: true,
-	CollectUDPConns: true,
+	CollectTCPConns:  true,
+	CollectUDPConns:  true,
 	BackfillFromProc: true,
-	ProcRoot: "/proc",
-	MaxConnections: 10000,
-	UDPConnTimeout:  30 * time.Second,
+	ProcRoot:         "/proc",
+	MaxConnections:   10000,
+	UDPConnTimeout:   30 * time.Second,
 }

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTCPListenConnection(t *testing.T) {
@@ -67,7 +67,7 @@ func findConnection(l, r net.Addr) (*Connection, bool) {
 	fmt.Println("Looking for conn")
 	procRoot := common.TestRoot()
 	procWalker := NewWalker(procRoot)
-	scanner := NewSyncConnectionScanner(procWalker,  common.TestRoot(),true)
+	scanner := NewSyncConnectionScanner(procWalker, common.TestRoot(), true)
 	defer scanner.Stop()
 	conns, err := scanner.Connections()
 
@@ -106,14 +106,3 @@ func findListener(l string) (*Connection, bool) {
 	}
 	return nil, false
 }
-
-
-
-
-
-
-
-
-
-
-

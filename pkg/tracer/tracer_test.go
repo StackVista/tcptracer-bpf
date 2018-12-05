@@ -20,11 +20,11 @@ import (
 )
 
 var (
-	clientMessageSize = 2 << 8
+	clientMessageSize     = 2 << 8
 	clientMessageFileSize = 44
-	serverMessageSize = 2 << 14
-	payloadSizesTCP   = []int{2 << 5, 2 << 8, 2 << 10, 2 << 12, 2 << 14, 2 << 15}
-	payloadSizesUDP   = []int{2 << 5, 2 << 8, 2 << 12, 2 << 14}
+	serverMessageSize     = 2 << 14
+	payloadSizesTCP       = []int{2 << 5, 2 << 8, 2 << 10, 2 << 12, 2 << 14, 2 << 15}
+	payloadSizesUDP       = []int{2 << 5, 2 << 8, 2 << 12, 2 << 14}
 )
 
 func testConfig() *Config {
@@ -440,7 +440,7 @@ func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
 	tr.Start()
 	defer tr.Stop()
 
-	closeChan<- struct {}{}
+	closeChan <- struct{}{}
 	<-closedChan
 
 	c.Close()
@@ -465,7 +465,6 @@ func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
 	assert.Equal(t, 0, int(conn2.SendBytes))
 	assert.Equal(t, conn2.Direction, INCOMING)
 	assert.Equal(t, conn2.State, ACTIVE_CLOSED)
-
 
 	doneChan <- struct{}{}
 }

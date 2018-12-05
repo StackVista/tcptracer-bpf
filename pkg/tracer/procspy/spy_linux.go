@@ -37,7 +37,7 @@ func (c *pnConnIter) Next() *Connection {
 
 // NewConnectionScanner creates a new Linux ConnectionScanner
 func NewConnectionScanner(walker Walker, procRoot string, processes bool) ConnectionScanner {
-	scanner := &linuxScanner{ procRoot: procRoot }
+	scanner := &linuxScanner{procRoot: procRoot}
 	if processes {
 		scanner.r = newBackgroundReader(procRoot, walker)
 	}
@@ -46,7 +46,7 @@ func NewConnectionScanner(walker Walker, procRoot string, processes bool) Connec
 
 // NewSyncConnectionScanner creates a new synchronous Linux ConnectionScanner
 func NewSyncConnectionScanner(walker Walker, procRoot string, processes bool) ConnectionScanner {
-	scanner := &linuxScanner{ procRoot: procRoot }
+	scanner := &linuxScanner{procRoot: procRoot}
 	if processes {
 		scanner.r = newForegroundReader(procRoot, walker)
 	}
@@ -55,7 +55,7 @@ func NewSyncConnectionScanner(walker Walker, procRoot string, processes bool) Co
 
 type linuxScanner struct {
 	procRoot string
-	r reader
+	r        reader
 }
 
 func (s *linuxScanner) Connections() (ConnIter, error) {

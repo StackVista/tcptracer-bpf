@@ -36,12 +36,12 @@ var (
 )
 
 type Tracer struct {
-	m        *bpflib.Module
-	config   *Config
+	m      *bpflib.Module
+	config *Config
 	// In flight connections are the connections that already existed before the EBPF module was loaded.
 	// These connections are stored with a key without direction, to make it possible to merge with undirected
 	// metric stats
-	inFlightTCP map[string] *ConnectionStats
+	inFlightTCP map[string]*ConnectionStats
 }
 
 // maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
@@ -116,8 +116,11 @@ func (t *Tracer) getProcConnections() error {
 	}
 
 	// No set in go, so we use a map... identify using connectionstats key from local port
-	listeningPorts := make(map[string] bool)
-	var connections [] struct {ConnectionStats; string}
+	listeningPorts := make(map[string]bool)
+	var connections []struct {
+		ConnectionStats
+		string
+	}
 
 	buffer := new(bytes.Buffer)
 
@@ -137,7 +140,10 @@ func (t *Tracer) getProcConnections() error {
 		if conn.Listening {
 			listeningPorts[string(localKey)] = true
 		} else {
-			connections = append(connections, struct {ConnectionStats; string}{connWithStats, string(localKey)})
+			connections = append(connections, struct {
+				ConnectionStats
+				string
+			}{connWithStats, string(localKey)})
 		}
 	}
 
@@ -177,7 +183,7 @@ func (t *Tracer) GetConnections() (*Connections, error) {
 	return &Connections{Conns: append(tcpConns, udpConns...)}, nil
 }
 
-func (t* Tracer) getTcpConnectionsFromInFlight() []ConnectionStats {
+func (t *Tracer) getTcpConnectionsFromInFlight() []ConnectionStats {
 	conns := make([]ConnectionStats, 0)
 
 	for key, conn := range t.inFlightTCP {

@@ -1,7 +1,12 @@
 package common
 
 import (
+	"errors"
 	bpflib "github.com/iovisor/gobpf/elf"
+)
+
+var (
+	ErrNotImplemented = errors.New("BPF-based network tracing not implemented on non-linux systems")
 )
 
 // KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)

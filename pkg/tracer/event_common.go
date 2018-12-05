@@ -89,49 +89,49 @@ type ConnectionStats struct {
 
 func (c ConnectionStats) WithOnlyLocal() ConnectionStats {
 	return ConnectionStats{
-		Pid: c.Pid,
-		Type: c.Type,
-		Family: c.Family,
-		Local: c.Local,
-		Remote: "",
-		LocalPort: c.LocalPort,
+		Pid:        c.Pid,
+		Type:       c.Type,
+		Family:     c.Family,
+		Local:      c.Local,
+		Remote:     "",
+		LocalPort:  c.LocalPort,
 		RemotePort: 0,
-		Direction: UNKNOWN,
-		State: ACTIVE,
-		SendBytes: 0,
-		RecvBytes: 0,
+		Direction:  UNKNOWN,
+		State:      ACTIVE,
+		SendBytes:  0,
+		RecvBytes:  0,
 	}
 }
 
 func (c ConnectionStats) WithUnknownDirection() ConnectionStats {
 	return ConnectionStats{
-		Pid: c.Pid,
-		Type: c.Type,
-		Family: c.Family,
-		Local: c.Local,
-		Remote: c.Remote,
-		LocalPort: c.LocalPort,
+		Pid:        c.Pid,
+		Type:       c.Type,
+		Family:     c.Family,
+		Local:      c.Local,
+		Remote:     c.Remote,
+		LocalPort:  c.LocalPort,
 		RemotePort: c.RemotePort,
-		Direction: UNKNOWN,
-		State: c.State,
-		SendBytes: c.SendBytes,
-		RecvBytes: c.RecvBytes,
+		Direction:  UNKNOWN,
+		State:      c.State,
+		SendBytes:  c.SendBytes,
+		RecvBytes:  c.RecvBytes,
 	}
 }
 
 func (c ConnectionStats) Copy() ConnectionStats {
 	return ConnectionStats{
-		Pid: c.Pid,
-		Type: c.Type,
-		Family: c.Family,
-		Local: c.Local,
-		Remote: c.Remote,
-		LocalPort: c.LocalPort,
+		Pid:        c.Pid,
+		Type:       c.Type,
+		Family:     c.Family,
+		Local:      c.Local,
+		Remote:     c.Remote,
+		LocalPort:  c.LocalPort,
 		RemotePort: c.RemotePort,
-		Direction: c.Direction,
-		State: c.State,
-		SendBytes: c.SendBytes,
-		RecvBytes: c.RecvBytes,
+		Direction:  c.Direction,
+		State:      c.State,
+		SendBytes:  c.SendBytes,
+		RecvBytes:  c.RecvBytes,
 	}
 }
 

@@ -16,7 +16,6 @@ func (m *mockWalker) Walk(f func(Process, Process)) error {
 	return nil
 }
 
-
 func TestBasicWalk(t *testing.T) {
 	var (
 		procRoot = "/proc"

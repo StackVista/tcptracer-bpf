@@ -5,7 +5,7 @@ import (
 )
 
 type walker struct {
-	procRoot                 string
+	procRoot string
 }
 
 // NewWalker creates a new process Walker.

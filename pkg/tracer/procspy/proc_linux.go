@@ -212,7 +212,7 @@ func ReadNetnsFromPID(procRoot string, pid int) (uint64, error) {
 // ID (inode) to PID.
 func (w pidWalker) walk(buf *bytes.Buffer) (map[uint64]*Proc, error) {
 	var (
-		sockets    = map[uint64]*Proc{}              // map socket inode -> process
+		sockets    = map[uint64]*Proc{}      // map socket inode -> process
 		namespaces = map[uint64][]*Process{} // map network namespace id -> processes
 	)
 
@@ -248,4 +248,3 @@ func (w pidWalker) walk(buf *bytes.Buffer) (map[uint64]*Proc, error) {
 func (w pidWalker) stop() {
 	close(w.stopc)
 }
-

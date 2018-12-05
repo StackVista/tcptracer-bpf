@@ -4,7 +4,6 @@ package tracer
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -26,8 +25,6 @@ import (
 import "C"
 
 var (
-	ErrNotImplemented = errors.New("BPF-based network tracing not implemented on non-linux systems")
-
 	nativeEndian binary.ByteOrder
 )
 

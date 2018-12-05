@@ -21,7 +21,7 @@ type Connection struct {
 	RemotePort    uint16
 	Inode         uint64
 	Proc          Proc
-	Listening 	  bool
+	Listening     bool
 }
 
 // Proc is a single process with PID and process name.

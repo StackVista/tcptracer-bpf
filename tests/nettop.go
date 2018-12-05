@@ -6,8 +6,8 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 )
 
 func main() {

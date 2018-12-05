@@ -99,11 +99,11 @@ func TestConnStatsByteKey(t *testing.T) {
 		},
 		{
 			a: ConnectionStats{Direction: INCOMING},
-      		b: ConnectionStats{},
+			b: ConnectionStats{},
 		},
 		{
 			a: ConnectionStats{Direction: OUTGOING},
-      		b: ConnectionStats{},
+			b: ConnectionStats{},
 		},
 		{
 			a: ConnectionStats{Pid: 1, Family: 0, Type: 1, Local: "a"},
