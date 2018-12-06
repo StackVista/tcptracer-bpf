@@ -12,8 +12,8 @@ import (
 var (
 	testConn = ConnectionStats{
 		Pid:        123,
-		Type:       1,
-		Family:     0,
+		Type:       UDP,
+		Family:     AF_INET,
 		Local:      "192.168.0.1",
 		Remote:     "192.168.0.103",
 		LocalPort:  123,
@@ -74,11 +74,11 @@ func TestConnStatsByteKey(t *testing.T) {
 			b: ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{Family: 1},
+			a: ConnectionStats{Family: AF_INET6},
 			b: ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{Type: 1},
+			a: ConnectionStats{Type: UDP},
 			b: ConnectionStats{},
 		},
 		{
@@ -106,28 +106,28 @@ func TestConnStatsByteKey(t *testing.T) {
 			b: ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Family: 0, Type: 1, Local: "a"},
-			b: ConnectionStats{Pid: 1, Family: 0, Type: 1, Local: "b"},
+			a: ConnectionStats{Pid: 1, Family: AF_INET, Type: UDP, Local: "a"},
+			b: ConnectionStats{Pid: 1, Family: AF_INET, Type: UDP, Local: "b"},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Remote: "b", Family: 0, Type: 1, Local: "a"},
-			b: ConnectionStats{Pid: 1, Remote: "a", Family: 0, Type: 1, Local: "b"},
+			a: ConnectionStats{Pid: 1, Remote: "b", Family: AF_INET, Type: UDP, Local: "a"},
+			b: ConnectionStats{Pid: 1, Remote: "a", Family: AF_INET, Type: UDP, Local: "b"},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Remote: "", Family: 0, Type: 1, Local: "a"},
-			b: ConnectionStats{Pid: 1, Remote: "a", Family: 0, Type: 1, Local: ""},
+			a: ConnectionStats{Pid: 1, Remote: "", Family: AF_INET, Type: UDP, Local: "a"},
+			b: ConnectionStats{Pid: 1, Remote: "a", Family: AF_INET, Type: UDP, Local: ""},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Remote: "b", Family: 0, Type: 1},
-			b: ConnectionStats{Pid: 1, Family: 0, Type: 1, Local: "b"},
+			a: ConnectionStats{Pid: 1, Remote: "b", Family: AF_INET, Type: UDP},
+			b: ConnectionStats{Pid: 1, Family: AF_INET, Type: UDP, Local: "b"},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Remote: "b", Family: 1},
-			b: ConnectionStats{Pid: 1, Remote: "b", Type: 1},
+			a: ConnectionStats{Pid: 1, Remote: "b", Family: AF_INET6},
+			b: ConnectionStats{Pid: 1, Remote: "b", Type: UDP},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Remote: "b", Type: 0, LocalPort: 3},
-			b: ConnectionStats{Pid: 1, Remote: "b", Type: 0, RemotePort: 3},
+			a: ConnectionStats{Pid: 1, Remote: "b", Type: TCP, LocalPort: 3},
+			b: ConnectionStats{Pid: 1, Remote: "b", Type: TCP, RemotePort: 3},
 		},
 	} {
 		var keyA, keyB string
