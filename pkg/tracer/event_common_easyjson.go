@@ -17,7 +17,7 @@ var (
 	_ easyjson.Marshaler
 )
 
-func easyjson5f1d7f40DecodeGithubComDataDogTcptracerBpfPkgTracer(in *jlexer.Lexer, out *Connections) {
+func easyjson5f1d7f40DecodeGithubComStackVistaTcptracerBpfPkgTracer(in *jlexer.Lexer, out *Connections) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -69,7 +69,7 @@ func easyjson5f1d7f40DecodeGithubComDataDogTcptracerBpfPkgTracer(in *jlexer.Lexe
 		in.Consumed()
 	}
 }
-func easyjson5f1d7f40EncodeGithubComDataDogTcptracerBpfPkgTracer(out *jwriter.Writer, in Connections) {
+func easyjson5f1d7f40EncodeGithubComStackVistaTcptracerBpfPkgTracer(out *jwriter.Writer, in Connections) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -100,27 +100,27 @@ func easyjson5f1d7f40EncodeGithubComDataDogTcptracerBpfPkgTracer(out *jwriter.Wr
 // MarshalJSON supports json.Marshaler interface
 func (v Connections) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson5f1d7f40EncodeGithubComDataDogTcptracerBpfPkgTracer(&w, v)
+	easyjson5f1d7f40EncodeGithubComStackVistaTcptracerBpfPkgTracer(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v Connections) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson5f1d7f40EncodeGithubComDataDogTcptracerBpfPkgTracer(w, v)
+	easyjson5f1d7f40EncodeGithubComStackVistaTcptracerBpfPkgTracer(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *Connections) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson5f1d7f40DecodeGithubComDataDogTcptracerBpfPkgTracer(&r, v)
+	easyjson5f1d7f40DecodeGithubComStackVistaTcptracerBpfPkgTracer(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *Connections) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson5f1d7f40DecodeGithubComDataDogTcptracerBpfPkgTracer(l, v)
+	easyjson5f1d7f40DecodeGithubComStackVistaTcptracerBpfPkgTracer(l, v)
 }
-func easyjson5f1d7f40DecodeGithubComDataDogTcptracerBpfPkgTracer1(in *jlexer.Lexer, out *ConnectionStats) {
+func easyjson5f1d7f40DecodeGithubComStackVistaTcptracerBpfPkgTracer1(in *jlexer.Lexer, out *ConnectionStats) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -145,14 +145,18 @@ func easyjson5f1d7f40DecodeGithubComDataDogTcptracerBpfPkgTracer1(in *jlexer.Lex
 			out.Type = ConnectionType(in.Uint8())
 		case "family":
 			out.Family = ConnectionFamily(in.Uint8())
-		case "source":
-			out.Source = string(in.String())
-		case "dest":
-			out.Dest = string(in.String())
-		case "sport":
-			out.SPort = uint16(in.Uint16())
-		case "dport":
-			out.DPort = uint16(in.Uint16())
+		case "local":
+			out.Local = string(in.String())
+		case "remote":
+			out.Remote = string(in.String())
+		case "lport":
+			out.LocalPort = uint16(in.Uint16())
+		case "rport":
+			out.RemotePort = uint16(in.Uint16())
+		case "direction":
+			out.Direction = Direction(in.Uint8())
+		case "state":
+			out.State = State(in.Uint8())
 		case "send_bytes":
 			out.SendBytes = uint64(in.Uint64())
 		case "recv_bytes":
@@ -167,7 +171,7 @@ func easyjson5f1d7f40DecodeGithubComDataDogTcptracerBpfPkgTracer1(in *jlexer.Lex
 		in.Consumed()
 	}
 }
-func easyjson5f1d7f40EncodeGithubComDataDogTcptracerBpfPkgTracer1(out *jwriter.Writer, in ConnectionStats) {
+func easyjson5f1d7f40EncodeGithubComStackVistaTcptracerBpfPkgTracer1(out *jwriter.Writer, in ConnectionStats) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -202,44 +206,64 @@ func easyjson5f1d7f40EncodeGithubComDataDogTcptracerBpfPkgTracer1(out *jwriter.W
 		out.Uint8(uint8(in.Family))
 	}
 	{
-		const prefix string = ",\"source\":"
+		const prefix string = ",\"local\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.String(string(in.Source))
+		out.String(string(in.Local))
 	}
 	{
-		const prefix string = ",\"dest\":"
+		const prefix string = ",\"remote\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.String(string(in.Dest))
+		out.String(string(in.Remote))
 	}
 	{
-		const prefix string = ",\"sport\":"
+		const prefix string = ",\"lport\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.Uint16(uint16(in.SPort))
+		out.Uint16(uint16(in.LocalPort))
 	}
 	{
-		const prefix string = ",\"dport\":"
+		const prefix string = ",\"rport\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.Uint16(uint16(in.DPort))
+		out.Uint16(uint16(in.RemotePort))
+	}
+	{
+		const prefix string = ",\"direction\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Uint8(uint8(in.Direction))
+	}
+	{
+		const prefix string = ",\"state\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Uint8(uint8(in.State))
 	}
 	{
 		const prefix string = ",\"send_bytes\":"
@@ -267,23 +291,23 @@ func easyjson5f1d7f40EncodeGithubComDataDogTcptracerBpfPkgTracer1(out *jwriter.W
 // MarshalJSON supports json.Marshaler interface
 func (v ConnectionStats) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson5f1d7f40EncodeGithubComDataDogTcptracerBpfPkgTracer1(&w, v)
+	easyjson5f1d7f40EncodeGithubComStackVistaTcptracerBpfPkgTracer1(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v ConnectionStats) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson5f1d7f40EncodeGithubComDataDogTcptracerBpfPkgTracer1(w, v)
+	easyjson5f1d7f40EncodeGithubComStackVistaTcptracerBpfPkgTracer1(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *ConnectionStats) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson5f1d7f40DecodeGithubComDataDogTcptracerBpfPkgTracer1(&r, v)
+	easyjson5f1d7f40DecodeGithubComStackVistaTcptracerBpfPkgTracer1(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *ConnectionStats) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson5f1d7f40DecodeGithubComDataDogTcptracerBpfPkgTracer1(l, v)
+	easyjson5f1d7f40DecodeGithubComStackVistaTcptracerBpfPkgTracer1(l, v)
 }

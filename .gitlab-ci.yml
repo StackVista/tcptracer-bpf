@@ -6,6 +6,8 @@ stages:
 test:
   stage: test
   script:
+    # Proc root is set by the gitlab ci runner
+    - export TEST_PROC_ROOT=/host/proc
     - mkdir -p /go/src/github.com/StackVista
     - cp -a $CI_PROJECT_DIR /go/src/github.com/StackVista/tcptracer-bpf
     - export GOPATH=/go

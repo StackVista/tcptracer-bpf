@@ -2,6 +2,14 @@
 	"version": 0,
 	"dependencies": [
 		{
+			"importpath": "github.com/cihub/seelog",
+			"repository": "https://github.com/cihub/seelog",
+			"vcs": "git",
+			"revision": "f561c5e57575bb1e0a2167028b7339b3a8d16fb4",
+			"branch": "master",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/iovisor/gobpf/elf",
 			"repository": "https://github.com/iovisor/gobpf",
 			"vcs": "git",
@@ -29,18 +37,18 @@
 			"notests": true
 		},
 		{
-			"importpath": "github.com/stretchr/testify",
-			"repository": "https://github.com/stretchr/testify",
-			"vcs": "git",
-			"revision": "c679ae2cc0cb27ec3293fea7e254e47386f05d69",
-			"branch": "master",
-			"notests": true
-		},
-		{
 			"importpath": "github.com/mailru/easyjson",
 			"repository": "https://github.com/mailru/easyjson",
 			"vcs": "git",
 			"revision": "60711f1a8329503b04e1c88535f419d0bb440bff",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/stretchr/testify",
+			"repository": "https://github.com/stretchr/testify",
+			"vcs": "git",
+			"revision": "c679ae2cc0cb27ec3293fea7e254e47386f05d69",
 			"branch": "master",
 			"notests": true
 		}

@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 )
 
 func main() {
-	kernelVersion, err := tracer.CurrentKernelVersion()
+	kernelVersion, err := common.CurrentKernelVersion()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
@@ -40,7 +41,7 @@ func main() {
 
 	printConns := func(now time.Time) {
 		fmt.Printf("-- %s --\n", now)
-		cs, err := t.GetActiveConnections()
+		cs, err := t.GetConnections()
 		if err != nil {
 			fmt.Println(err)
 		}

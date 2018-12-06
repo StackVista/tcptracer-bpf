@@ -19,6 +19,16 @@
 #define DIRECTION_OUTGOING 1
 #define DIRECTION_INCOMING 2
 
+// We observed the connection being initialized
+#define STATE_INITIALIZING 0
+// We observed the connection being active
+#define STATE_ACTIVE 1
+// We observed the connection being active and then closed
+#define STATE_ACTIVE_CLOSED 2
+// We just observed the closing of the connection. We did not see any activity, so we treat this as a failed connection
+// It is still reported to be able to close connections coming from /proc
+#define STATE_CLOSED 3
+
 struct proc_t {
     char comm[TASK_COMM_LEN];
 };
@@ -26,7 +36,10 @@ struct proc_t {
 struct conn_stats_t {
 	__u64 send_bytes;
 	__u64 recv_bytes;
-  __u64  direction; // This is big to have a 64 bit aligned struct
+	// These are big to have a 64 bit aligned struct
+    __u32 direction;
+    // Was the connection active or closed?
+    __u32 state;
 };
 
 struct conn_stats_ts_t {
@@ -39,22 +52,22 @@ struct conn_stats_ts_t {
 // connection so we need to store a map TUPLE -> PID to send the right PID on
 // the event
 struct ipv4_tuple_t {
-	__u32 saddr;
-	__u32 daddr;
-	__u16 sport;
-	__u16 dport;
+	__u32 laddr;
+	__u32 raddr;
+	__u16 lport;
+	__u16 rport;
 	__u32 netns;
 	__u32 pid;
 };
 
 struct ipv6_tuple_t {
 	/* Using the type unsigned __int128 generates an error in the ebpf verifier */
-	__u64 saddr_h;
-	__u64 saddr_l;
-	__u64 daddr_h;
-	__u64 daddr_l;
-	__u16 sport;
-	__u16 dport;
+	__u64 laddr_h;
+	__u64 laddr_l;
+	__u64 raddr_h;
+	__u64 raddr_l;
+	__u16 lport;
+	__u16 rport;
 	__u32 netns;
 	__u32 pid;
 };

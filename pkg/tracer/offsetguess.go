@@ -24,6 +24,23 @@ import (
 */
 import "C"
 
+var (
+	nativeEndian binary.ByteOrder
+)
+
+// In lack of binary.NativeEndian ...
+func init() {
+	var i int32 = 0x01020304
+	u := unsafe.Pointer(&i)
+	pb := (*byte)(u)
+	b := *pb
+	if b == 0x04 {
+		nativeEndian = binary.LittleEndian
+	} else {
+		nativeEndian = binary.BigEndian
+	}
+}
+
 type tcpTracerStatus C.struct_tcptracer_status_t
 
 const (
@@ -64,13 +81,13 @@ const (
 )
 
 var whatString = map[C.__u64]string{
-	guessSaddr:     "source address",
-	guessDaddr:     "destination address",
+	guessSaddr:     "source Address",
+	guessDaddr:     "destination Address",
 	guessFamily:    "family",
 	guessSport:     "source port",
 	guessDport:     "destination port",
 	guessNetns:     "network namespace",
-	guessDaddrIPv6: "destination address IPv6",
+	guessDaddrIPv6: "destination Address IPv6",
 }
 
 const listenIP = "127.0.0.2"
@@ -175,7 +192,7 @@ func generateRandomIPv6Address() (addr [4]uint32) {
 // offset in the eBPF map
 func tryCurrentOffset(status *tcpTracerStatus, expected *fieldValues, stop chan struct{}) error {
 	// for ipv6, we don't need the source port because we already guessed
-	// it doing ipv4 connections so we use a random destination address and
+	// it doing ipv4 connections so we use a random destination Address and
 	// try to connect to it
 	expected.daddrIPv6 = generateRandomIPv6Address()
 

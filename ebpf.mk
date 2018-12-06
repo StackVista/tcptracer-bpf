@@ -1,6 +1,11 @@
 SHELL=/bin/bash -o pipefail
-DEST_DIR?=/dist
-LINUX_HEADERS=$(shell rpm -q kernel-devel --last | head -n 1 | awk -F'kernel-devel-' '{print "/usr/src/kernels/"$$2}' | cut -d " " -f 1)
+DEST_DIR?=./ebpf
+
+ifeq ($(shell lsb_release -i -s),Ubuntu)
+    LINUX_HEADERS=/usr/src/linux-headers-$(shell uname -r)
+else
+    LINUX_HEADERS=$(shell rpm -q kernel-devel --last | head -n 1 | awk -F'kernel-devel-' '{print "/usr/src/kernels/"$$2}' | cut -d " " -f 1)
+endif
 
 build:
 	@sudo mkdir -p "$(DEST_DIR)"
