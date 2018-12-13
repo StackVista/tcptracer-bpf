@@ -28,7 +28,7 @@ var (
 )
 
 func testConfig() *Config {
-	c := DefaultConfig
+	c := MakeDefaultConfig()
 	c.ProcRoot = common.TestRoot()
 	return c
 }
@@ -166,6 +166,89 @@ func TestTCPSendPage(t *testing.T) {
 	}
 
 	doneChan <- struct{}{}
+}
+
+func TestMaxConnectionsIsUsed(t *testing.T) {
+	// Enable BPF-based network tracer
+	conf := testConfig()
+	conf.MaxConnections = 1
+	tr, err := NewTracer(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr.Start()
+	defer tr.Stop()
+
+	// Create TCP Server which sends back serverMessageSize bytes
+	server := common.NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		c.Write(genPayload(serverMessageSize))
+		r.ReadBytes(byte('\n'))
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	// Connect to server
+	c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	// Write some data 1
+	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
+		t.Fatal(err)
+	}
+	r := bufio.NewReader(c)
+	r.ReadBytes(byte('\n'))
+
+	// Create TCP Server which sends back serverMessageSize bytes
+	server2 := common.NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		c.Write(genPayload(serverMessageSize))
+		r.ReadBytes(byte('\n'))
+		c.Close()
+	})
+	doneChan2 := make(chan struct{})
+	server2.Run(doneChan2)
+
+	// Connect again
+	c2, err := net.DialTimeout("tcp", server2.Address, 50*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c2.Close()
+
+	// Write some data 2
+	if _, err = c2.Write(genPayload(clientMessageSize)); err != nil {
+		t.Fatal(err)
+	}
+	r2 := bufio.NewReader(c2)
+	r2.ReadBytes(byte('\n'))
+
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts
+	connections, err := tr.GetConnections()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, len(connections.Conns), 1)
+
+	// Write clientMessageSize to server, to shut down the connection
+	if _, err = c.Write(genPayload(0)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write clientMessageSize to server, to shut down the connection
+	if _, err = c2.Write(genPayload(0)); err != nil {
+		t.Fatal(err)
+	}
+
+	doneChan <- struct{}{}
+	doneChan2 <- struct{}{}
 }
 
 func TestTCPNoDataNoConnection(t *testing.T) {
