@@ -9,6 +9,7 @@ import (
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
 	"unsafe"
 
+	log "github.com/cihub/seelog"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
 
@@ -253,6 +254,7 @@ func (t *Tracer) updateInFlightTCPWithEBPF() error {
 
 func (t *Tracer) addInFlight(key string, conn ConnectionStats) {
 	if len(t.inFlightTCP) >= t.config.MaxConnections {
+		log.Warnf("Exceeded maximum connections %d", t.config.MaxConnections)
 		return
 	}
 	t.inFlightTCP[key] = &conn

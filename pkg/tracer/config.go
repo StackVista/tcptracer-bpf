@@ -29,3 +29,14 @@ var DefaultConfig = &Config{
 	MaxConnections:   10000,
 	UDPConnTimeout:   30 * time.Second,
 }
+
+func MakeDefaultConfig() *Config {
+	return &Config{
+		CollectTCPConns:  true,
+		CollectUDPConns:  true,
+		BackfillFromProc: true,
+		ProcRoot:         "/proc",
+		MaxConnections:   10000,
+		UDPConnTimeout:   30 * time.Second,
+	}
+}
