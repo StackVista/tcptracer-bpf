@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 	"io"
 	"math/rand"
 	"net"
@@ -27,8 +28,8 @@ var (
 	payloadSizesUDP       = []int{2 << 5, 2 << 8, 2 << 12, 2 << 14}
 )
 
-func testConfig() *Config {
-	c := MakeDefaultConfig()
+func testConfig() *config.Config {
+	c := config.DefaultConfig
 	c.ProcRoot = common.TestRoot()
 	return c
 }
@@ -78,15 +79,15 @@ func TestTCPSendAndReceive(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, clientMessageSize, int(conn1.SendBytes))
 	assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
-	assert.Equal(t, conn1.Direction, OUTGOING)
-	assert.Equal(t, conn1.State, ACTIVE)
+	assert.Equal(t, conn1.Direction, common.OUTGOING)
+	assert.Equal(t, conn1.State, common.ACTIVE)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
 	assert.Equal(t, clientMessageSize, int(conn2.RecvBytes))
 	assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
-	assert.Equal(t, conn2.Direction, INCOMING)
-	assert.Equal(t, conn2.State, ACTIVE)
+	assert.Equal(t, conn2.Direction, common.INCOMING)
+	assert.Equal(t, conn2.State, common.ACTIVE)
 
 	// Write clientMessageSize to server, to shut down the connection
 	if _, err = c.Write(genPayload(0)); err != nil {
@@ -150,15 +151,15 @@ func TestTCPSendPage(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, clientMessageFileSize, int(conn1.SendBytes))
 	assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
-	assert.Equal(t, conn1.Direction, OUTGOING)
-	assert.Equal(t, conn1.State, ACTIVE)
+	assert.Equal(t, conn1.Direction, common.OUTGOING)
+	assert.Equal(t, conn1.State, common.ACTIVE)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
 	assert.Equal(t, clientMessageFileSize, int(conn2.RecvBytes))
 	assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
-	assert.Equal(t, conn2.Direction, INCOMING)
-	assert.Equal(t, conn2.State, ACTIVE)
+	assert.Equal(t, conn2.Direction, common.INCOMING)
+	assert.Equal(t, conn2.State, common.ACTIVE)
 
 	// Write clientMessageSize to server, to shut down the connection
 	if _, err = c.Write(genPayload(0)); err != nil {
@@ -347,15 +348,15 @@ func TestListenBeforeTraceStartResultInConnectionWhenAccepted(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, clientMessageSize, int(conn1.SendBytes))
 	assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
-	assert.Equal(t, conn1.Direction, OUTGOING)
-	assert.Equal(t, conn1.State, ACTIVE)
+	assert.Equal(t, conn1.Direction, common.OUTGOING)
+	assert.Equal(t, conn1.State, common.ACTIVE)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
 	assert.Equal(t, clientMessageSize, int(conn2.RecvBytes))
 	assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
-	assert.Equal(t, conn2.Direction, INCOMING)
-	assert.Equal(t, conn2.State, ACTIVE)
+	assert.Equal(t, conn2.Direction, common.INCOMING)
+	assert.Equal(t, conn2.State, common.ACTIVE)
 
 	// Write clientMessageSize to server, to shut down the connection
 	if _, err = c.Write(genPayload(0)); err != nil {
@@ -410,15 +411,15 @@ func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, clientMessageSize, int(conn1.SendBytes))
 	assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
-	assert.Equal(t, conn1.Direction, UNKNOWN)
-	assert.Equal(t, conn1.State, ACTIVE)
+	assert.Equal(t, conn1.Direction, common.UNKNOWN)
+	assert.Equal(t, conn1.State, common.ACTIVE)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
 	assert.Equal(t, clientMessageSize, int(conn2.RecvBytes))
 	assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
-	assert.Equal(t, conn2.Direction, INCOMING)
-	assert.Equal(t, conn2.State, ACTIVE)
+	assert.Equal(t, conn2.Direction, common.INCOMING)
+	assert.Equal(t, conn2.State, common.ACTIVE)
 
 	// Write clientMessageSize to server, to shut down the connection
 	if _, err = c.Write(genPayload(0)); err != nil {
@@ -471,11 +472,11 @@ func TestCloseInFlightTCPConnectionWithEBPFWithData(t *testing.T) {
 
 	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, conn1.State, ACTIVE_CLOSED)
+	assert.Equal(t, conn1.State, common.ACTIVE_CLOSED)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, conn2.State, ACTIVE_CLOSED)
+	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
 
 	// Second run, connection should be cleaned up
 	connections, err = tr.GetConnections()
@@ -539,15 +540,15 @@ func TestInFlightDirectionListenAllInterfaces(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, 0, int(conn1.SendBytes))
 	assert.Equal(t, 0, int(conn1.RecvBytes))
-	assert.Equal(t, conn1.Direction, UNKNOWN)
-	assert.Equal(t, conn1.State, ACTIVE_CLOSED)
+	assert.Equal(t, conn1.Direction, common.UNKNOWN)
+	assert.Equal(t, conn1.State, common.ACTIVE_CLOSED)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
 	assert.Equal(t, 0, int(conn2.RecvBytes))
 	assert.Equal(t, 0, int(conn2.SendBytes))
-	assert.Equal(t, conn2.Direction, INCOMING)
-	assert.Equal(t, conn2.State, ACTIVE_CLOSED)
+	assert.Equal(t, conn2.Direction, common.INCOMING)
+	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
 
 	doneChan <- struct{}{}
 }
@@ -601,15 +602,15 @@ func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, 0, int(conn1.SendBytes))
 	assert.Equal(t, 0, int(conn1.RecvBytes))
-	assert.Equal(t, conn1.Direction, UNKNOWN)
-	assert.Equal(t, conn1.State, ACTIVE_CLOSED)
+	assert.Equal(t, conn1.Direction, common.UNKNOWN)
+	assert.Equal(t, conn1.State, common.ACTIVE_CLOSED)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
 	assert.Equal(t, 0, int(conn2.RecvBytes))
 	assert.Equal(t, 0, int(conn2.SendBytes))
-	assert.Equal(t, conn2.Direction, INCOMING)
-	assert.Equal(t, conn2.State, ACTIVE_CLOSED)
+	assert.Equal(t, conn2.Direction, common.INCOMING)
+	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
 
 	doneChan <- struct{}{}
 }
@@ -657,11 +658,11 @@ func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, conn.State, ACTIVE_CLOSED)
+	assert.Equal(t, conn.State, common.ACTIVE_CLOSED)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, conn2.State, ACTIVE_CLOSED)
+	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
 
 	// Second run, connection should be cleaned up
 	connections, err = tr.GetConnections()
@@ -731,7 +732,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 
 	c.Read(make([]byte, serverMessageSize))
 
-	// Iterate through active connections until we find connection created above, and confirm send + recv counts
+	// Iterate through common.ACTIVE connections until we find connection created above, and confirm send + recv counts
 	connections, err := tr.GetConnections()
 	if err != nil {
 		t.Fatal(err)
@@ -741,13 +742,13 @@ func TestUDPSendAndReceive(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, clientMessageSize, int(conn.SendBytes))
 	assert.Equal(t, serverMessageSize, int(conn.RecvBytes))
-	assert.Equal(t, UNKNOWN, conn.Direction)
-	assert.Equal(t, ACTIVE, conn.State)
+	assert.Equal(t, common.UNKNOWN, conn.Direction)
+	assert.Equal(t, common.ACTIVE, conn.State)
 
 	doneChan <- struct{}{}
 }
 
-func findConnection(l, r net.Addr, c *Connections) (*ConnectionStats, bool) {
+func findConnection(l, r net.Addr, c *common.Connections) (*common.ConnectionStats, bool) {
 	fmt.Println("Looking for conn")
 	for _, conn := range c.Conns {
 		fmt.Println("conn", conn)
@@ -760,7 +761,7 @@ func findConnection(l, r net.Addr, c *Connections) (*ConnectionStats, bool) {
 	return nil, false
 }
 
-func findConnectionWithRemote(r string, c *Connections) (*ConnectionStats, bool) {
+func findConnectionWithRemote(r string, c *common.Connections) (*common.ConnectionStats, bool) {
 	fmt.Println("Looking for conn")
 	for _, conn := range c.Conns {
 		fmt.Println("conn", conn)

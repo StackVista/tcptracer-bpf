@@ -4,6 +4,7 @@ package tracer
 
 import (
 	"encoding/binary"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
 	"net"
 )
@@ -78,86 +79,86 @@ func (cs *ConnStatsWithTimestamp) isExpired(latestTime int64, timeout int64) boo
 	return latestTime-int64(cs.timestamp) > timeout
 }
 
-func connStatsFromTCPv4(t *ConnTupleV4, s *ConnStats) ConnectionStats {
-	return ConnectionStats{
+func connStatsFromTCPv4(t *ConnTupleV4, s *ConnStats) common.ConnectionStats {
+	return common.ConnectionStats{
 		Pid:        uint32(t.pid),
-		Type:       TCP,
-		Family:     AF_INET,
+		Type:       common.TCP,
+		Family:     common.AF_INET,
 		Local:      v4IPString(uint32(t.laddr)),
 		Remote:     v4IPString(uint32(t.raddr)),
 		LocalPort:  uint16(t.lport),
 		RemotePort: uint16(t.rport),
-		Direction:  Direction(s.direction),
-		State:      State(s.state),
+		Direction:  common.Direction(s.direction),
+		State:      common.State(s.state),
 		SendBytes:  uint64(s.send_bytes),
 		RecvBytes:  uint64(s.recv_bytes),
 	}
 }
 
-func connStatsFromTCPv6(t *ConnTupleV6, s *ConnStats) ConnectionStats {
-	return ConnectionStats{
+func connStatsFromTCPv6(t *ConnTupleV6, s *ConnStats) common.ConnectionStats {
+	return common.ConnectionStats{
 		Pid:        uint32(t.pid),
-		Type:       TCP,
-		Family:     AF_INET6,
+		Type:       common.TCP,
+		Family:     common.AF_INET6,
 		Local:      v6IPString(uint64(t.laddr_h), uint64(t.laddr_l)),
 		Remote:     v6IPString(uint64(t.raddr_h), uint64(t.raddr_l)),
 		LocalPort:  uint16(t.lport),
 		RemotePort: uint16(t.rport),
-		Direction:  Direction(s.direction),
-		State:      State(s.state),
+		Direction:  common.Direction(s.direction),
+		State:      common.State(s.state),
 		SendBytes:  uint64(s.send_bytes),
 		RecvBytes:  uint64(s.recv_bytes),
 	}
 }
 
-func connStatsFromUDPv4(t *ConnTupleV4, s *ConnStatsWithTimestamp) ConnectionStats {
-	return ConnectionStats{
+func connStatsFromUDPv4(t *ConnTupleV4, s *ConnStatsWithTimestamp) common.ConnectionStats {
+	return common.ConnectionStats{
 		Pid:        uint32(t.pid),
-		Type:       UDP,
-		Family:     AF_INET,
+		Type:       common.UDP,
+		Family:     common.AF_INET,
 		Local:      v4IPString(uint32(t.laddr)),
 		Remote:     v4IPString(uint32(t.raddr)),
 		LocalPort:  uint16(t.lport),
 		RemotePort: uint16(t.rport),
-		Direction:  UNKNOWN,
-		State:      ACTIVE,
+		Direction:  common.UNKNOWN,
+		State:      common.ACTIVE,
 		SendBytes:  uint64(s.send_bytes),
 		RecvBytes:  uint64(s.recv_bytes),
 	}
 }
 
-func connStatsFromUDPv6(t *ConnTupleV6, s *ConnStatsWithTimestamp) ConnectionStats {
-	return ConnectionStats{
+func connStatsFromUDPv6(t *ConnTupleV6, s *ConnStatsWithTimestamp) common.ConnectionStats {
+	return common.ConnectionStats{
 		Pid:        uint32(t.pid),
-		Type:       UDP,
-		Family:     AF_INET6,
+		Type:       common.UDP,
+		Family:     common.AF_INET6,
 		Local:      v6IPString(uint64(t.laddr_h), uint64(t.laddr_l)),
 		Remote:     v6IPString(uint64(t.raddr_h), uint64(t.raddr_l)),
 		LocalPort:  uint16(t.lport),
 		RemotePort: uint16(t.rport),
-		Direction:  UNKNOWN,
-		State:      ACTIVE,
+		Direction:  common.UNKNOWN,
+		State:      common.ACTIVE,
 		SendBytes:  uint64(s.send_bytes),
 		RecvBytes:  uint64(s.recv_bytes),
 	}
 }
 
-func connStatsFromProcSpy(t *procspy.Connection) ConnectionStats {
-	var family = AF_INET
+func connStatsFromProcSpy(t *procspy.Connection) common.ConnectionStats {
+	var family = common.AF_INET
 	if t.LocalAddress.To4() == nil {
-		family = AF_INET6
+		family = common.AF_INET6
 	}
 
-	return ConnectionStats{
+	return common.ConnectionStats{
 		Pid:        uint32(t.Proc.PID),
-		Type:       TCP,
+		Type:       common.TCP,
 		Family:     family,
 		Local:      t.LocalAddress.To16().String(),
 		Remote:     t.RemoteAddress.To16().String(),
 		LocalPort:  t.LocalPort,
 		RemotePort: t.RemotePort,
-		Direction:  UNKNOWN,
-		State:      ACTIVE,
+		Direction:  common.UNKNOWN,
+		State:      common.ACTIVE,
 		SendBytes:  0,
 		RecvBytes:  0,
 	}

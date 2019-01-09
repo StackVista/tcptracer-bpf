@@ -1,16 +1,12 @@
-package tracer
+package config
 
 import "time"
 
-type Config struct {
+type CommonConfig struct {
 	// CollectTCPConns specifies whether the tracer should collect traffic statistics for TCP connections
 	CollectTCPConns bool
 	// CollectUDPConns specifies whether the tracer should collect traffic statistics for UDP connections
 	CollectUDPConns bool
-	// BackfillFromProc enables using /proc to find connections which were already active when the tracer started
-	BackfillFromProc bool
-	// Location of /proc
-	ProcRoot string
 	// Mximum connections we keep track of
 	MaxConnections int
 	// UDPConnTimeout determines the length of traffic inactivity between two (IP, port)-pairs before declaring a UDP
@@ -20,23 +16,9 @@ type Config struct {
 	UDPConnTimeout time.Duration
 }
 
-// DefaultConfig enables traffic collection for all connection types
-var DefaultConfig = &Config{
+var DefaultCommonConfig = &CommonConfig{
 	CollectTCPConns:  true,
 	CollectUDPConns:  true,
-	BackfillFromProc: true,
-	ProcRoot:         "/proc",
 	MaxConnections:   10000,
 	UDPConnTimeout:   30 * time.Second,
-}
-
-func MakeDefaultConfig() *Config {
-	return &Config{
-		CollectTCPConns:  true,
-		CollectUDPConns:  true,
-		BackfillFromProc: true,
-		ProcRoot:         "/proc",
-		MaxConnections:   10000,
-		UDPConnTimeout:   30 * time.Second,
-	}
 }

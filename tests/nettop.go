@@ -10,6 +10,7 @@ import (
 
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 )
 
 func main() {
@@ -28,7 +29,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	t, err := tracer.NewTracer(tracer.DefaultConfig)
+	t, err := tracer.NewTracer(config.DefaultConfig)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)

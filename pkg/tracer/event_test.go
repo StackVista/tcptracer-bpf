@@ -4,16 +4,17 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 var (
-	testConn = ConnectionStats{
+	testConn = common.ConnectionStats{
 		Pid:        123,
-		Type:       UDP,
-		Family:     AF_INET,
+		Type:       common.UDP,
+		Family:     common.AF_INET,
 		Local:      "192.168.0.1",
 		Remote:     "192.168.0.103",
 		LocalPort:  123,
@@ -66,68 +67,68 @@ func BenchmarkUniqueConnKeyByteBufferPacked(b *testing.B) {
 func TestConnStatsByteKey(t *testing.T) {
 	buf := new(bytes.Buffer)
 	for _, test := range []struct {
-		a ConnectionStats
-		b ConnectionStats
+		a common.ConnectionStats
+		b common.ConnectionStats
 	}{
 		{
-			a: ConnectionStats{Pid: 1},
-			b: ConnectionStats{},
+			a: common.ConnectionStats{Pid: 1},
+			b: common.ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{Family: AF_INET6},
-			b: ConnectionStats{},
+			a: common.ConnectionStats{Family: common.AF_INET6},
+			b: common.ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{Type: UDP},
-			b: ConnectionStats{},
+			a: common.ConnectionStats{Type: common.UDP},
+			b: common.ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{Local: "hello"},
-			b: ConnectionStats{},
+			a: common.ConnectionStats{Local: "hello"},
+			b: common.ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{Remote: "goodbye"},
-			b: ConnectionStats{},
+			a: common.ConnectionStats{Remote: "goodbye"},
+			b: common.ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{LocalPort: 1},
-			b: ConnectionStats{},
+			a: common.ConnectionStats{LocalPort: 1},
+			b: common.ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{RemotePort: 1},
-			b: ConnectionStats{},
+			a: common.ConnectionStats{RemotePort: 1},
+			b: common.ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{Direction: INCOMING},
-			b: ConnectionStats{},
+			a: common.ConnectionStats{Direction: common.INCOMING},
+			b: common.ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{Direction: OUTGOING},
-			b: ConnectionStats{},
+			a: common.ConnectionStats{Direction: common.OUTGOING},
+			b: common.ConnectionStats{},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Family: AF_INET, Type: UDP, Local: "a"},
-			b: ConnectionStats{Pid: 1, Family: AF_INET, Type: UDP, Local: "b"},
+			a: common.ConnectionStats{Pid: 1, Family: common.AF_INET, Type: common.UDP, Local: "a"},
+			b: common.ConnectionStats{Pid: 1, Family: common.AF_INET, Type: common.UDP, Local: "b"},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Remote: "b", Family: AF_INET, Type: UDP, Local: "a"},
-			b: ConnectionStats{Pid: 1, Remote: "a", Family: AF_INET, Type: UDP, Local: "b"},
+			a: common.ConnectionStats{Pid: 1, Remote: "b", Family: common.AF_INET, Type: common.UDP, Local: "a"},
+			b: common.ConnectionStats{Pid: 1, Remote: "a", Family: common.AF_INET, Type: common.UDP, Local: "b"},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Remote: "", Family: AF_INET, Type: UDP, Local: "a"},
-			b: ConnectionStats{Pid: 1, Remote: "a", Family: AF_INET, Type: UDP, Local: ""},
+			a: common.ConnectionStats{Pid: 1, Remote: "", Family: common.AF_INET, Type: common.UDP, Local: "a"},
+			b: common.ConnectionStats{Pid: 1, Remote: "a", Family: common.AF_INET, Type: common.UDP, Local: ""},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Remote: "b", Family: AF_INET, Type: UDP},
-			b: ConnectionStats{Pid: 1, Family: AF_INET, Type: UDP, Local: "b"},
+			a: common.ConnectionStats{Pid: 1, Remote: "b", Family: common.AF_INET, Type: common.UDP},
+			b: common.ConnectionStats{Pid: 1, Family: common.AF_INET, Type: common.UDP, Local: "b"},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Remote: "b", Family: AF_INET6},
-			b: ConnectionStats{Pid: 1, Remote: "b", Type: UDP},
+			a: common.ConnectionStats{Pid: 1, Remote: "b", Family: common.AF_INET6},
+			b: common.ConnectionStats{Pid: 1, Remote: "b", Type: common.UDP},
 		},
 		{
-			a: ConnectionStats{Pid: 1, Remote: "b", Type: TCP, LocalPort: 3},
-			b: ConnectionStats{Pid: 1, Remote: "b", Type: TCP, RemotePort: 3},
+			a: common.ConnectionStats{Pid: 1, Remote: "b", Type: common.TCP, LocalPort: 3},
+			b: common.ConnectionStats{Pid: 1, Remote: "b", Type: common.TCP, RemotePort: 3},
 		},
 	} {
 		var keyA, keyB string

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
 	"unsafe"
 
@@ -38,11 +39,11 @@ var (
 
 type Tracer struct {
 	m      *bpflib.Module
-	config *Config
+	config *config.Config
 	// In flight connections are the connections that already existed before the EBPF module was loaded.
 	// These connections are stored with a key without direction, to make it possible to merge with undirected
 	// metric stats
-	inFlightTCP map[string]*ConnectionStats
+	inFlightTCP map[string]*common.ConnectionStats
 }
 
 // maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
@@ -51,7 +52,7 @@ const maxActive = 128
 
 // IsTracerSupportedByOS returns whether or not the current kernel version supports tracer functionality
 func IsTracerSupportedByOS() (bool, error) {
-	currentKernelCode, err := bpflib.CurrentKernelVersion()
+	currentKernelCode, err := common.CurrentKernelVersion()
 	if err != nil {
 		return false, err
 	}
@@ -62,7 +63,7 @@ func IsTracerSupportedByOS() (bool, error) {
 	return true, nil
 }
 
-func NewTracer(config *Config) (*Tracer, error) {
+func NewTracer(config *config.Config) (*Tracer, error) {
 	m, err := loadBPFModule()
 	if err != nil {
 		return nil, err
@@ -84,7 +85,7 @@ func NewTracer(config *Config) (*Tracer, error) {
 	}
 
 	// TODO: Improve performance by detaching unnecessary kprobes, once offsets have been figured out in initialize()
-	tracer := &Tracer{m: m, config: config, inFlightTCP: make(map[string]*ConnectionStats)}
+	tracer := &Tracer{m: m, config: config, inFlightTCP: make(map[string]*common.ConnectionStats)}
 
 	// Get data from /proc AFTER ebpf has been initialized. This makes sure that we do not miss any
 	// connections on the host. Some may be duplicate, but the mergin of inFlight end EBPF will sort this out
@@ -122,7 +123,7 @@ func (t *Tracer) getProcConnections() error {
 	listeningPortsOnAllInterfaces := make(map[uint16]bool)
 
 	var connections []struct {
-		ConnectionStats
+		common.ConnectionStats
 		string
 	}
 
@@ -149,7 +150,7 @@ func (t *Tracer) getProcConnections() error {
 			}
 		} else {
 			connections = append(connections, struct {
-				ConnectionStats
+				common.ConnectionStats
 				string
 			}{connWithStats, string(localKey)})
 		}
@@ -159,11 +160,11 @@ func (t *Tracer) getProcConnections() error {
 	for _, connAndKey := range connections {
 		conn := connAndKey.ConnectionStats
 		if _, exists := listeningOnSpecificInterfaces[connAndKey.string]; exists {
-			conn.Direction = INCOMING
+			conn.Direction = common.INCOMING
 		}
 
 		if _, exists := listeningPortsOnAllInterfaces[conn.LocalPort]; exists {
-			conn.Direction = INCOMING
+			conn.Direction = common.INCOMING
 		}
 
 		// We drop the direction to enable merging with undirected metrics
@@ -179,7 +180,7 @@ func (t *Tracer) getProcConnections() error {
 	return nil
 }
 
-func (t *Tracer) GetConnections() (*Connections, error) {
+func (t *Tracer) GetConnections() (*common.Connections, error) {
 	err := t.updateInFlightTCPWithEBPF()
 	if err != nil {
 		return nil, err
@@ -192,17 +193,17 @@ func (t *Tracer) GetConnections() (*Connections, error) {
 		return nil, err
 	}
 
-	return &Connections{Conns: append(tcpConns, udpConns...)}, nil
+	return &common.Connections{Conns: append(tcpConns, udpConns...)}, nil
 }
 
-func (t *Tracer) getTcpConnectionsFromInFlight() []ConnectionStats {
-	conns := make([]ConnectionStats, 0)
+func (t *Tracer) getTcpConnectionsFromInFlight() []common.ConnectionStats {
+	conns := make([]common.ConnectionStats, 0)
 
 	for key, conn := range t.inFlightTCP {
 		conns = append(conns, *conn)
 		// Closed connection we only report once. After reporting,
 		// they get removed from inFlight
-		if conn.State == ACTIVE_CLOSED || conn.State == CLOSED {
+		if conn.State == common.ACTIVE_CLOSED || conn.State == common.CLOSED {
 			delete(t.inFlightTCP, key)
 		}
 	}
@@ -228,11 +229,11 @@ func (t *Tracer) updateInFlightTCPWithEBPF() error {
 		}
 
 		// We are not interested in connections which are still initializing
-		if conn.State == INITIALIZING {
+		if conn.State == common.INITIALIZING {
 			continue
 		}
 
-		if conn.Direction != UNKNOWN && conn.State != CLOSED {
+		if conn.Direction != common.UNKNOWN && conn.State != common.CLOSED {
 			// If we already know the direction, we do not need previous in-flight connections and can just put this in, EBPF knows all
 			t.addInFlight(string(connKey), conn)
 		} else {
@@ -242,8 +243,8 @@ func (t *Tracer) updateInFlightTCPWithEBPF() error {
 				inFlight.SendBytes = conn.SendBytes
 				inFlight.State = conn.State
 				// If we observe just a close, we know it was active before (its in inFlight). So we make it ACTIVE_CLOSED
-				if conn.State == CLOSED {
-					inFlight.State = ACTIVE_CLOSED
+				if conn.State == common.CLOSED {
+					inFlight.State = common.ACTIVE_CLOSED
 				}
 			}
 		}
@@ -252,7 +253,7 @@ func (t *Tracer) updateInFlightTCPWithEBPF() error {
 	return nil
 }
 
-func (t *Tracer) addInFlight(key string, conn ConnectionStats) {
+func (t *Tracer) addInFlight(key string, conn common.ConnectionStats) {
 	if len(t.inFlightTCP) >= t.config.MaxConnections {
 		log.Warnf("Exceeded maximum connections %d", t.config.MaxConnections)
 		return
@@ -260,8 +261,8 @@ func (t *Tracer) addInFlight(key string, conn ConnectionStats) {
 	t.inFlightTCP[key] = &conn
 }
 
-func (t *Tracer) getEbpfTCPConnections() ([]ConnectionStats, error) {
-	conns := make([]ConnectionStats, 0)
+func (t *Tracer) getEbpfTCPConnections() ([]common.ConnectionStats, error) {
+	conns := make([]common.ConnectionStats, 0)
 	if t.config.CollectTCPConns {
 		v4, err := t.getTCPv4Connections()
 		if err != nil {
@@ -276,8 +277,8 @@ func (t *Tracer) getEbpfTCPConnections() ([]ConnectionStats, error) {
 	return conns, nil
 }
 
-func (t *Tracer) getEbpfUDPConnections() ([]ConnectionStats, error) {
-	conns := make([]ConnectionStats, 0)
+func (t *Tracer) getEbpfUDPConnections() ([]common.ConnectionStats, error) {
+	conns := make([]common.ConnectionStats, 0)
 	if t.config.CollectUDPConns {
 		v4, err := t.getUDPv4Connections()
 		if err != nil {
@@ -292,7 +293,7 @@ func (t *Tracer) getEbpfUDPConnections() ([]ConnectionStats, error) {
 	return conns, nil
 }
 
-func (t *Tracer) getUDPv4Connections() ([]ConnectionStats, error) {
+func (t *Tracer) getUDPv4Connections() ([]common.ConnectionStats, error) {
 	mp, err := t.getMap(v4UDPMapName)
 	if err != nil {
 		return nil, err
@@ -311,7 +312,7 @@ func (t *Tracer) getUDPv4Connections() ([]ConnectionStats, error) {
 
 	// Iterate through all key-value pairs in map
 	key, nextKey, stats := &ConnTupleV4{}, &ConnTupleV4{}, &ConnStatsWithTimestamp{}
-	active := make([]ConnectionStats, 0)
+	active := make([]common.ConnectionStats, 0)
 	expired := make([]*ConnTupleV4, 0)
 	for {
 		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
@@ -332,7 +333,7 @@ func (t *Tracer) getUDPv4Connections() ([]ConnectionStats, error) {
 	return active, nil
 }
 
-func (t *Tracer) getUDPv6Connections() ([]ConnectionStats, error) {
+func (t *Tracer) getUDPv6Connections() ([]common.ConnectionStats, error) {
 	mp, err := t.getMap(v6UDPMapName)
 	if err != nil {
 		return nil, err
@@ -351,7 +352,7 @@ func (t *Tracer) getUDPv6Connections() ([]ConnectionStats, error) {
 
 	// Iterate through all key-value pairs in map
 	key, nextKey, stats := &ConnTupleV6{}, &ConnTupleV6{}, &ConnStatsWithTimestamp{}
-	active := make([]ConnectionStats, 0)
+	active := make([]common.ConnectionStats, 0)
 	expired := make([]*ConnTupleV6, 0)
 	for {
 		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
@@ -372,7 +373,7 @@ func (t *Tracer) getUDPv6Connections() ([]ConnectionStats, error) {
 	return active, nil
 }
 
-func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
+func (t *Tracer) getTCPv4Connections() ([]common.ConnectionStats, error) {
 	mp, err := t.getMap(v4TCPMapName)
 	if err != nil {
 		return nil, err
@@ -380,7 +381,7 @@ func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
 
 	// Iterate through all key-value pairs in map
 	key, nextKey, val := &ConnTupleV4{}, &ConnTupleV4{}, &ConnStats{}
-	conns := make([]ConnectionStats, 0)
+	conns := make([]common.ConnectionStats, 0)
 	closed := make([]*ConnTupleV4, 0)
 	for {
 		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
@@ -389,7 +390,7 @@ func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
 		} else {
 			stats := connStatsFromTCPv4(nextKey, val)
 			conns = append(conns, stats)
-			if stats.State == ACTIVE_CLOSED || stats.State == CLOSED {
+			if stats.State == common.ACTIVE_CLOSED || stats.State == common.CLOSED {
 				closed = append(closed, nextKey.copy())
 			}
 			key = nextKey
@@ -403,7 +404,7 @@ func (t *Tracer) getTCPv4Connections() ([]ConnectionStats, error) {
 	return conns, nil
 }
 
-func (t *Tracer) getTCPv6Connections() ([]ConnectionStats, error) {
+func (t *Tracer) getTCPv6Connections() ([]common.ConnectionStats, error) {
 	mp, err := t.getMap(v6TCPMapName)
 	if err != nil {
 		return nil, err
@@ -411,7 +412,7 @@ func (t *Tracer) getTCPv6Connections() ([]ConnectionStats, error) {
 
 	// Iterate through all key-value pairs in map
 	key, nextKey, val := &ConnTupleV6{}, &ConnTupleV6{}, &ConnStats{}
-	conns := make([]ConnectionStats, 0)
+	conns := make([]common.ConnectionStats, 0)
 	closed := make([]*ConnTupleV6, 0)
 	for {
 		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
@@ -420,7 +421,7 @@ func (t *Tracer) getTCPv6Connections() ([]ConnectionStats, error) {
 		} else {
 			stats := connStatsFromTCPv6(nextKey, val)
 			conns = append(conns, stats)
-			if stats.State == ACTIVE_CLOSED || stats.State == CLOSED {
+			if stats.State == common.ACTIVE_CLOSED || stats.State == common.CLOSED {
 				closed = append(closed, nextKey.copy())
 			}
 			key = nextKey

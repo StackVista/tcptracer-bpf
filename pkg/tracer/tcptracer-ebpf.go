@@ -83,7 +83,7 @@ func tcptracerEbpfO() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "tcptracer-ebpf.o", size: 96576, mode: os.FileMode(511), modTime: time.Unix(1, 0)}
+	info := bindataFileInfo{name: "tcptracer-ebpf.o", size: 96576, mode: os.FileMode(420), modTime: time.Unix(1, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
