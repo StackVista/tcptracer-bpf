@@ -16,7 +16,7 @@ sudo add-apt-repository \
 
 sudo add-apt-repository ppa:gophers/archive
 
-sudo apt-get update && sudo apt-get install -y golang-1.10-go docker-ce
+sudo apt-get update && sudo apt-get install -y golang-1.10-go docker-ce clang llvm go-bindata
 
 sudo cp /usr/lib/go-1.10/bin/go /usr/bin/go
 echo "GOPATH=/opt/stackstate-go" > /etc/environment

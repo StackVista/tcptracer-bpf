@@ -52,7 +52,7 @@ const maxActive = 128
 
 // IsTracerSupportedByOS returns whether or not the current kernel version supports tracer functionality
 func IsTracerSupportedByOS() (bool, error) {
-	currentKernelCode, err := common.CurrentKernelVersion()
+	currentKernelCode, err := bpflib.CurrentKernelVersion()
 	if err != nil {
 		return false, err
 	}

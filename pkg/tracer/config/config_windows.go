@@ -8,3 +8,9 @@ type Config struct {
 var DefaultConfig = &Config{
 	CommonConfig: *DefaultCommonConfig,
 }
+
+func MakeDefaultConfig() *Config {
+	return &Config{
+		CommonConfig:  MakeCommonConfig(),
+	}
+}

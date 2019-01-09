@@ -29,7 +29,7 @@ var (
 )
 
 func testConfig() *config.Config {
-	c := config.DefaultConfig
+	c := config.MakeDefaultConfig()
 	c.ProcRoot = common.TestRoot()
 	return c
 }

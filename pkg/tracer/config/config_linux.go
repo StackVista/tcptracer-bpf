@@ -16,3 +16,11 @@ var DefaultConfig = &Config{
 	BackfillFromProc: true,
 	ProcRoot:         "/proc",
 }
+
+func MakeDefaultConfig() *Config {
+	return &Config{
+		CommonConfig:  MakeCommonConfig(),
+		BackfillFromProc: true,
+		ProcRoot:         "/proc",
+	}
+}
