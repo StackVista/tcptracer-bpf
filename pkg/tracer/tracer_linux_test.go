@@ -318,6 +318,7 @@ func TestListenBeforeTraceStartResultInConnectionWhenAccepted(t *testing.T) {
 	// Enable BPF-based network tracer
 	tr, err := NewTracer(testConfig())
 	if err != nil {
+		fmt.Println(fmt.Errorf("error while creating new tracer: %s", err))
 		t.Fatal(err)
 	}
 	tr.Start()
@@ -326,12 +327,14 @@ func TestListenBeforeTraceStartResultInConnectionWhenAccepted(t *testing.T) {
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
 	if err != nil {
+		fmt.Println(fmt.Errorf("error while connecting to server: %s", err))
 		t.Fatal(err)
 	}
 	defer c.Close()
 
 	// Write clientMessageSize to server, and read response
 	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
+		fmt.Println(fmt.Errorf("error while write messages to server: %s", err))
 		t.Fatal(err)
 	}
 	r := bufio.NewReader(c)
@@ -340,11 +343,13 @@ func TestListenBeforeTraceStartResultInConnectionWhenAccepted(t *testing.T) {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections, err := tr.GetConnections()
 	if err != nil {
+		fmt.Println(fmt.Errorf("error while getting connections: %s", err))
 		t.Fatal(err)
 	}
 
 	// One direction
 	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	fmt.Println(fmt.Sprintf("got connection: %s", conn1))
 	assert.True(t, ok)
 	assert.Equal(t, clientMessageSize, int(conn1.SendBytes))
 	assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))

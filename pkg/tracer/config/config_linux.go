@@ -12,14 +12,14 @@ type Config struct {
 
 // DefaultConfig enables traffic collection for all connection types
 var DefaultConfig = &Config{
-	CommonConfig:  *DefaultCommonConfig,
+	CommonConfig:     *DefaultCommonConfig,
 	BackfillFromProc: true,
 	ProcRoot:         "/proc",
 }
 
 func MakeDefaultConfig() *Config {
 	return &Config{
-		CommonConfig:  *MakeCommonConfig(),
+		CommonConfig:     *MakeCommonConfig(),
 		BackfillFromProc: true,
 		ProcRoot:         "/proc",
 	}
