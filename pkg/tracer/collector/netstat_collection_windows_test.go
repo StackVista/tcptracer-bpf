@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"fmt"
 	"github.com/pytimer/win-netstat"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -20,7 +21,14 @@ func TestExample(t *testing.T) {
 
 	collector := MockNetstatCollector()
 
-	collector.getConnections("TCP")
+	conns, err := collector.getConnections("TCP")
+	if err != nil {
+		println(err)
+	}
+
+	for _, conn := range conns {
+		fmt.Printf("%s %d %s\n", conn.LocalAddr, conn.LocalPort, conn.State)
+	}
 
 	assert.Equal(t, expected, actual)
 }
