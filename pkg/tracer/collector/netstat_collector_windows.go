@@ -1,7 +1,6 @@
 package collector
 
 import (
-	"fmt"
 	winnetstat "github.com/pytimer/win-netstat"
 
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
@@ -30,9 +29,9 @@ func (nsCol NetstatCollector) GetUDPv6Connections() ([]*common.ConnectionStats, 
 }
 
 func getNetstatConnections(kind string, connectionType common.ConnectionType, connectionFamily common.ConnectionFamily) ([]*common.ConnectionStats, error) {
-	var connectionStats = make([]*common.ConnectionStatsm, 0)
+	var connectionStats = make([]*common.ConnectionStats, 0)
 
-	conns, err := winnetstat.Connections("udp6")
+	conns, err := winnetstat.Connections(kind)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +39,6 @@ func getNetstatConnections(kind string, connectionType common.ConnectionType, co
 	for _, conn := range conns {
 		connection := netstatToConnection(conn, connectionType, connectionFamily)
 		connectionStats = append(connectionStats, connection)
-		fmt.Println(connection.String())
 	}
 
 	return connectionStats, nil
@@ -48,6 +46,10 @@ func getNetstatConnections(kind string, connectionType common.ConnectionType, co
 
 func netstatToConnection(conn winnetstat.NetStat, connectionType common.ConnectionType, connectionFamily common.ConnectionFamily) *common.ConnectionStats {
 	state, direction := connectionStatusToStateDirection(conn.State)
+
+	if(connectionType == common.UDP) {
+		direction = common.UNKNOWN
+	}
 
 	return &common.ConnectionStats{
 		Pid:        uint32(conn.OwningPid),
@@ -70,6 +72,8 @@ func connectionStatusToStateDirection(status string) (state common.State, direct
 		return common.ACTIVE, common.INCOMING
 	case "ESTABLISHED":
 		return common.ACTIVE, common.OUTGOING
+	case "CLOSE_WAIT", "TIME_WAIT":
+		return common.ACTIVE_CLOSED, common.UNKNOWN
 	default:
 		return common.ACTIVE, common.UNKNOWN
 	}
