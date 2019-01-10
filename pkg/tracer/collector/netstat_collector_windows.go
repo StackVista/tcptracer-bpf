@@ -2,8 +2,6 @@ package collector
 
 import (
 	"fmt"
-	"log"
-
 	winnetstat "github.com/pytimer/win-netstat"
 
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
@@ -32,11 +30,10 @@ func (nsCol NetstatCollector) GetUDPv6Connections() ([]*common.ConnectionStats, 
 }
 
 func getNetstatConnections(kind string, connectionType common.ConnectionType, connectionFamily common.ConnectionFamily) ([]*common.ConnectionStats, error) {
-	var connectionStats []*common.ConnectionStats
+	var connectionStats = make([]*common.ConnectionStatsm, 0)
 
 	conns, err := winnetstat.Connections("udp6")
 	if err != nil {
-		log.Fatal(err)
 		return nil, err
 	}
 

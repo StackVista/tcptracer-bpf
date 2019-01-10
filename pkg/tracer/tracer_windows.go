@@ -1,18 +1,13 @@
 package tracer
 
 import (
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/collector"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
-	"github.com/StackVista/tcptracer-bpf/pkg/tracer/collector"
-	"log"
 )
 
 type Tracer struct {
 	TracerConfig *config.Config
-	// In flight connections are the connections that already existed before the EBPF module was loaded.
-	// These connections are stored with a key without direction, to make it possible to merge with undirected
-	// metric stats
-	NetworkConnectionStats map[string]*common.ConnectionStats
 	ConnectionCollector collector.Collector
 }
 
@@ -42,7 +37,6 @@ func (t *Tracer) GetConnections() (*common.Connections, error) {
 	if t.TracerConfig.CollectTCPConns {
 		conns, err := t.GetTCPConnections()
 		if err != nil {
-			log.Fatal(err)
 			return nil, err
 		}
 		for _, conn := range conns {
@@ -53,7 +47,6 @@ func (t *Tracer) GetConnections() (*common.Connections, error) {
 	if t.TracerConfig.CollectUDPConns {
 		conns, err := t.GetUDPConnections()
 		if err != nil {
-			log.Fatal(err)
 			return nil, err
 		}
 		for _, conn := range conns {
@@ -62,5 +55,4 @@ func (t *Tracer) GetConnections() (*common.Connections, error) {
 	}
 
 	return &common.Connections{Conns: append(tcpConns, udpConns...) }, nil
-
 }
