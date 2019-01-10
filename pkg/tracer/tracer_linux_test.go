@@ -345,7 +345,7 @@ func TestListenBeforeTraceStartResultInConnectionWhenAccepted(t *testing.T) {
 	}
 
 	// sleeping to wait for connections
-	time.Sleep(100*time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// One direction
 	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)

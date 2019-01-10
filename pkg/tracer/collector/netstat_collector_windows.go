@@ -6,48 +6,64 @@ import (
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 )
 
-type NetstatCollector struct {}
+// Connection collector interface. Can be mocked for testing.
+type NetstatConnectionCollector interface {
+	getConnections(kind string) ([]winnetstat.NetStat, error)
+}
 
+type NetstatCollector struct {
+	NetstatConnectionCollector
+}
+
+// Default connection collector, that is used in the application.
+type DefaultNetstatConnectionCollector struct {}
+
+func (context DefaultNetstatConnectionCollector) getConnections(kind string) ([]winnetstat.NetStat, error) {
+	return winnetstat.Connections(kind)
+}
+
+// MakeNetstatCollector to create the default Netstat Collector
 func MakeNetstatCollector() *NetstatCollector {
-	return &NetstatCollector{}
+	return &NetstatCollector{DefaultNetstatConnectionCollector{}}
 }
 
-func (nsCol NetstatCollector) GetTCPv4Connections() ([]*common.ConnectionStats, error) {
-	return getNetstatConnections("tcp4", common.TCP, common.AF_INET)
+func (collector NetstatCollector) GetTCPv4Connections() ([]*common.ConnectionStats, error) {
+	return collector.getNetstatConnections("tcp4", common.TCP, common.AF_INET)
 }
 
-func (nsCol NetstatCollector) GetTCPv6Connections() ([]*common.ConnectionStats, error) {
-	return getNetstatConnections("tcp6", common.TCP, common.AF_INET6)
+func (collector NetstatCollector) GetTCPv6Connections() ([]*common.ConnectionStats, error) {
+	return collector.getNetstatConnections("tcp6", common.TCP, common.AF_INET6)
 }
 
-func (nsCol NetstatCollector) GetUDPv4Connections() ([]*common.ConnectionStats, error) {
-	return getNetstatConnections("udp4", common.UDP, common.AF_INET)
+func (collector NetstatCollector) GetUDPv4Connections() ([]*common.ConnectionStats, error) {
+	return collector.getNetstatConnections("udp4", common.UDP, common.AF_INET)
 }
 
-func (nsCol NetstatCollector) GetUDPv6Connections() ([]*common.ConnectionStats, error) {
-	return getNetstatConnections("udp6", common.UDP, common.AF_INET6)
+func (collector NetstatCollector) GetUDPv6Connections() ([]*common.ConnectionStats, error) {
+	return collector.getNetstatConnections("udp6", common.UDP, common.AF_INET6)
 }
 
-func getNetstatConnections(kind string, connectionType common.ConnectionType, connectionFamily common.ConnectionFamily) ([]*common.ConnectionStats, error) {
+func (collector NetstatCollector) getNetstatConnections(kind string, connectionType common.ConnectionType, connectionFamily common.ConnectionFamily) ([]*common.ConnectionStats, error) {
 	var connectionStats = make([]*common.ConnectionStats, 0)
 
-	conns, err := winnetstat.Connections(kind)
+	conns, err := collector.getConnections(kind)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, conn := range conns {
-		connection := netstatToConnection(conn, connectionType, connectionFamily)
+		connection := toConnectionStats(conn, connectionType, connectionFamily)
 		connectionStats = append(connectionStats, connection)
 	}
 
 	return connectionStats, nil
 }
 
-func netstatToConnection(conn winnetstat.NetStat, connectionType common.ConnectionType, connectionFamily common.ConnectionFamily) *common.ConnectionStats {
-	state, direction := connectionStatusToStateDirection(conn.State)
+// Helper function to convert the netstat connection to a connection stats type
+func toConnectionStats(conn winnetstat.NetStat, connectionType common.ConnectionType, connectionFamily common.ConnectionFamily) *common.ConnectionStats {
+	state, direction := extractStateDirection(conn.State)
 
-	if(connectionType == common.UDP) {
+	if connectionType == common.UDP {
 		direction = common.UNKNOWN
 	}
 
@@ -66,7 +82,8 @@ func netstatToConnection(conn winnetstat.NetStat, connectionType common.Connecti
 	}
 }
 
-func connectionStatusToStateDirection(status string) (state common.State, direction common.Direction){
+// Helper function to extract the State and Direction from the netstat connection status
+func extractStateDirection(status string) (state common.State, direction common.Direction) {
 	switch status {
 	case "LISTEN":
 		return common.ACTIVE, common.INCOMING

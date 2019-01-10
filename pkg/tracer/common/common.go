@@ -85,7 +85,7 @@ type ConnectionStats struct {
 	LocalPort  uint16    `json:"lport"`
 	RemotePort uint16    `json:"rport"`
 	Direction  Direction `json:"direction"`
-	State      State     `json:"state""`
+	State      State     `json:"state"`
 	SendBytes  uint64    `json:"send_bytes"`
 	RecvBytes  uint64    `json:"recv_bytes"`
 }

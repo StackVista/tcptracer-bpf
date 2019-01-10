@@ -7,27 +7,26 @@ import (
 )
 
 type Tracer struct {
+	collector.Collector
 	TracerConfig *config.Config
-	ConnectionCollector collector.Collector
 }
 
-func NewTracer(config *Config) (*Tracer, error) {
+func NewTracer(config *config.Config) (*Tracer, error) {
 	tracer := &Tracer{
+		Collector:    collector.MakeNetstatCollector(),
 		TracerConfig: config,
-		NetworkConnectionStats: make(map[string]*common.ConnectionStats),
-		ConnectionCollector: collector.MakeNetstatCollector(),
 	}
 
 	return tracer, nil
 }
 
 func (t *Tracer) GetTCPConnections() ([]*common.ConnectionStats, error) {
-	return t.ConnectionCollector.GetTCPv4Connections()
+	return t.GetTCPv4Connections()
 
 }
 
 func (t *Tracer) GetUDPConnections() ([]*common.ConnectionStats, error) {
-	return t.ConnectionCollector.GetUDPv4Connections()
+	return t.GetUDPv4Connections()
 }
 
 func (t *Tracer) GetConnections() (*common.Connections, error) {
@@ -54,5 +53,5 @@ func (t *Tracer) GetConnections() (*common.Connections, error) {
 		}
 	}
 
-	return &common.Connections{Conns: append(tcpConns, udpConns...) }, nil
+	return &common.Connections{Conns: append(tcpConns, udpConns...)}, nil
 }

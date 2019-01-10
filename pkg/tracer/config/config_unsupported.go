@@ -2,7 +2,7 @@
 
 package config
 
-type Config struct {}
+type Config struct{}
 
 // DefaultConfig enables traffic collection for all connection types
 var DefaultConfig = &Config{}

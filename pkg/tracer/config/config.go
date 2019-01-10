@@ -17,17 +17,17 @@ type CommonConfig struct {
 }
 
 var DefaultCommonConfig = &CommonConfig{
-	CollectTCPConns:  true,
-	CollectUDPConns:  true,
-	MaxConnections:   10000,
-	UDPConnTimeout:   30 * time.Second,
+	CollectTCPConns: true,
+	CollectUDPConns: true,
+	MaxConnections:  10000,
+	UDPConnTimeout:  30 * time.Second,
 }
 
 func MakeCommonConfig() *CommonConfig {
 	return &CommonConfig{
-		CollectTCPConns:  true,
-		CollectUDPConns:  true,
-		MaxConnections:   10000,
-		UDPConnTimeout:   30 * time.Second,
+		CollectTCPConns: true,
+		CollectUDPConns: true,
+		MaxConnections:  10000,
+		UDPConnTimeout:  30 * time.Second,
 	}
 }
