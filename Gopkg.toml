@@ -33,6 +33,14 @@
   branch = "master"
   name = "github.com/pytimer/win-netstat"
 
+[[constraint]]
+  branch = "master"
+  name = "github.com/iovisor/gobpf"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/stretchr/testify"
+
 [prune]
   go-tests = true
   unused-packages = true

@@ -24,7 +24,8 @@
   version = "v1.1.1"
 
 [[projects]]
-  digest = "1:ddb60f5a249519dc703056f9381b6b51caf40d84eefbbc24a353a967165e9fc0"
+  branch = "master"
+  digest = "1:53ebbb75e677432e4f3561b322b52bc295d7a8466523bfa07396611980e7c2d5"
   name = "github.com/iovisor/gobpf"
   packages = [
     "elf",
@@ -32,7 +33,7 @@
     "pkg/cpuonline",
   ]
   pruneopts = "UT"
-  revision = "3b07770c6d5e2bd37e582ecd49460e6ef094f257"
+  revision = "b0976764b280339f738c5f4dfd5168b9437ff049"
 
 [[projects]]
   digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
@@ -59,7 +60,8 @@
   version = "v0.1.1"
 
 [[projects]]
-  digest = "1:8501a2e18b295dff13a8932cb630cdec78b6c14e57864502ac04cbf3f5e225c9"
+  branch = "master"
+  digest = "1:ca83927a8e800fa24c9c981c900bbdcc0f3c0d235dbaa0ac340907d242ca5f63"
   name = "github.com/stretchr/testify"
   packages = [
     "assert",
@@ -67,7 +69,7 @@
     "require",
   ]
   pruneopts = "UT"
-  revision = "c679ae2cc0cb27ec3293fea7e254e47386f05d69"
+  revision = "363ebb24d041ccea8068222281c2e963e997b9dc"
 
 [[projects]]
   branch = "master"
