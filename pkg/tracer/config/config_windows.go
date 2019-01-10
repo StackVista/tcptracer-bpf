@@ -11,6 +11,6 @@ var DefaultConfig = &Config{
 
 func MakeDefaultConfig() *Config {
 	return &Config{
-		CommonConfig:  MakeCommonConfig(),
+		CommonConfig:  *MakeCommonConfig(),
 	}
 }
