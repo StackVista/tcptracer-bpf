@@ -25,14 +25,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:53ebbb75e677432e4f3561b322b52bc295d7a8466523bfa07396611980e7c2d5"
+  digest = "1:d18f8f91a6e3fddeff4498165354c27cc43adc5973ce80fb15f308759d2eafde"
   name = "github.com/iovisor/gobpf"
   packages = [
     "elf",
     "pkg/bpffs",
     "pkg/cpuonline",
   ]
-  pruneopts = "UT"
+  pruneopts = "T"
   revision = "b0976764b280339f738c5f4dfd5168b9437ff049"
 
 [[projects]]

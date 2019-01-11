@@ -52,7 +52,7 @@ func (collector NetstatCollector) getNetstatConnections(kind string, connectionT
 	}
 
 	for _, conn := range conns {
-		connection := toConnectionStats(conn, connectionType, connectionFamily)
+		connection := collector.toConnectionStats(conn, connectionType, connectionFamily)
 		connectionStats = append(connectionStats, connection)
 	}
 
@@ -60,8 +60,8 @@ func (collector NetstatCollector) getNetstatConnections(kind string, connectionT
 }
 
 // Helper function to convert the netstat connection to a connection stats type
-func toConnectionStats(conn winnetstat.NetStat, connectionType common.ConnectionType, connectionFamily common.ConnectionFamily) *common.ConnectionStats {
-	state, direction := extractStateDirection(conn.State)
+func (collector NetstatCollector) toConnectionStats(conn winnetstat.NetStat, connectionType common.ConnectionType, connectionFamily common.ConnectionFamily) *common.ConnectionStats {
+	state, direction := collector.extractStateDirection(conn.State)
 
 	if connectionType == common.UDP {
 		direction = common.UNKNOWN
@@ -83,14 +83,20 @@ func toConnectionStats(conn winnetstat.NetStat, connectionType common.Connection
 }
 
 // Helper function to extract the State and Direction from the netstat connection status
-func extractStateDirection(status string) (state common.State, direction common.Direction) {
+func (collector NetstatCollector) extractStateDirection(status string) (state common.State, direction common.Direction) {
 	switch status {
 	case "LISTEN":
 		return common.ACTIVE, common.INCOMING
 	case "ESTABLISHED":
 		return common.ACTIVE, common.OUTGOING
-	case "CLOSE_WAIT", "TIME_WAIT":
+	case "CLOSE_WAIT", "TIME_WAIT", "FIN_WAIT_1", "FIN_WAIT_2", "CLOSING", "LAST_ACK", "DELETE":
 		return common.ACTIVE_CLOSED, common.UNKNOWN
+	case "CLOSED":
+		return common.CLOSED, common.UNKNOWN
+	case "SYN_SENT":
+		return common.INITIALIZING, common.OUTGOING
+	case "SYN_RECEIVED":
+		return common.INITIALIZING, common.INCOMING
 	default:
 		return common.ACTIVE, common.UNKNOWN
 	}
