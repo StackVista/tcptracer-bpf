@@ -174,7 +174,7 @@ func TestNetstatToConnectionStats(t *testing.T) {
 		Remote:     initialConn.RemoteAddr,
 		LocalPort:  initialConn.LocalPort,
 		RemotePort: initialConn.RemotePort,
-		Direction:  common.INCOMING,
+		Direction:  common.OUTGOING,
 		State:      common.ACTIVE,
 		SendBytes:  0,
 		RecvBytes:  0,
