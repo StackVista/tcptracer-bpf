@@ -1,10 +1,9 @@
-image: stackstate/tcptracer-bpf-builder:latest
-
 stages:
   - test
 
-test:
+test-linux-bpf:
   stage: test
+  image: stackstate/tcptracer-bpf-builder:latest
   script:
     # Proc root is set by the gitlab ci runner
     - export TEST_PROC_ROOT=/host/proc
@@ -12,8 +11,19 @@ test:
     - cp -a $CI_PROJECT_DIR /go/src/github.com/StackVista/tcptracer-bpf
     - export GOPATH=/go
     - cd /go/src/github.com/StackVista/tcptracer-bpf
-    - make ci-test
+    - make linux-ci-test
   tags:
     # Run on sts hardware to be able to test ebpf
     - sts-aws
 
+test-windows:
+  stage: test
+  script:
+    - mkdir -p /go/src/github.com/StackVista
+    - cp -a $CI_PROJECT_DIR /go/src/github.com/StackVista/tcptracer-bpf
+    - export GOPATH=/go
+    - cd /go/src/github.com/StackVista/tcptracer-bpf
+    - make win-ci-test
+  tags:
+    # Run on sts windows hardware to be able to test windows connection tracing
+    - sts_windows

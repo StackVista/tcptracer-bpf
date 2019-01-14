@@ -18,7 +18,7 @@ jobs:
       - run: sudo tar -C /usr/local -xzf download/$GODIST --mode='a+rwX'
       - run: rsync -azC --delete ./ $IMPORT_PATH
       - run: curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-      - run: cd $IMPORT_PATH && sudo -E PATH=$PATH make ci-test
+      - run: cd $IMPORT_PATH && sudo -E PATH=$PATH make linux-ci-test
 
 workflows:
   version: 2
