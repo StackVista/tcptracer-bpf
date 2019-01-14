@@ -20,6 +20,12 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	return tracer, nil
 }
 
+func (t *Tracer) Start() error {
+	return nil
+}
+
+func (t *Tracer) Stop() {}
+
 func (t *Tracer) GetTCPConnections() ([]*common.ConnectionStats, error) {
 	return t.GetTCPv4Connections()
 
