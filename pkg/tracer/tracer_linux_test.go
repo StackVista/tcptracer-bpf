@@ -3,8 +3,13 @@
 package tracer
 
 import (
+	"bufio"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
+	"github.com/stretchr/testify/assert"
+	"net"
+	"testing"
+	"time"
 )
 
 const CheckMessageSize = true
