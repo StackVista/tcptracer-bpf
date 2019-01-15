@@ -25,7 +25,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:d18f8f91a6e3fddeff4498165354c27cc43adc5973ce80fb15f308759d2eafde"
+  digest = "1:df41523540ff2131ea517629a505e20c6a6ead60e4465eda4d3eb307a7fc2d06"
   name = "github.com/iovisor/gobpf"
   packages = [
     "elf",
@@ -33,7 +33,7 @@
     "pkg/cpuonline",
   ]
   pruneopts = "T"
-  revision = "b0976764b280339f738c5f4dfd5168b9437ff049"
+  revision = "d3f61d143a18475af6f7a6cd92d66e0de9bb47bd"
 
 [[projects]]
   digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
@@ -77,7 +77,7 @@
   name = "golang.org/x/sys"
   packages = ["windows"]
   pruneopts = "UT"
-  revision = "48ac38b7c8cbedd50b1613c0fccacfc7d88dfcdf"
+  revision = "2be51725563103c17124a318f1745b66f2347acb"
 
 [solve-meta]
   analyzer-name = "dep"
