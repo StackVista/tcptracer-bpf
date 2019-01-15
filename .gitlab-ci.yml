@@ -19,7 +19,7 @@ test-linux-bpf:
 test-windows:
   stage: test
   script:
-    - mkdir -p /go/src/github.com/StackVista
+    - mkdir "/go/src/github.com/StackVista"
     - cp -a $CI_PROJECT_DIR /go/src/github.com/StackVista/tcptracer-bpf
     - export GOPATH=/go
     - cd /go/src/github.com/StackVista/tcptracer-bpf

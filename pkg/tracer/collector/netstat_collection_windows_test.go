@@ -11,57 +11,57 @@ import (
 func MockNetstatCollector() *NetstatCollector {
 	collector := new(MockedNetstatCollector)
 	collector.On("getConnections", mock.Anything).Return(Connections, nil)
-	return &NetstatCollector{collector}
+	return &NetstatCollector{collector, make(map[string]*NetstatConnection)}
 }
 
 func TestExtractStateDirection(t *testing.T) {
 	collector := MockNetstatCollector()
 
-	state, direction := collector.extractStateDirection("LISTEN")
+	state, direction := collector.stateToConnectionDirectionality("LISTEN")
 	assert.Equal(t, state, common.ACTIVE)
 	assert.Equal(t, direction, common.INCOMING)
 
-	state, direction = collector.extractStateDirection("ESTABLISHED")
+	state, direction = collector.stateToConnectionDirectionality("ESTABLISHED")
 	assert.Equal(t, state, common.ACTIVE)
 	assert.Equal(t, direction, common.OUTGOING)
 
-	state, direction = collector.extractStateDirection("CLOSE_WAIT")
+	state, direction = collector.stateToConnectionDirectionality("CLOSE_WAIT")
 	assert.Equal(t, state, common.ACTIVE_CLOSED)
 	assert.Equal(t, direction, common.UNKNOWN)
 
-	state, direction = collector.extractStateDirection("TIME_WAIT")
+	state, direction = collector.stateToConnectionDirectionality("TIME_WAIT")
 	assert.Equal(t, state, common.ACTIVE_CLOSED)
 	assert.Equal(t, direction, common.UNKNOWN)
 
-	state, direction = collector.extractStateDirection("FIN_WAIT_1")
+	state, direction = collector.stateToConnectionDirectionality("FIN_WAIT_1")
 	assert.Equal(t, state, common.ACTIVE_CLOSED)
 	assert.Equal(t, direction, common.UNKNOWN)
 
-	state, direction = collector.extractStateDirection("FIN_WAIT_2")
+	state, direction = collector.stateToConnectionDirectionality("FIN_WAIT_2")
 	assert.Equal(t, state, common.ACTIVE_CLOSED)
 	assert.Equal(t, direction, common.UNKNOWN)
 
-	state, direction = collector.extractStateDirection("CLOSING")
+	state, direction = collector.stateToConnectionDirectionality("CLOSING")
 	assert.Equal(t, state, common.ACTIVE_CLOSED)
 	assert.Equal(t, direction, common.UNKNOWN)
 
-	state, direction = collector.extractStateDirection("LAST_ACK")
+	state, direction = collector.stateToConnectionDirectionality("LAST_ACK")
 	assert.Equal(t, state, common.ACTIVE_CLOSED)
 	assert.Equal(t, direction, common.UNKNOWN)
 
-	state, direction = collector.extractStateDirection("DELETE")
+	state, direction = collector.stateToConnectionDirectionality("DELETE")
 	assert.Equal(t, state, common.ACTIVE_CLOSED)
 	assert.Equal(t, direction, common.UNKNOWN)
 
-	state, direction = collector.extractStateDirection("CLOSED")
+	state, direction = collector.stateToConnectionDirectionality("CLOSED")
 	assert.Equal(t, state, common.CLOSED)
 	assert.Equal(t, direction, common.UNKNOWN)
 
-	state, direction = collector.extractStateDirection("SYN_SENT")
+	state, direction = collector.stateToConnectionDirectionality("SYN_SENT")
 	assert.Equal(t, state, common.INITIALIZING)
 	assert.Equal(t, direction, common.OUTGOING)
 
-	state, direction = collector.extractStateDirection("SYN_RECEIVED")
+	state, direction = collector.stateToConnectionDirectionality("SYN_RECEIVED")
 	assert.Equal(t, state, common.INITIALIZING)
 	assert.Equal(t, direction, common.INCOMING)
 
