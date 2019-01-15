@@ -6,7 +6,7 @@ import (
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 )
 
-func main () {
+func main() {
 
 	tracerConfig := config.MakeDefaultConfig()
 	t, err := tracer.NewTracer(tracerConfig)

@@ -1,6 +1,7 @@
 package tracer
 
 import (
+	"github.com/StackVista/stackstate-agent/pkg/util/log"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/collector"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
@@ -27,37 +28,61 @@ func (t *Tracer) Start() error {
 func (t *Tracer) Stop() {}
 
 func (t *Tracer) GetTCPConnections() ([]*common.ConnectionStats, error) {
-	return t.GetTCPv4Connections()
+	v4conns, err := t.GetTCPv4Connections()
+	if err != nil {
+		return nil, err
+	}
 
+	v6conns, err := t.GetTCPv6Connections()
+	if err != nil {
+		return nil, err
+	}
+
+	return append(v4conns, v6conns...), nil
 }
 
 func (t *Tracer) GetUDPConnections() ([]*common.ConnectionStats, error) {
-	return t.GetUDPv4Connections()
+	v4conns, err := t.GetUDPv4Connections()
+	if err != nil {
+		return nil, err
+	}
+
+	v6conns, err := t.GetUDPv6Connections()
+	if err != nil {
+		return nil, err
+	}
+
+	return append(v4conns, v6conns...), nil
 }
 
 func (t *Tracer) GetConnections() (*common.Connections, error) {
-	tcpConns := make([]common.ConnectionStats, 0)
-	udpConns := make([]common.ConnectionStats, 0)
+	var conns []*common.ConnectionStats
 
 	if t.TracerConfig.CollectTCPConns {
-		conns, err := t.GetTCPConnections()
+		tcpConns, err := t.GetTCPConnections()
 		if err != nil {
 			return nil, err
 		}
-		for _, conn := range conns {
-			tcpConns = append(tcpConns, *conn)
-		}
+		conns = append(conns, tcpConns...)
 	}
 
 	if t.TracerConfig.CollectUDPConns {
-		conns, err := t.GetUDPConnections()
+		udpConns, err := t.GetUDPConnections()
 		if err != nil {
 			return nil, err
 		}
-		for _, conn := range conns {
-			udpConns = append(udpConns, *conn)
-		}
+		conns = append(conns, udpConns...)
 	}
 
-	return &common.Connections{Conns: append(tcpConns, udpConns...)}, nil
+	connectionStats := make([]common.ConnectionStats, 0)
+
+	for _, conn := range conns {
+		if len(connectionStats) >= t.TracerConfig.MaxConnections {
+			log.Warnf("Exceeded maximum connections %d", t.TracerConfig.MaxConnections)
+			break
+		}
+		connectionStats = append(connectionStats, *conn)
+	}
+
+	return &common.Connections{Conns: connectionStats}, nil
 }

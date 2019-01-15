@@ -26,7 +26,7 @@ var (
 )
 
 func TestTCPSendAndReceive(t *testing.T) {
-	// Enable BPF-based network tracer
+	// Enable network tracer
 	tr, err := NewTracer(MakeTestConfig())
 	if err != nil {
 		t.Fatal(err)
@@ -93,7 +93,7 @@ func TestTCPSendAndReceive(t *testing.T) {
 }
 
 func TestTCPSendPage(t *testing.T) {
-	// Enable BPF-based network tracer
+	// Enable network tracer
 	tr, err := NewTracer(MakeTestConfig())
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +112,7 @@ func TestTCPSendPage(t *testing.T) {
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
 
-	fmt.Printf("Addr: %s", server.Address)
+	fmt.Printf("Addr: %s\n", server.Address)
 	tcpAddr, err := net.ResolveTCPAddr("tcp4", server.Address)
 	// Connect to server
 	c, err := net.DialTCP("tcp", nil, tcpAddr)
@@ -169,7 +169,7 @@ func TestTCPSendPage(t *testing.T) {
 }
 
 func TestMaxConnectionsIsUsed(t *testing.T) {
-	// Enable BPF-based network tracer
+	// Enable network tracer
 	conf := MakeTestConfig()
 	conf.MaxConnections = 1
 	tr, err := NewTracer(conf)
@@ -252,8 +252,9 @@ func TestMaxConnectionsIsUsed(t *testing.T) {
 }
 
 func TestTCPNoDataNoConnection(t *testing.T) {
-	// Enable BPF-based network tracer
-	tr, err := NewTracer(MakeTestConfig())
+	// Enable network tracer
+	config := MakeTestConfig()
+	tr, err := NewTracer(config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,10 +290,18 @@ func TestTCPNoDataNoConnection(t *testing.T) {
 
 	// One direction
 	_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	assert.False(t, ok)
+	if config.FilterInactiveConnections {
+		assert.False(t, ok)
+	} else {
+		assert.True(t, ok)
+	}
 
 	_, ok = findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	assert.False(t, ok)
+	if config.FilterInactiveConnections {
+		assert.False(t, ok)
+	} else {
+		assert.True(t, ok)
+	}
 
 	// Write to server to shut down the connection
 	if _, err = c.Write(genPayload(0)); err != nil {
@@ -315,7 +324,7 @@ func TestListenBeforeTraceStartResultInConnectionWhenAccepted(t *testing.T) {
 	doneChan := make(chan struct{})
 	server.Run(doneChan)
 
-	// Enable BPF-based network tracer
+	// Enable network tracer
 	tr, err := NewTracer(MakeTestConfig())
 	if err != nil {
 		t.Fatal(err)
@@ -373,329 +382,6 @@ func TestListenBeforeTraceStartResultInConnectionWhenAccepted(t *testing.T) {
 	doneChan <- struct{}{}
 }
 
-func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
-	// Create TCP Server which sends back serverMessageSize bytes
-	server := common.NewTCPServer(func(c net.Conn) {
-		r := bufio.NewReader(c)
-		r.ReadBytes(byte('\n'))
-		c.Write(genPayload(serverMessageSize))
-		r.ReadBytes(byte('\n'))
-		c.Close()
-	})
-	doneChan := make(chan struct{})
-	server.Run(doneChan)
-
-	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
-
-	// Connection established, setup tracer
-	tr, err := NewTracer(MakeTestConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
-	tr.Start()
-	defer tr.Stop()
-
-	// Write clientMessageSize to server, and read response
-	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
-	r := bufio.NewReader(c)
-	r.ReadBytes(byte('\n'))
-
-	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetConnections()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// One direction
-	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	assert.True(t, ok)
-	if CheckMessageSize {
-		assert.Equal(t, clientMessageSize, int(conn1.SendBytes))
-		assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
-	}
-	assert.Equal(t, conn1.Direction, common.UNKNOWN)
-	assert.Equal(t, conn1.State, common.ACTIVE)
-
-	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	assert.True(t, ok)
-	if CheckMessageSize {
-		assert.Equal(t, clientMessageSize, int(conn2.RecvBytes))
-		assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
-	}
-	assert.Equal(t, conn2.Direction, common.INCOMING)
-	assert.Equal(t, conn2.State, common.ACTIVE)
-
-	// Write clientMessageSize to server, to shut down the connection
-	if _, err = c.Write(genPayload(0)); err != nil {
-		t.Fatal(err)
-	}
-
-	doneChan <- struct{}{}
-}
-
-func TestCloseInFlightTCPConnectionWithEBPFWithData(t *testing.T) {
-	// Create TCP Server which sends back serverMessageSize bytes
-	server := common.NewTCPServer(func(c net.Conn) {
-		r := bufio.NewReader(c)
-		r.ReadBytes(byte('\n'))
-		c.Write(genPayload(serverMessageSize))
-		c.Close()
-	})
-	doneChan := make(chan struct{})
-	server.Run(doneChan)
-
-	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Connection established, now setup tracer
-	tr, err := NewTracer(MakeTestConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
-	tr.Start()
-	defer tr.Stop()
-
-	// Write clientMessageSize to server, and read response
-	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
-	r := bufio.NewReader(c)
-	r.ReadBytes(byte('\n'))
-
-	// Explicitly close this TCP connection
-	c.Close()
-
-	// First run, should contain the closed connection
-	connections, err := tr.GetConnections()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	assert.True(t, ok)
-	assert.Equal(t, conn1.State, common.ACTIVE_CLOSED)
-
-	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	assert.True(t, ok)
-	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
-
-	// Second run, connection should be cleaned up
-	connections, err = tr.GetConnections()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Confirm that we could not find connection created above
-	_, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	assert.False(t, ok)
-
-	doneChan <- struct{}{}
-}
-
-func TestInFlightDirectionListenAllInterfaces(t *testing.T) {
-	connectChan := make(chan struct{})
-	closeChan := make(chan struct{})
-	closedChan := make(chan struct{})
-
-	// Create TCP Server which sends back serverMessageSize bytes
-	server := common.NewTCPServerAllPorts(func(c net.Conn) {
-		connectChan <- struct{}{}
-		<-closeChan
-		c.Close()
-		closedChan <- struct{}{}
-	})
-	doneChan := make(chan struct{})
-	server.Run(doneChan)
-
-	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
-
-	// Wait for the connection to be established
-	<-connectChan
-
-	// Enable BPF-based network tracer
-	tr, err := NewTracer(MakeTestConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
-	tr.Start()
-	defer tr.Stop()
-
-	closeChan <- struct{}{}
-	<-closedChan
-
-	c.Close()
-
-	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetConnections()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// One direction
-	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	assert.True(t, ok)
-	if CheckMessageSize {
-		assert.Equal(t, 0, int(conn1.SendBytes))
-		assert.Equal(t, 0, int(conn1.RecvBytes))
-	}
-	assert.Equal(t, conn1.Direction, common.UNKNOWN)
-	assert.Equal(t, conn1.State, common.ACTIVE_CLOSED)
-
-	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	assert.True(t, ok)
-	if CheckMessageSize {
-		assert.Equal(t, 0, int(conn2.RecvBytes))
-		assert.Equal(t, 0, int(conn2.SendBytes))
-	}
-	assert.Equal(t, conn2.Direction, common.INCOMING)
-	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
-
-	doneChan <- struct{}{}
-}
-
-func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
-	connectChan := make(chan struct{})
-	closeChan := make(chan struct{})
-	closedChan := make(chan struct{})
-
-	// Create TCP Server which sends back serverMessageSize bytes
-	server := common.NewTCPServer(func(c net.Conn) {
-		connectChan <- struct{}{}
-		<-closeChan
-		c.Close()
-		closedChan <- struct{}{}
-	})
-	doneChan := make(chan struct{})
-	server.Run(doneChan)
-
-	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
-
-	// Wait for the connection to be established
-	<-connectChan
-
-	// Enable BPF-based network tracer
-	tr, err := NewTracer(MakeTestConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
-	tr.Start()
-	defer tr.Stop()
-
-	closeChan <- struct{}{}
-	<-closedChan
-
-	c.Close()
-
-	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetConnections()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// One direction
-	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	assert.True(t, ok)
-	if CheckMessageSize {
-		assert.Equal(t, 0, int(conn1.SendBytes))
-		assert.Equal(t, 0, int(conn1.RecvBytes))
-	}
-	assert.Equal(t, conn1.Direction, common.UNKNOWN)
-	assert.Equal(t, conn1.State, common.ACTIVE_CLOSED)
-
-	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	assert.True(t, ok)
-	if CheckMessageSize {
-		assert.Equal(t, 0, int(conn2.RecvBytes))
-		assert.Equal(t, 0, int(conn2.SendBytes))
-	}
-	assert.Equal(t, conn2.Direction, common.INCOMING)
-	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
-
-	doneChan <- struct{}{}
-}
-
-func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
-	// Enable BPF-based network tracer
-	tr, err := NewTracer(MakeTestConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
-	tr.Start()
-	defer tr.Stop()
-
-	// Create TCP Server which sends back serverMessageSize bytes
-	server := common.NewTCPServer(func(c net.Conn) {
-		r := bufio.NewReader(c)
-		r.ReadBytes(byte('\n'))
-		c.Write(genPayload(serverMessageSize))
-		c.Close()
-	})
-	doneChan := make(chan struct{})
-	server.Run(doneChan)
-
-	// Connect to server
-	c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Write clientMessageSize to server, and read response
-	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
-	r := bufio.NewReader(c)
-	r.ReadBytes(byte('\n'))
-
-	// Explicitly close this TCP connection
-	c.Close()
-
-	// First run, should contain the closed connection
-	connections, err := tr.GetConnections()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	assert.True(t, ok)
-	assert.Equal(t, conn.State, common.ACTIVE_CLOSED)
-
-	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	assert.True(t, ok)
-	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
-
-	// Second run, connection should be cleaned up
-	connections, err = tr.GetConnections()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Confirm that we could not find connection created above
-	_, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	assert.False(t, ok)
-
-	doneChan <- struct{}{}
-}
-
 func TestFailedConnectionShouldNotBeReported(t *testing.T) {
 	// Connection established, now setup tracer
 	tr, err := NewTracer(MakeTestConfig())
@@ -720,59 +406,10 @@ func TestFailedConnectionShouldNotBeReported(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestUDPSendAndReceive(t *testing.T) {
-	// Enable BPF-based network tracer
-	tr, err := NewTracer(MakeTestConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
-	tr.Start()
-	defer tr.Stop()
-
-	// Create UDP Server which sends back serverMessageSize bytes
-	server := common.NewUDPServer(func(b []byte, n int) []byte {
-		return genPayload(serverMessageSize)
-	})
-
-	doneChan := make(chan struct{})
-	server.Run(doneChan, clientMessageSize)
-
-	// Connect to server
-	c, err := net.DialTimeout("udp", server.Address, 50*time.Millisecond)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
-
-	// Write clientMessageSize to server, and read response
-	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
-
-	c.Read(make([]byte, serverMessageSize))
-
-	// Iterate through common.ACTIVE connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetConnections()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	assert.True(t, ok)
-	if CheckMessageSize {
-		assert.Equal(t, clientMessageSize, int(conn.SendBytes))
-		assert.Equal(t, serverMessageSize, int(conn.RecvBytes))
-	}
-	assert.Equal(t, common.UNKNOWN, conn.Direction)
-	assert.Equal(t, common.ACTIVE, conn.State)
-
-	doneChan <- struct{}{}
-}
-
 func findConnection(l, r net.Addr, c *common.Connections) (*common.ConnectionStats, bool) {
 	fmt.Printf("Looking for conn: %s -> %s\n", l.String(), r.String())
 	for _, conn := range c.Conns {
-		fmt.Println("conn", conn)
+		//fmt.Println("conn", conn)
 		localAddr := fmt.Sprintf("%s:%d", conn.Local, conn.LocalPort)
 		remoteAddr := fmt.Sprintf("%s:%d", conn.Remote, conn.RemotePort)
 		if localAddr == l.String() && remoteAddr == r.String() {
@@ -783,9 +420,8 @@ func findConnection(l, r net.Addr, c *common.Connections) (*common.ConnectionSta
 }
 
 func findConnectionWithRemote(r string, c *common.Connections) (*common.ConnectionStats, bool) {
-	fmt.Println("Looking for conn")
+	fmt.Printf("Looking for remote conn: %s\n", r)
 	for _, conn := range c.Conns {
-		fmt.Println("conn", conn)
 		remoteAddr := fmt.Sprintf("%s:%d", conn.Remote, conn.RemotePort)
 		if remoteAddr == r {
 			return &conn, true
@@ -804,7 +440,7 @@ func runBenchtests(b *testing.B, payloads []int, prefix string, f func(p int) fu
 func BenchmarkUDPEcho(b *testing.B) {
 	runBenchtests(b, payloadSizesUDP, "", benchEchoUDP)
 
-	// Enable BPF-based network tracer
+	// Enable network tracer
 	t, err := NewTracer(MakeTestConfig())
 	if err != nil {
 		b.Fatal(err)
@@ -854,7 +490,7 @@ func benchEchoUDP(size int) func(b *testing.B) {
 func BenchmarkTCPEcho(b *testing.B) {
 	runBenchtests(b, payloadSizesTCP, "", benchEchoTCP)
 
-	// Enable BPF-based network tracer
+	// Enable network tracer
 	t, err := NewTracer(MakeTestConfig())
 	if err != nil {
 		b.Fatal(err)
@@ -868,7 +504,7 @@ func BenchmarkTCPEcho(b *testing.B) {
 func BenchmarkTCPSend(b *testing.B) {
 	runBenchtests(b, payloadSizesTCP, "", benchSendTCP)
 
-	// Enable BPF-based network tracer
+	// Enable network tracer
 	t, err := NewTracer(MakeTestConfig())
 	if err != nil {
 		b.Fatal(err)
