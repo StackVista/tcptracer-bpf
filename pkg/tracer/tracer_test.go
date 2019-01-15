@@ -68,15 +68,19 @@ func TestTCPSendAndReceive(t *testing.T) {
 	// One direction
 	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, clientMessageSize, int(conn1.SendBytes))
-	assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
+	if CheckMessageSize {
+		assert.Equal(t, clientMessageSize, int(conn1.SendBytes))
+		assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
+	}
 	assert.Equal(t, conn1.Direction, common.OUTGOING)
 	assert.Equal(t, conn1.State, common.ACTIVE)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, clientMessageSize, int(conn2.RecvBytes))
-	assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
+	if CheckMessageSize {
+		assert.Equal(t, clientMessageSize, int(conn2.RecvBytes))
+		assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
+	}
 	assert.Equal(t, conn2.Direction, common.INCOMING)
 	assert.Equal(t, conn2.State, common.ACTIVE)
 
@@ -140,15 +144,19 @@ func TestTCPSendPage(t *testing.T) {
 	// One direction
 	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, clientMessageFileSize, int(conn1.SendBytes))
-	assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
+	if CheckMessageSize {
+		assert.Equal(t, clientMessageFileSize, int(conn1.SendBytes))
+		assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
+	}
 	assert.Equal(t, conn1.Direction, common.OUTGOING)
 	assert.Equal(t, conn1.State, common.ACTIVE)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, clientMessageFileSize, int(conn2.RecvBytes))
-	assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
+	if CheckMessageSize {
+		assert.Equal(t, clientMessageFileSize, int(conn2.RecvBytes))
+		assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
+	}
 	assert.Equal(t, conn2.Direction, common.INCOMING)
 	assert.Equal(t, conn2.State, common.ACTIVE)
 
@@ -341,15 +349,19 @@ func TestListenBeforeTraceStartResultInConnectionWhenAccepted(t *testing.T) {
 	// One direction
 	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, clientMessageSize, int(conn1.SendBytes))
-	assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
+	if CheckMessageSize {
+		assert.Equal(t, clientMessageSize, int(conn1.SendBytes))
+		assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
+	}
 	assert.Equal(t, conn1.Direction, common.OUTGOING)
 	assert.Equal(t, conn1.State, common.ACTIVE)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, clientMessageSize, int(conn2.RecvBytes))
-	assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
+	if CheckMessageSize {
+		assert.Equal(t, clientMessageSize, int(conn2.RecvBytes))
+		assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
+	}
 	assert.Equal(t, conn2.Direction, common.INCOMING)
 	assert.Equal(t, conn2.State, common.ACTIVE)
 
@@ -404,15 +416,19 @@ func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
 	// One direction
 	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, clientMessageSize, int(conn1.SendBytes))
-	assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
+	if CheckMessageSize {
+		assert.Equal(t, clientMessageSize, int(conn1.SendBytes))
+		assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
+	}
 	assert.Equal(t, conn1.Direction, common.UNKNOWN)
 	assert.Equal(t, conn1.State, common.ACTIVE)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, clientMessageSize, int(conn2.RecvBytes))
-	assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
+	if CheckMessageSize {
+		assert.Equal(t, clientMessageSize, int(conn2.RecvBytes))
+		assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
+	}
 	assert.Equal(t, conn2.Direction, common.INCOMING)
 	assert.Equal(t, conn2.State, common.ACTIVE)
 
@@ -533,15 +549,19 @@ func TestInFlightDirectionListenAllInterfaces(t *testing.T) {
 	// One direction
 	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, 0, int(conn1.SendBytes))
-	assert.Equal(t, 0, int(conn1.RecvBytes))
+	if CheckMessageSize {
+		assert.Equal(t, 0, int(conn1.SendBytes))
+		assert.Equal(t, 0, int(conn1.RecvBytes))
+	}
 	assert.Equal(t, conn1.Direction, common.UNKNOWN)
 	assert.Equal(t, conn1.State, common.ACTIVE_CLOSED)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, 0, int(conn2.RecvBytes))
-	assert.Equal(t, 0, int(conn2.SendBytes))
+	if CheckMessageSize {
+		assert.Equal(t, 0, int(conn2.RecvBytes))
+		assert.Equal(t, 0, int(conn2.SendBytes))
+	}
 	assert.Equal(t, conn2.Direction, common.INCOMING)
 	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
 
@@ -595,15 +615,19 @@ func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
 	// One direction
 	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, 0, int(conn1.SendBytes))
-	assert.Equal(t, 0, int(conn1.RecvBytes))
+	if CheckMessageSize {
+		assert.Equal(t, 0, int(conn1.SendBytes))
+		assert.Equal(t, 0, int(conn1.RecvBytes))
+	}
 	assert.Equal(t, conn1.Direction, common.UNKNOWN)
 	assert.Equal(t, conn1.State, common.ACTIVE_CLOSED)
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, 0, int(conn2.RecvBytes))
-	assert.Equal(t, 0, int(conn2.SendBytes))
+	if CheckMessageSize {
+		assert.Equal(t, 0, int(conn2.RecvBytes))
+		assert.Equal(t, 0, int(conn2.SendBytes))
+	}
 	assert.Equal(t, conn2.Direction, common.INCOMING)
 	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
 
@@ -735,8 +759,10 @@ func TestUDPSendAndReceive(t *testing.T) {
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.True(t, ok)
-	assert.Equal(t, clientMessageSize, int(conn.SendBytes))
-	assert.Equal(t, serverMessageSize, int(conn.RecvBytes))
+	if CheckMessageSize {
+		assert.Equal(t, clientMessageSize, int(conn.SendBytes))
+		assert.Equal(t, serverMessageSize, int(conn.RecvBytes))
+	}
 	assert.Equal(t, common.UNKNOWN, conn.Direction)
 	assert.Equal(t, common.ACTIVE, conn.State)
 
@@ -744,7 +770,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 }
 
 func findConnection(l, r net.Addr, c *common.Connections) (*common.ConnectionStats, bool) {
-	fmt.Println("Looking for conn")
+	fmt.Printf("Looking for conn: %s -> %s\n", l.String(), r.String())
 	for _, conn := range c.Conns {
 		fmt.Println("conn", conn)
 		localAddr := fmt.Sprintf("%s:%d", conn.Local, conn.LocalPort)
