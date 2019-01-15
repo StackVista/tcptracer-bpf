@@ -19,9 +19,10 @@ test-linux-bpf:
 test-windows:
   stage: test
   script:
+    - dir
     - mkdir "/go/src/github.com/StackVista"
     - cp -a $CI_PROJECT_DIR /go/src/github.com/StackVista/tcptracer-bpf
-    - export GOPATH=/go
+    - SET GOPATH=/go
     - cd /go/src/github.com/StackVista/tcptracer-bpf
     - make win-ci-test
   tags:
