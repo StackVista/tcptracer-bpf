@@ -26,8 +26,8 @@
 
 
 [[constraint]]
-  branch = "master"
   name = "github.com/cihub/seelog"
+  version = "=v2.6"
 
 [[constraint]]
   branch = "master"
@@ -38,8 +38,8 @@
   name = "github.com/iovisor/gobpf"
 
 [[constraint]]
-  branch = "master"
   name = "github.com/stretchr/testify"
+  version = "~v1.2.1"
 
 [prune]
   go-tests = true
