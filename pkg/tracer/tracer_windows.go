@@ -1,7 +1,7 @@
 package tracer
 
 import (
-	"github.com/StackVista/stackstate-agent/pkg/util/log"
+	log "github.com/cihub/seelog"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/collector"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"

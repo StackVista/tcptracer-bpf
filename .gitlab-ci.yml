@@ -18,6 +18,8 @@ test-linux-bpf:
 
 test-windows:
   stage: test
+  variables:
+    GO_STACKVISTA: %SystemRoot%\go\src\github.com\StackVista
   before_script:
     # install chocolatey
     - choco --version || @"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
@@ -29,7 +31,9 @@ test-windows:
     - (robocopy %CI_PROJECT_DIR% %SystemRoot%\go\src\github.com\StackVista\tcptracer-bpf /COPYALL /MIR) ^& IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
     - SET GOPATH=%SystemRoot%\go
     - cd %SystemRoot%\go\src\github.com\StackVista\tcptracer-bpf
+    - dep ensure
     - make win-ci-test
+    - echo %GO_STACKVISTA%
   tags:
     # Run on sts windows hardware to be able to test windows connection tracing
     - sts_windows
