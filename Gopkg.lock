@@ -71,7 +71,7 @@
   name = "golang.org/x/sys"
   packages = ["windows"]
   pruneopts = "UT"
-  revision = "2be51725563103c17124a318f1745b66f2347acb"
+  revision = "a457fd036447854c0c02e89ea439481bdcf941a2"
 
 [solve-meta]
   analyzer-name = "dep"
