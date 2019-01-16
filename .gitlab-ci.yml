@@ -23,10 +23,8 @@ test-windows:
     - choco --version || @"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
     - choco install -y golang make dep
   script:
-    - dir
     - if not exist \go\src\github.com\StackVista mkdir \go\src\github.com\StackVista
-    - echo %CI_PROJECT_DIR%
-    - robocopy %CI_PROJECT_DIR% \go\src\github.com\StackVista\tcptracer-bpf /E
+    - robocopy %CI_PROJECT_DIR% \go\src\github.com\StackVista\tcptracer-bpf /COPYALL /MIR
     - SET GOPATH=\go
     - cd \go\src\github.com\StackVista\tcptracer-bpf
     - make win-ci-test
