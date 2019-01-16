@@ -23,12 +23,12 @@ test-windows:
     - choco --version || @"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
     - choco install -y golang make dep
   script:
-    - if not exist \go\src\github.com\StackVista mkdir \go\src\github.com\StackVista
-    - rmdir \go\src\github.com\StackVista\tcptracer-bpf /s /q
+    - if not exist %SystemRoot%\go\src\github.com\StackVista mkdir %SystemRoot%\go\src\github.com\StackVista
+    - if exist %SystemRoot%\go\src\github.com\StackVista\tcptracer-bpf rmdir %SystemRoot%\go\src\github.com\StackVista\tcptracer-bpf /s /q
     # Alters robocopy's response code to something the terminal expects
-    - (robocopy %CI_PROJECT_DIR% \go\src\github.com\StackVista\tcptracer-bpf /COPYALL /MIR) ^& IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
-    - SET GOPATH=\go
-    - cd \go\src\github.com\StackVista\tcptracer-bpf
+    - (robocopy %CI_PROJECT_DIR% %SystemRoot%\go\src\github.com\StackVista\tcptracer-bpf /COPYALL /MIR) ^& IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
+    - SET GOPATH=%SystemRoot%\go
+    - cd %SystemRoot%\go\src\github.com\StackVista\tcptracer-bpf
     - make win-ci-test
   tags:
     # Run on sts windows hardware to be able to test windows connection tracing
