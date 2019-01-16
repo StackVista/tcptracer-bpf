@@ -25,7 +25,8 @@ test-windows:
   script:
     - if not exist \go\src\github.com\StackVista mkdir \go\src\github.com\StackVista
     - rmdir \go\src\github.com\StackVista\tcptracer-bpf /s /q
-    - robocopy %CI_PROJECT_DIR% \go\src\github.com\StackVista\tcptracer-bpf /COPYALL /MIR
+    # Alters robocopy's response code to something the terminal expects
+    - (robocopy %CI_PROJECT_DIR% \go\src\github.com\StackVista\tcptracer-bpf /COPYALL /MIR) ^& IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
     - SET GOPATH=\go
     - cd \go\src\github.com\StackVista\tcptracer-bpf
     - make win-ci-test
