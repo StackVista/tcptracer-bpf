@@ -49,7 +49,7 @@ build-ebpf-object: build-docker-image
 		--workdir=/src \
 		$(DOCKER_IMAGE) \
 		make DEST_DIR=/dist -f ebpf.mk build
-	sudo chown -R $(UID):$(UID) ebpf
+	$(SUDO) chown -R $(UID):$(UID) ebpf
 
 build-ebpf-object-local:
 	make -f ebpf.mk build
@@ -83,15 +83,18 @@ run-nettop:
 
 # Build network-tracer agent: runs eBPF program and exposes connections via /connections over UDS
 build-agent:
-	go build -a -o network-tracer -tags '$(GO_TAGS)' -ldflags "$(LDFLAGS)" github.com/DataDog/tcptracer-bpf/agent
+	go build -a -o network-tracer -tags '$(GO_TAGS)' -ldflags "$(LDFLAGS)" github.com/StackVista/tcptracer-bpf/agent
 
 # easyjson code generation
 codegen:
 	go get -u github.com/mailru/easyjson
-	easyjson pkg/tracer/event_common.go
+	easyjson pkg/tracer/common/common.go
 
 test: build-ebpf-object
 	go list ./... | grep -v vendor | sudo -E PATH=${PATH} GOCACHE=off xargs go test -tags 'linux_bpf'
 
-ci-test: build-ebpf-object-ci
+linux-ci-test: build-ebpf-object-ci
 	go list ./... | grep -v vendor | sudo -E PATH=${PATH} GOCACHE=off xargs go test -tags 'linux_bpf'
+
+win-ci-test:
+	go test ./...
