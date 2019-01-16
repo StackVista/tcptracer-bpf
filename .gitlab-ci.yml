@@ -18,13 +18,12 @@ test-linux-bpf:
 
 test-windows:
   stage: test
-  variables:
-    GO_STACKVISTA: %SystemRoot%\go\src\github.com\StackVista
   before_script:
     # install chocolatey
     - choco --version || @"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
     - choco install -y golang make dep
   script:
+    - SET GO_STACKVISTA=%SystemRoot%\go\src\github.com\StackVista
     - if not exist %SystemRoot%\go\src\github.com\StackVista mkdir %SystemRoot%\go\src\github.com\StackVista
     - if exist %SystemRoot%\go\src\github.com\StackVista\tcptracer-bpf rmdir %SystemRoot%\go\src\github.com\StackVista\tcptracer-bpf /s /q
     # Alters robocopy's response code to something the terminal expects
