@@ -32,7 +32,7 @@ test-windows:
     - cd %GO_STACKVISTA%\tcptracer-bpf
     - dep ensure
     - go list ./...
-    - make win-ci-test
+    - go test ./...
   tags:
     # Run on sts windows hardware to be able to test windows connection tracing
     - sts_windows
