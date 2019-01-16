@@ -26,7 +26,7 @@ test-windows:
     - dir
     - if not exist \go\src\github.com\StackVista mkdir \go\src\github.com\StackVista
     - echo %CI_PROJECT_DIR%
-    - xcopy %CI_PROJECT_DIR% \go\src\github.com\StackVista\tcptracer-bpf
+    - robocopy /E %CI_PROJECT_DIR% \go\src\github.com\StackVista\tcptracer-bpf
     - SET GOPATH=\go
     - cd \go\src\github.com\StackVista\tcptracer-bpf
     - make win-ci-test
