@@ -24,7 +24,7 @@ test-windows:
     - choco install -y golang make dep
   script:
     - dir
-    - mkdir \go\src\github.com\StackVista
+    - if not exist \go\src\github.com\StackVista mkdir \go\src\github.com\StackVista
     - xcopy %CI_PROJECT_DIR% \go\src\github.com\StackVista\tcptracer-bpf
     - SET GOPATH=\go
     - cd \go\src\github.com\StackVista\tcptracer-bpf
