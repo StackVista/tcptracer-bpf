@@ -18,12 +18,18 @@ test-linux-bpf:
 
 test-windows:
   stage: test
+  before_script:
+    # install chocolatey
+    - choco --version || @"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
+    - refreshenv
+    - choco install -y golang make dep
+    - refreshenv
   script:
     - dir
-    - mkdir "/go/src/github.com/StackVista"
-    - cp -a $CI_PROJECT_DIR /go/src/github.com/StackVista/tcptracer-bpf
-    - SET GOPATH=/go
-    - cd /go/src/github.com/StackVista/tcptracer-bpf
+    - mkdir \go\src\github.com\StackVista"
+    - xcopy %CI_PROJECT_DIR% \go\src\github.com\StackVista\tcptracer-bpf
+    - SET GOPATH=\go
+    - cd \go\src\github.com\StackVista\tcptracer-bpf
     - make win-ci-test
   tags:
     # Run on sts windows hardware to be able to test windows connection tracing
