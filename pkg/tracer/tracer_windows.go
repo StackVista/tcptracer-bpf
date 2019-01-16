@@ -1,10 +1,10 @@
 package tracer
 
 import (
-	log "github.com/cihub/seelog"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/collector"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
+	log "github.com/cihub/seelog"
 )
 
 type Tracer struct {
