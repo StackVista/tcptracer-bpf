@@ -24,15 +24,14 @@ test-windows:
     - choco install -y golang make dep
   script:
     - SET GO_STACKVISTA=%SystemRoot%\go\src\github.com\StackVista
-    - if not exist %SystemRoot%\go\src\github.com\StackVista mkdir %SystemRoot%\go\src\github.com\StackVista
-    - if exist %SystemRoot%\go\src\github.com\StackVista\tcptracer-bpf rmdir %SystemRoot%\go\src\github.com\StackVista\tcptracer-bpf /s /q
+    - if not exist %GO_STACKVISTA% mkdir %GO_STACKVISTA%
+    - if exist %GO_STACKVISTA%\tcptracer-bpf rmdir %GO_STACKVISTA%\tcptracer-bpf /s /q
     # Alters robocopy's response code to something the terminal expects
-    - (robocopy %CI_PROJECT_DIR% %SystemRoot%\go\src\github.com\StackVista\tcptracer-bpf /COPYALL /MIR) ^& IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
+    - (robocopy %CI_PROJECT_DIR% %GO_STACKVISTA%\tcptracer-bpf /COPYALL /MIR) ^& IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
     - SET GOPATH=%SystemRoot%\go
-    - cd %SystemRoot%\go\src\github.com\StackVista\tcptracer-bpf
+    - cd %GO_STACKVISTA%\tcptracer-bpf
     - dep ensure
     - make win-ci-test
-    - echo %GO_STACKVISTA%
   tags:
     # Run on sts windows hardware to be able to test windows connection tracing
     - sts_windows
