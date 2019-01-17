@@ -2,7 +2,17 @@
 
 package config
 
-type Config struct{}
+type Config struct{
+	CommonConfig
+}
 
 // DefaultConfig enables traffic collection for all connection types
-var DefaultConfig = &Config{}
+var DefaultConfig = &Config{
+	CommonConfig:     *DefaultCommonConfig,
+}
+
+func MakeDefaultConfig() *Config {
+	return &Config{
+		CommonConfig:     *MakeCommonConfig(),
+	}
+}
