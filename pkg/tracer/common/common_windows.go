@@ -11,9 +11,9 @@ var (
 )
 
 func LinuxKernelVersionCode(major, minor, patch uint32) uint32 {
-	return nil
+	return 0
 }
 
 func CurrentKernelVersion() (uint32, error) {
-	return nil, ErrNotImplemented
+	return 0, ErrNotImplemented
 }
