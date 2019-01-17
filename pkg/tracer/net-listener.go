@@ -1,4 +1,4 @@
-package common
+package tracer
 
 import (
 	"fmt"
@@ -95,9 +95,3 @@ func (s *UDPServer) Run(done chan struct{}, payloadSize int) {
 	}()
 }
 
-func TestRoot() string {
-	if procRoot, isSet := os.LookupEnv("TEST_PROC_ROOT"); isSet {
-		return procRoot
-	}
-	return "/proc"
-}

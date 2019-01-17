@@ -34,7 +34,7 @@ func TestTCPSendAndReceive(t *testing.T) {
 	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := common.NewTCPServer(func(c net.Conn) {
+	server := NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -103,7 +103,7 @@ func TestMaxConnectionsIsUsed(t *testing.T) {
 	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := common.NewTCPServer(func(c net.Conn) {
+	server := NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -128,7 +128,7 @@ func TestMaxConnectionsIsUsed(t *testing.T) {
 	r.ReadBytes(byte('\n'))
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server2 := common.NewTCPServer(func(c net.Conn) {
+	server2 := NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -187,7 +187,7 @@ func TestTCPNoDataNoConnection(t *testing.T) {
 	connectChan := make(chan struct{})
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := common.NewTCPServer(func(c net.Conn) {
+	server := NewTCPServer(func(c net.Conn) {
 		connectChan <- struct{}{}
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
@@ -237,7 +237,7 @@ func TestTCPNoDataNoConnection(t *testing.T) {
 func TestListenBeforeTraceStartResultInConnectionWhenAccepted(t *testing.T) {
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := common.NewTCPServer(func(c net.Conn) {
+	server := NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -384,7 +384,7 @@ func benchEchoUDP(size int) func(b *testing.B) {
 
 	return func(b *testing.B) {
 		end := make(chan struct{})
-		server := common.NewUDPServer(echoOnMessage)
+		server := NewUDPServer(echoOnMessage)
 		server.Run(end, size)
 
 		c, err := net.DialTimeout("udp", server.Address, 50*time.Millisecond)
@@ -454,7 +454,7 @@ func benchEchoTCP(size int) func(b *testing.B) {
 
 	return func(b *testing.B) {
 		end := make(chan struct{})
-		server := common.NewTCPServer(echoOnMessage)
+		server := NewTCPServer(echoOnMessage)
 		server.Run(end)
 
 		c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
@@ -494,7 +494,7 @@ func benchSendTCP(size int) func(b *testing.B) {
 
 	return func(b *testing.B) {
 		end := make(chan struct{})
-		server := common.NewTCPServer(dropOnMessage)
+		server := NewTCPServer(dropOnMessage)
 		server.Run(end)
 
 		c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)

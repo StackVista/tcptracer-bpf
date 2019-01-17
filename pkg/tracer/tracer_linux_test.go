@@ -23,9 +23,16 @@ func MakeTestConfig() *config.Config {
 	return c
 }
 
+func TestRoot() string {
+	if procRoot, isSet := os.LookupEnv("TEST_PROC_ROOT"); isSet {
+		return procRoot
+	}
+	return "/proc"
+}
+
 func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := common.NewTCPServer(func(c net.Conn) {
+	server := NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -92,7 +99,7 @@ func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
 
 func TestCloseInFlightTCPConnectionWithEBPFWithData(t *testing.T) {
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := common.NewTCPServer(func(c net.Conn) {
+	server := NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -158,7 +165,7 @@ func TestInFlightDirectionListenAllInterfaces(t *testing.T) {
 	closedChan := make(chan struct{})
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := common.NewTCPServerAllPorts(func(c net.Conn) {
+	server := NewTCPServerAllPorts(func(c net.Conn) {
 		connectChan <- struct{}{}
 		<-closeChan
 		c.Close()
@@ -224,7 +231,7 @@ func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
 	closedChan := make(chan struct{})
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := common.NewTCPServer(func(c net.Conn) {
+	server := NewTCPServer(func(c net.Conn) {
 		connectChan <- struct{}{}
 		<-closeChan
 		c.Close()
@@ -294,7 +301,7 @@ func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
 	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := common.NewTCPServer(func(c net.Conn) {
+	server := NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -405,7 +412,7 @@ func TestTCPSendPage(t *testing.T) {
 	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := common.NewTCPServer(func(c net.Conn) {
+	server := NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
