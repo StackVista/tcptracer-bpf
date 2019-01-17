@@ -95,6 +95,3 @@ test: build-ebpf-object
 
 linux-ci-test: build-ebpf-object-ci
 	go list ./... | grep -v vendor | sudo -E PATH=${PATH} GOCACHE=off xargs go test -tags 'linux_bpf'
-
-win-ci-test:
-	go test ./...

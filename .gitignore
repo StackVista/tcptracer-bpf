@@ -8,3 +8,4 @@ network-tracer
 *.log
 nettop
 .idea/
+vendor/
