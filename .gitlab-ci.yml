@@ -12,7 +12,7 @@ test-linux-bpf:
     - export GOPATH=/go
     - cd /go/src/github.com/StackVista/tcptracer-bpf
     - go get -u github.com/golang/dep/cmd/dep
-    - dep ensure
+    - $GOPATH/bin/dep ensure
     - make linux-ci-test
   tags:
     # Run on sts hardware to be able to test ebpf
