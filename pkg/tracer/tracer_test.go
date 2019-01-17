@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
 	"io"
 	"math/rand"
 	"net"
@@ -34,7 +35,7 @@ func TestTCPSendAndReceive(t *testing.T) {
 	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
+	server := network.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -103,7 +104,7 @@ func TestMaxConnectionsIsUsed(t *testing.T) {
 	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
+	server := network.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -128,7 +129,7 @@ func TestMaxConnectionsIsUsed(t *testing.T) {
 	r.ReadBytes(byte('\n'))
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server2 := NewTCPServer(func(c net.Conn) {
+	server2 := network.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -187,7 +188,7 @@ func TestTCPNoDataNoConnection(t *testing.T) {
 	connectChan := make(chan struct{})
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
+	server := network.NewTCPServer(func(c net.Conn) {
 		connectChan <- struct{}{}
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
@@ -237,7 +238,7 @@ func TestTCPNoDataNoConnection(t *testing.T) {
 func TestListenBeforeTraceStartResultInConnectionWhenAccepted(t *testing.T) {
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
+	server := network.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -384,7 +385,7 @@ func benchEchoUDP(size int) func(b *testing.B) {
 
 	return func(b *testing.B) {
 		end := make(chan struct{})
-		server := NewUDPServer(echoOnMessage)
+		server := network.NewUDPServer(echoOnMessage)
 		server.Run(end, size)
 
 		c, err := net.DialTimeout("udp", server.Address, 50*time.Millisecond)
@@ -454,7 +455,7 @@ func benchEchoTCP(size int) func(b *testing.B) {
 
 	return func(b *testing.B) {
 		end := make(chan struct{})
-		server := NewTCPServer(echoOnMessage)
+		server := network.NewTCPServer(echoOnMessage)
 		server.Run(end)
 
 		c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
@@ -494,7 +495,7 @@ func benchSendTCP(size int) func(b *testing.B) {
 
 	return func(b *testing.B) {
 		end := make(chan struct{})
-		server := NewTCPServer(dropOnMessage)
+		server := network.NewTCPServer(dropOnMessage)
 		server.Run(end)
 
 		c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)

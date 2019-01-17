@@ -4,6 +4,7 @@ package common
 
 import (
 	bpflib "github.com/iovisor/gobpf/elf"
+	"os"
 )
 
 // KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
@@ -16,4 +17,11 @@ func LinuxKernelVersionCode(major, minor, patch uint32) uint32 {
 // That is, for kernel "a.b.c", the version number will be (a<<16 + b<<8 + c)
 func CurrentKernelVersion() (uint32, error) {
 	return bpflib.CurrentKernelVersion()
+}
+
+func TestRoot() string {
+	if procRoot, isSet := os.LookupEnv("TEST_PROC_ROOT"); isSet {
+		return procRoot
+	}
+	return "/proc"
 }
