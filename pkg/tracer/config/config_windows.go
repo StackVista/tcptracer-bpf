@@ -8,7 +8,7 @@ type Config struct {
 var DefaultConfig = &Config{
 	CommonConfig: CommonConfig{
 		CollectTCPConns:           DefaultCommonConfig.CollectTCPConns,
-		CollectUDPConns:           DefaultCommonConfig.CollectUDPConns,
+		CollectUDPConns:           false,
 		MaxConnections:            DefaultCommonConfig.MaxConnections,
 		UDPConnTimeout:            DefaultCommonConfig.UDPConnTimeout,
 		FilterInactiveConnections: false,
@@ -20,7 +20,7 @@ func MakeDefaultConfig() *Config {
 	return &Config{
 		CommonConfig: CommonConfig{
 			CollectTCPConns:           defaultCommonConfig.CollectTCPConns,
-			CollectUDPConns:           defaultCommonConfig.CollectUDPConns,
+			CollectUDPConns:           false,
 			MaxConnections:            defaultCommonConfig.MaxConnections,
 			UDPConnTimeout:            defaultCommonConfig.UDPConnTimeout,
 			FilterInactiveConnections: false,
