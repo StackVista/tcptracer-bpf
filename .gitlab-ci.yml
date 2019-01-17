@@ -11,6 +11,7 @@ test-linux-bpf:
     - cp -a $CI_PROJECT_DIR /go/src/github.com/StackVista/tcptracer-bpf
     - export GOPATH=/go
     - cd /go/src/github.com/StackVista/tcptracer-bpf
+    - dep ensure
     - make linux-ci-test
   tags:
     # Run on sts hardware to be able to test ebpf
