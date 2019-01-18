@@ -15,7 +15,7 @@ const (
 	LatestTimestampMapName = "latest_ts"
 	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
 	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
-	MaxActive = 138
+	MaxActive = 256
 )
 
 var (

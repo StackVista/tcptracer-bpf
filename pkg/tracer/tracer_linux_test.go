@@ -49,7 +49,6 @@ func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
-	defer tr.Stop()
 
 	// Write clientMessageSize to server, and read response
 	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
@@ -89,6 +88,7 @@ func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
 	}
 
 	doneChan <- struct{}{}
+	tr.Stop()
 }
 
 func TestCloseInFlightTCPConnectionWithEBPFWithData(t *testing.T) {
@@ -114,7 +114,6 @@ func TestCloseInFlightTCPConnectionWithEBPFWithData(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
-	defer tr.Stop()
 
 	// Write clientMessageSize to server, and read response
 	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
@@ -151,6 +150,7 @@ func TestCloseInFlightTCPConnectionWithEBPFWithData(t *testing.T) {
 	assert.False(t, ok)
 
 	doneChan <- struct{}{}
+	tr.Stop()
 }
 
 func TestInFlightDirectionListenAllInterfaces(t *testing.T) {
@@ -184,7 +184,6 @@ func TestInFlightDirectionListenAllInterfaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
-	defer tr.Stop()
 
 	closeChan <- struct{}{}
 	<-closedChan
@@ -217,6 +216,7 @@ func TestInFlightDirectionListenAllInterfaces(t *testing.T) {
 	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
 
 	doneChan <- struct{}{}
+	tr.Stop()
 }
 
 func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
@@ -250,7 +250,6 @@ func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
-	defer tr.Stop()
 
 	closeChan <- struct{}{}
 	<-closedChan
@@ -283,6 +282,7 @@ func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
 	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
 
 	doneChan <- struct{}{}
+	tr.Stop()
 }
 
 func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
@@ -292,7 +292,6 @@ func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
-	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := network.NewTCPServer(func(c net.Conn) {
@@ -345,6 +344,7 @@ func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
 	assert.False(t, ok)
 
 	doneChan <- struct{}{}
+	tr.Stop()
 }
 
 func TestUDPSendAndReceive(t *testing.T) {
@@ -354,7 +354,6 @@ func TestUDPSendAndReceive(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
-	defer tr.Stop()
 
 	// Create UDP Server which sends back serverMessageSize bytes
 	server := network.NewUDPServer(func(b []byte, n int) []byte {
@@ -394,6 +393,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 	assert.Equal(t, common.ACTIVE, conn.State)
 
 	doneChan <- struct{}{}
+	tr.Stop()
 }
 
 func TestTCPSendPage(t *testing.T) {
@@ -403,7 +403,6 @@ func TestTCPSendPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
-	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := network.NewTCPServer(func(c net.Conn) {
@@ -470,4 +469,5 @@ func TestTCPSendPage(t *testing.T) {
 	}
 
 	doneChan <- struct{}{}
+	tr.Stop()
 }

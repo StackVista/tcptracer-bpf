@@ -34,7 +34,6 @@ func TestTCPSendAndReceive(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
-	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := network.NewTCPServer(func(c net.Conn) {
@@ -92,6 +91,7 @@ func TestTCPSendAndReceive(t *testing.T) {
 	}
 
 	doneChan <- struct{}{}
+	tr.Stop()
 }
 
 func TestMaxConnectionsIsUsed(t *testing.T) {
@@ -103,7 +103,6 @@ func TestMaxConnectionsIsUsed(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
-	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := network.NewTCPServer(func(c net.Conn) {
@@ -175,6 +174,7 @@ func TestMaxConnectionsIsUsed(t *testing.T) {
 
 	doneChan <- struct{}{}
 	doneChan2 <- struct{}{}
+	tr.Stop()
 }
 
 func TestTCPNoDataNoConnection(t *testing.T) {
@@ -185,7 +185,6 @@ func TestTCPNoDataNoConnection(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
-	defer tr.Stop()
 
 	connectChan := make(chan struct{})
 
@@ -234,6 +233,7 @@ func TestTCPNoDataNoConnection(t *testing.T) {
 		t.Fatal(err)
 	}
 	doneChan <- struct{}{}
+	tr.Stop()
 }
 
 // TODO: Seems flaky at times
@@ -256,7 +256,6 @@ func TestListenBeforeTraceStartResultInConnectionWhenAccepted(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
-	defer tr.Stop()
 
 	// Connect to server
 	c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
@@ -306,6 +305,7 @@ func TestListenBeforeTraceStartResultInConnectionWhenAccepted(t *testing.T) {
 	}
 
 	doneChan <- struct{}{}
+	tr.Stop()
 }
 
 func TestFailedConnectionShouldNotBeReported(t *testing.T) {
@@ -315,7 +315,6 @@ func TestFailedConnectionShouldNotBeReported(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
-	defer tr.Stop()
 
 	// Connect to non-existing server (we assume port 81 to not be open
 	_, err = net.DialTimeout("tcp", "127.0.0.1:81", 50*time.Millisecond)
@@ -330,6 +329,7 @@ func TestFailedConnectionShouldNotBeReported(t *testing.T) {
 
 	_, ok := findConnectionWithRemote("127.0.0.1:81", connections)
 	assert.False(t, ok)
+	tr.Stop()
 }
 
 func findConnection(l, r net.Addr, c *common.Connections) (*common.ConnectionStats, bool) {
