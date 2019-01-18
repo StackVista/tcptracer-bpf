@@ -82,7 +82,10 @@ func (t *LinuxTracer) Start() error {
 }
 
 func (t *LinuxTracer) Stop() {
-	t.m.Close()
+	err := t.m.Close()
+	if err != nil {
+		logger.Error(err.Error())
+	}
 }
 
 func (t *LinuxTracer) GetConnections() (*common.Connections, error) {
