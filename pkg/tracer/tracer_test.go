@@ -335,7 +335,6 @@ func TestFailedConnectionShouldNotBeReported(t *testing.T) {
 func findConnection(l, r net.Addr, c *common.Connections) (*common.ConnectionStats, bool) {
 	fmt.Printf("Looking for conn: %s -> %s\n", l.String(), r.String())
 	for _, conn := range c.Conns {
-		fmt.Println("conn", conn)
 		localAddr := net.JoinHostPort(conn.Local, strconv.FormatUint(uint64(conn.LocalPort), 10))
 		remoteAddr := net.JoinHostPort(conn.Remote, strconv.FormatUint(uint64(conn.RemotePort), 10))
 		fmt.Printf("local: %s\n", localAddr)
