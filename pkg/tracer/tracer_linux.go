@@ -33,17 +33,20 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 	if err != nil {
 		return nil, err
 	}
+	logger.Info("BPF Module loaded")
 
 	err = m.Load(nil)
 	if err != nil {
 		return nil, err
 	}
+	logger.Info("BPF Lib loaded")
 
 	// TODO: Only enable kprobes for traffic collection defined in config
 	err = m.EnableKprobes(common.MaxActive)
 	if err != nil {
 		return nil, err
 	}
+	logger.Info("Enabled Kprobes")
 
 	if err := initialize(m); err != nil {
 		return nil, fmt.Errorf("failed to init module: %s", err)
@@ -82,6 +85,7 @@ func (t *LinuxTracer) Start() error {
 }
 
 func (t *LinuxTracer) Stop() {
+	logger.Info("Stopping linux network tracer")
 	err := t.m.Close()
 	if err != nil {
 		logger.Error(err.Error())
