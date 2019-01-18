@@ -4,16 +4,16 @@ import (
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/collector"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
-	log "github.com/cihub/seelog"
+	logger "github.com/cihub/seelog"
 )
 
-type Tracer struct {
+type WindowsTracer struct {
 	collector.Collector
 	TracerConfig *config.Config
 }
 
-func NewTracer(config *config.Config) (*Tracer, error) {
-	tracer := &Tracer{
+func MakeTracer(config *config.Config) (Tracer, error) {
+	tracer := &WindowsTracer{
 		Collector:    collector.MakeNetstatCollector(),
 		TracerConfig: config,
 	}
@@ -21,14 +21,19 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	return tracer, nil
 }
 
-func (t *Tracer) Start() error {
+func CheckTracerSupport() (bool, error) {
+	return true, nil
+}
+
+func (t *WindowsTracer) Start() error {
 	return nil
 }
 
-func (t *Tracer) Stop() {}
+func (t *WindowsTracer) Stop() {}
 
-func (t *Tracer) GetTCPConnections() ([]*common.ConnectionStats, error) {
+func (t *WindowsTracer) GetTCPConnections() ([]*common.ConnectionStats, error) {
 	v4conns, err := t.GetTCPv4Connections()
+
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +46,7 @@ func (t *Tracer) GetTCPConnections() ([]*common.ConnectionStats, error) {
 	return append(v4conns, v6conns...), nil
 }
 
-func (t *Tracer) GetUDPConnections() ([]*common.ConnectionStats, error) {
+func (t *WindowsTracer) GetUDPConnections() ([]*common.ConnectionStats, error) {
 	v4conns, err := t.GetUDPv4Connections()
 	if err != nil {
 		return nil, err
@@ -55,7 +60,7 @@ func (t *Tracer) GetUDPConnections() ([]*common.ConnectionStats, error) {
 	return append(v4conns, v6conns...), nil
 }
 
-func (t *Tracer) GetConnections() (*common.Connections, error) {
+func (t *WindowsTracer) GetConnections() (*common.Connections, error) {
 	var conns []*common.ConnectionStats
 
 	if t.TracerConfig.CollectTCPConns {
@@ -78,7 +83,7 @@ func (t *Tracer) GetConnections() (*common.Connections, error) {
 
 	for _, conn := range conns {
 		if len(connectionStats) >= t.TracerConfig.MaxConnections {
-			log.Warnf("Exceeded maximum connections %d", t.TracerConfig.MaxConnections)
+			logger.Warnf("Exceeded maximum connections %d", t.TracerConfig.MaxConnections)
 			break
 		}
 		connectionStats = append(connectionStats, *conn)

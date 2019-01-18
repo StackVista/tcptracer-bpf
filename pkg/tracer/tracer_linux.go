@@ -8,9 +8,9 @@ import (
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
+	logger "github.com/cihub/seelog"
 	"unsafe"
 
-	log "github.com/cihub/seelog"
 	bpflib "github.com/iovisor/gobpf/elf"
 )
 
@@ -19,25 +19,7 @@ import (
 */
 import "C"
 
-const (
-	v4UDPMapName           = "udp_stats_ipv4"
-	v6UDPMapName           = "udp_stats_ipv6"
-	v4TCPMapName           = "tcp_stats_ipv4"
-	v6TCPMapName           = "tcp_stats_ipv6"
-	latestTimestampMapName = "latest_ts"
-)
-
-var (
-	// Feature versions sourced from: https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
-	// Minimum kernel version -> max(3.15 - eBPF,
-	//                               3.18 - tables/maps,
-	//                               4.1 - kprobes,
-	//                               4.3 - perf events)
-	// 	                      -> 4.3
-	minRequiredKernelCode = common.LinuxKernelVersionCode(4, 3, 0)
-)
-
-type Tracer struct {
+type LinuxTracer struct {
 	m      *bpflib.Module
 	config *config.Config
 	// In flight connections are the connections that already existed before the EBPF module was loaded.
@@ -46,24 +28,7 @@ type Tracer struct {
 	inFlightTCP map[string]*common.ConnectionStats
 }
 
-// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
-// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
-const maxActive = 128
-
-// IsTracerSupportedByOS returns whether or not the current kernel version supports tracer functionality
-func IsTracerSupportedByOS() (bool, error) {
-	currentKernelCode, err := bpflib.CurrentKernelVersion()
-	if err != nil {
-		return false, err
-	}
-
-	if currentKernelCode < minRequiredKernelCode {
-		return false, fmt.Errorf("incompatible linux version. at least %d required, got %d", minRequiredKernelCode, currentKernelCode)
-	}
-	return true, nil
-}
-
-func NewTracer(config *config.Config) (*Tracer, error) {
+func MakeTracer(config *config.Config) (Tracer, error) {
 	m, err := loadBPFModule()
 	if err != nil {
 		return nil, err
@@ -75,7 +40,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	}
 
 	// TODO: Only enable kprobes for traffic collection defined in config
-	err = m.EnableKprobes(maxActive)
+	err = m.EnableKprobes(common.MaxActive)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +50,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	}
 
 	// TODO: Improve performance by detaching unnecessary kprobes, once offsets have been figured out in initialize()
-	tracer := &Tracer{m: m, config: config, inFlightTCP: make(map[string]*common.ConnectionStats)}
+	tracer := &LinuxTracer{m: m, config: config, inFlightTCP: make(map[string]*common.ConnectionStats)}
 
 	// Get data from /proc AFTER ebpf has been initialized. This makes sure that we do not miss any
 	// connections on the host. Some may be duplicate, but the mergin of inFlight end EBPF will sort this out
@@ -99,15 +64,53 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	return tracer, nil
 }
 
-func (t *Tracer) Start() error {
+// CheckTracerSupport returns whether or not the current kernel version supports tracer functionality
+func CheckTracerSupport() (bool, error) {
+	currentKernelCode, err := bpflib.CurrentKernelVersion()
+	if err != nil {
+		return false, err
+	}
+
+	if currentKernelCode < common.MinRequiredKernelCode {
+		return false, fmt.Errorf("incompatible linux version. at least %d required, got %d", common.MinRequiredKernelCode, currentKernelCode)
+	}
+	return true, nil
+}
+
+func (t *LinuxTracer) Start() error {
 	return nil
 }
 
-func (t *Tracer) Stop() {
+func (t *LinuxTracer) Stop() {
 	t.m.Close()
 }
 
-func (t *Tracer) getProcConnections() error {
+func (t *LinuxTracer) GetTCPConnections() ([]*common.ConnectionStats, error) {
+	return nil, common.ErrNotImplemented
+}
+
+func (t *LinuxTracer) GetUDPConnections() ([]*common.ConnectionStats, error) {
+	return nil, common.ErrNotImplemented
+}
+
+func (t *LinuxTracer) GetConnections() (*common.Connections, error) {
+	err := t.updateInFlightTCPWithEBPF()
+	if err != nil {
+		return nil, err
+	}
+
+	tcpConns := t.getTcpConnectionsFromInFlight()
+
+	udpConns, err := t.getEbpfUDPConnections()
+	if err != nil {
+		return nil, err
+	}
+
+	return &common.Connections{Conns: append(tcpConns, udpConns...)}, nil
+}
+
+// Linux Tracer internal functions
+func (t *LinuxTracer) getProcConnections() error {
 	procWalker := procspy.NewWalker(t.config.ProcRoot)
 	scanner := procspy.NewSyncConnectionScanner(procWalker, t.config.ProcRoot, true)
 	defer scanner.Stop()
@@ -180,23 +183,7 @@ func (t *Tracer) getProcConnections() error {
 	return nil
 }
 
-func (t *Tracer) GetConnections() (*common.Connections, error) {
-	err := t.updateInFlightTCPWithEBPF()
-	if err != nil {
-		return nil, err
-	}
-
-	tcpConns := t.getTcpConnectionsFromInFlight()
-
-	udpConns, err := t.getEbpfUDPConnections()
-	if err != nil {
-		return nil, err
-	}
-
-	return &common.Connections{Conns: append(tcpConns, udpConns...)}, nil
-}
-
-func (t *Tracer) getTcpConnectionsFromInFlight() []common.ConnectionStats {
+func (t *LinuxTracer) getTcpConnectionsFromInFlight() []common.ConnectionStats {
 	conns := make([]common.ConnectionStats, 0)
 
 	for key, conn := range t.inFlightTCP {
@@ -212,7 +199,7 @@ func (t *Tracer) getTcpConnectionsFromInFlight() []common.ConnectionStats {
 }
 
 // Get connection observations from EBPF and update inFlightTCP connections with that information
-func (t *Tracer) updateInFlightTCPWithEBPF() error {
+func (t *LinuxTracer) updateInFlightTCPWithEBPF() error {
 	ebpf_conns, err := t.getEbpfTCPConnections()
 	if err != nil {
 		return err
@@ -253,15 +240,15 @@ func (t *Tracer) updateInFlightTCPWithEBPF() error {
 	return nil
 }
 
-func (t *Tracer) addInFlight(key string, conn common.ConnectionStats) {
+func (t *LinuxTracer) addInFlight(key string, conn common.ConnectionStats) {
 	if len(t.inFlightTCP) >= t.config.MaxConnections {
-		log.Warnf("Exceeded maximum connections %d", t.config.MaxConnections)
+		logger.Warnf("Exceeded maximum connections %d", t.config.MaxConnections)
 		return
 	}
 	t.inFlightTCP[key] = &conn
 }
 
-func (t *Tracer) getEbpfTCPConnections() ([]common.ConnectionStats, error) {
+func (t *LinuxTracer) getEbpfTCPConnections() ([]common.ConnectionStats, error) {
 	conns := make([]common.ConnectionStats, 0)
 	if t.config.CollectTCPConns {
 		v4, err := t.getTCPv4Connections()
@@ -277,7 +264,7 @@ func (t *Tracer) getEbpfTCPConnections() ([]common.ConnectionStats, error) {
 	return conns, nil
 }
 
-func (t *Tracer) getEbpfUDPConnections() ([]common.ConnectionStats, error) {
+func (t *LinuxTracer) getEbpfUDPConnections() ([]common.ConnectionStats, error) {
 	conns := make([]common.ConnectionStats, 0)
 	if t.config.CollectUDPConns {
 		v4, err := t.getUDPv4Connections()
@@ -293,13 +280,13 @@ func (t *Tracer) getEbpfUDPConnections() ([]common.ConnectionStats, error) {
 	return conns, nil
 }
 
-func (t *Tracer) getUDPv4Connections() ([]common.ConnectionStats, error) {
-	mp, err := t.getMap(v4UDPMapName)
+func (t *LinuxTracer) getUDPv4Connections() ([]common.ConnectionStats, error) {
+	mp, err := t.getMap(common.V4UDPMapName)
 	if err != nil {
 		return nil, err
 	}
 
-	tsMp, err := t.getMap(latestTimestampMapName)
+	tsMp, err := t.getMap(common.LatestTimestampMapName)
 	if err != nil {
 		return nil, err
 	}
@@ -333,13 +320,13 @@ func (t *Tracer) getUDPv4Connections() ([]common.ConnectionStats, error) {
 	return active, nil
 }
 
-func (t *Tracer) getUDPv6Connections() ([]common.ConnectionStats, error) {
-	mp, err := t.getMap(v6UDPMapName)
+func (t *LinuxTracer) getUDPv6Connections() ([]common.ConnectionStats, error) {
+	mp, err := t.getMap(common.V6UDPMapName)
 	if err != nil {
 		return nil, err
 	}
 
-	tsMp, err := t.getMap(latestTimestampMapName)
+	tsMp, err := t.getMap(common.LatestTimestampMapName)
 	if err != nil {
 		return nil, err
 	}
@@ -373,8 +360,8 @@ func (t *Tracer) getUDPv6Connections() ([]common.ConnectionStats, error) {
 	return active, nil
 }
 
-func (t *Tracer) getTCPv4Connections() ([]common.ConnectionStats, error) {
-	mp, err := t.getMap(v4TCPMapName)
+func (t *LinuxTracer) getTCPv4Connections() ([]common.ConnectionStats, error) {
+	mp, err := t.getMap(common.V4TCPMapName)
 	if err != nil {
 		return nil, err
 	}
@@ -404,8 +391,8 @@ func (t *Tracer) getTCPv4Connections() ([]common.ConnectionStats, error) {
 	return conns, nil
 }
 
-func (t *Tracer) getTCPv6Connections() ([]common.ConnectionStats, error) {
-	mp, err := t.getMap(v6TCPMapName)
+func (t *LinuxTracer) getTCPv6Connections() ([]common.ConnectionStats, error) {
+	mp, err := t.getMap(common.V6TCPMapName)
 	if err != nil {
 		return nil, err
 	}
@@ -435,7 +422,7 @@ func (t *Tracer) getTCPv6Connections() ([]common.ConnectionStats, error) {
 	return conns, nil
 }
 
-func (t *Tracer) getMap(mapName string) (*bpflib.Map, error) {
+func (t *LinuxTracer) getMap(mapName string) (*bpflib.Map, error) {
 	mp := t.m.Map(mapName)
 	if mp == nil {
 		return nil, fmt.Errorf("no map with name %s", mapName)

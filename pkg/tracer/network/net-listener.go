@@ -94,4 +94,3 @@ func (s *UDPServer) Run(done chan struct{}, payloadSize int) {
 		ln.Close()
 	}()
 }
-

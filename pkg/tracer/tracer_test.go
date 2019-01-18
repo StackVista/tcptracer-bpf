@@ -1,3 +1,5 @@
+// +build linux_bpf windows
+
 package tracer
 
 import (
@@ -333,9 +335,11 @@ func TestFailedConnectionShouldNotBeReported(t *testing.T) {
 func findConnection(l, r net.Addr, c *common.Connections) (*common.ConnectionStats, bool) {
 	fmt.Printf("Looking for conn: %s -> %s\n", l.String(), r.String())
 	for _, conn := range c.Conns {
-		//fmt.Println("conn", conn)
-		localAddr := fmt.Sprintf("%s:%d", conn.Local, conn.LocalPort)
-		remoteAddr := fmt.Sprintf("%s:%d", conn.Remote, conn.RemotePort)
+		fmt.Println("conn", conn)
+		localAddr := net.JoinHostPort(conn.Local, strconv.FormatUint(uint64(conn.LocalPort), 10))
+		remoteAddr := net.JoinHostPort(conn.Remote, strconv.FormatUint(uint64(conn.RemotePort), 10))
+		fmt.Printf("local: %s\n", localAddr)
+		fmt.Printf("remote: %s\n", remoteAddr)
 		if localAddr == l.String() && remoteAddr == r.String() {
 			return &conn, true
 		}

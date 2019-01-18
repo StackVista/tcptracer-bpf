@@ -1,0 +1,25 @@
+package tracer
+
+import (
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
+)
+
+type Tracer interface {
+	Start() error
+	Stop()
+	GetConnections() (*common.Connections, error)
+	GetTCPConnections() ([]*common.ConnectionStats, error)
+	GetUDPConnections() ([]*common.ConnectionStats, error)
+}
+
+// Generic New Tracer function
+func NewTracer(config *config.Config) (Tracer, error) {
+	// Ensures that each tracer implements a MakeTracer function
+	return MakeTracer(config)
+}
+// Generic IsSupported function
+func IsTracerSupportedByOS() (bool, error) {
+	// Ensures that each tracer implements a CheckTracerSupport function
+	return CheckTracerSupport()
+}

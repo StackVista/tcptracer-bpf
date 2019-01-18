@@ -5,8 +5,7 @@ import (
 	"io"
 	"sync"
 	"time"
-
-	log "github.com/cihub/seelog"
+	logger "github.com/cihub/seelog"
 )
 
 const (
@@ -163,7 +162,7 @@ func performWalk(w pidWalker, c chan<- walkResult) {
 
 	result.sockets, err = w.walk(result.buf)
 	if err != nil {
-		log.Errorf("background /proc reader: error walking /proc: %s", err)
+		logger.Errorf("background /proc reader: error walking /proc: %s", err)
 		result.buf.Reset()
 		result.sockets = nil
 	}
@@ -172,9 +171,9 @@ func performWalk(w pidWalker, c chan<- walkResult) {
 
 // Adjust rate limit for next walk and calculate when it should be started
 func scheduleNextWalk(rateLimitPeriod time.Duration, took time.Duration) (newRateLimitPeriod time.Duration, restInterval time.Duration) {
-	log.Debugf("background /proc reader: full pass took %s", took)
+	logger.Debugf("background /proc reader: full pass took %s", took)
 	if float64(took)/float64(targetWalkTime) > 1.5 {
-		log.Warnf(
+		logger.Warnf(
 			"background /proc reader: full pass took %s: 50%% more than expected (%s)",
 			took,
 			targetWalkTime,
@@ -188,7 +187,7 @@ func scheduleNextWalk(rateLimitPeriod time.Duration, took time.Duration) (newRat
 	} else if newRateLimitPeriod < minRateLimitPeriod {
 		newRateLimitPeriod = minRateLimitPeriod
 	}
-	log.Debugf("background /proc reader: new rate limit period %s", newRateLimitPeriod)
+	logger.Debugf("background /proc reader: new rate limit period %s", newRateLimitPeriod)
 
 	return newRateLimitPeriod, targetWalkTime - took
 }

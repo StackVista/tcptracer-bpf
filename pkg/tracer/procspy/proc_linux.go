@@ -5,7 +5,7 @@ package procspy
 import (
 	"bytes"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
-	log "github.com/cihub/seelog"
+	logger "github.com/cihub/seelog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -62,7 +62,7 @@ func getNetNamespacePathSuffix() string {
 
 	version, err := common.CurrentKernelVersion()
 	if err != nil {
-		log.Errorf("getNamespacePathSuffix: cannot get kernel version: %s", err)
+		logger.Errorf("getNamespacePathSuffix: cannot get kernel version: %s", err)
 		netNamespacePathSuffix = post38Path
 		return netNamespacePathSuffix
 	}
