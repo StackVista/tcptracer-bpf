@@ -44,6 +44,7 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 	// TODO: Only enable kprobes for traffic collection defined in config
 	err = m.EnableKprobes(common.MaxActive)
 	if err != nil {
+		m.Close()
 		return nil, err
 	}
 	logger.Info("Enabled Kprobes")
