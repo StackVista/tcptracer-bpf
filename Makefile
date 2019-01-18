@@ -87,8 +87,8 @@ build-agent:
 
 # easyjson code generation
 codegen:
-	go get -u github.com/mailru/easyjson
-	easyjson pkg/tracer/common/common.go
+	go get -u github.com/mailru/easyjson/...
+	easyjson pkg/tracer/common/model.go
 
 test: build-ebpf-object
 	go list ./... | grep -v vendor | sudo -E PATH=${PATH} GOCACHE=off xargs go test -tags 'linux_bpf'

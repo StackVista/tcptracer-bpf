@@ -18,8 +18,7 @@
   version = "v1.1.1"
 
 [[projects]]
-  branch = "master"
-  digest = "1:df41523540ff2131ea517629a505e20c6a6ead60e4465eda4d3eb307a7fc2d06"
+  digest = "1:78fe2f7a522b91b5f6270d9d8d0b7935ce8b186b46bc6259f57cbcc9f7c5ca84"
   name = "github.com/iovisor/gobpf"
   packages = [
     "elf",
@@ -27,7 +26,19 @@
     "pkg/cpuonline",
   ]
   pruneopts = "T"
-  revision = "d3f61d143a18475af6f7a6cd92d66e0de9bb47bd"
+  revision = "3b07770c6d5e2bd37e582ecd49460e6ef094f257"
+
+[[projects]]
+  digest = "1:aa3d8d42865c42626b5c1add193692d045b3188b1479f0a0a88690d21fe20083"
+  name = "github.com/mailru/easyjson"
+  packages = [
+    ".",
+    "buffer",
+    "jlexer",
+    "jwriter",
+  ]
+  pruneopts = "UT"
+  revision = "60711f1a8329503b04e1c88535f419d0bb440bff"
 
 [[projects]]
   digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
@@ -38,7 +49,6 @@
   version = "v1.0.0"
 
 [[projects]]
-  branch = "master"
   digest = "1:ceb8e87acb0258b9d52c57611251d466bd9c84016e14ecc7063a689d99cb4e7f"
   name = "github.com/pytimer/win-netstat"
   packages = ["."]
@@ -79,6 +89,7 @@
   input-imports = [
     "github.com/cihub/seelog",
     "github.com/iovisor/gobpf/elf",
+    "github.com/mailru/easyjson",
     "github.com/pytimer/win-netstat",
     "github.com/stretchr/testify/assert",
     "github.com/stretchr/testify/mock",

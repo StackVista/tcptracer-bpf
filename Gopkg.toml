@@ -1,50 +1,30 @@
-# Gopkg.toml example
-#
-# Refer to https://golang.github.io/dep/docs/Gopkg.toml.html
-# for detailed Gopkg.toml documentation.
-#
-# required = ["github.com/user/thing/cmd/thing"]
-# ignored = ["github.com/user/project/pkgX", "bitbucket.org/user/project/pkgA/pkgY"]
-#
-# [[constraint]]
-#   name = "github.com/user/project"
-#   version = "1.0.0"
-#
-# [[constraint]]
-#   name = "github.com/user/project2"
-#   branch = "dev"
-#   source = "github.com/myfork/project2"
-#
-# [[override]]
-#   name = "github.com/x/y"
-#   version = "2.4.0"
-#
-# [prune]
-#   non-go = false
-#   go-tests = true
-#   unused-packages = true
 
+required = ["github.com/mailru/easyjson"]
 
 [[constraint]]
   name = "github.com/cihub/seelog"
   version = "=v2.6"
 
 [[constraint]]
-  branch = "master"
   name = "github.com/pytimer/win-netstat"
+  revision = "efa1aff6aafc7b37ca3ffb136b6b27a11178ffd6"
 
 [[constraint]]
-  branch = "master"
   name = "github.com/iovisor/gobpf"
+  revision = "3b07770c6d5e2bd37e582ecd49460e6ef094f257"
 
 [[constraint]]
   name = "github.com/stretchr/testify"
-  version = "~v1.2.1"
+  version = "=v1.2.2"
+
+[[constraint]]
+  name = "github.com/mailru/easyjson"
+  revision = "60711f1a8329503b04e1c88535f419d0bb440bff"
 
 [prune]
   go-tests = true
   unused-packages = true
 
-  [[prune.project]]
-      name = "github.com/iovisor/gobpf"
-      unused-packages = false
+[[prune.project]]
+  name = "github.com/iovisor/gobpf"
+  unused-packages = false
