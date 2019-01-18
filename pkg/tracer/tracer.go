@@ -9,8 +9,6 @@ type Tracer interface {
 	Start() error
 	Stop()
 	GetConnections() (*common.Connections, error)
-	GetTCPConnections() ([]*common.ConnectionStats, error)
-	GetUDPConnections() ([]*common.ConnectionStats, error)
 }
 
 // Generic New Tracer function

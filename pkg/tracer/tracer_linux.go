@@ -85,14 +85,6 @@ func (t *LinuxTracer) Stop() {
 	t.m.Close()
 }
 
-func (t *LinuxTracer) GetTCPConnections() ([]*common.ConnectionStats, error) {
-	return nil, common.ErrNotImplemented
-}
-
-func (t *LinuxTracer) GetUDPConnections() ([]*common.ConnectionStats, error) {
-	return nil, common.ErrNotImplemented
-}
-
 func (t *LinuxTracer) GetConnections() (*common.Connections, error) {
 	err := t.updateInFlightTCPWithEBPF()
 	if err != nil {

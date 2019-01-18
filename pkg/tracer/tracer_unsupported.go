@@ -26,11 +26,3 @@ func (t *UnsupportedTracer) Stop() {}
 func (t *UnsupportedTracer) GetConnections() (*common.Connections, error) {
 	return nil, common.ErrNotImplemented
 }
-
-func (t *UnsupportedTracer) GetTCPConnections() ([]*common.ConnectionStats, error) {
-	return nil, common.ErrNotImplemented
-}
-
-func (t *UnsupportedTracer) GetUDPConnections() ([]*common.ConnectionStats, error) {
-	return nil, common.ErrNotImplemented
-}
