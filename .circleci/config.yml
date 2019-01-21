@@ -2,13 +2,13 @@ version: 2
 jobs:
   build:
     machine:
-      image: stackstate/tcptracer-bpf-builder:latest
       docker_layer_caching: true
     working_directory: /go/src/github.com/StackVista/tcptracer-bpf
     environment:
       - TEST_PROC_ROOT=/host/proc
     steps:
       - checkout
+      - run: export ./bootstrap.sh
       - run: export GOPATH=/go
       - run: go get -u github.com/golang/dep/cmd/dep
       - run: $GOPATH/bin/dep ensure
