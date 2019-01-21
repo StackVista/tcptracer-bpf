@@ -337,8 +337,8 @@ func findConnection(l, r net.Addr, c *common.Connections) (*common.ConnectionSta
 	for _, conn := range c.Conns {
 		localAddr := net.JoinHostPort(conn.Local, strconv.FormatUint(uint64(conn.LocalPort), 10))
 		remoteAddr := net.JoinHostPort(conn.Remote, strconv.FormatUint(uint64(conn.RemotePort), 10))
-		fmt.Printf("local: %s\n", localAddr)
-		fmt.Printf("remote: %s\n", remoteAddr)
+		//fmt.Printf("local: %s\n", localAddr)
+		//fmt.Printf("remote: %s\n", remoteAddr)
 		if localAddr == l.String() && remoteAddr == r.String() {
 			return &conn, true
 		}

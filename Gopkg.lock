@@ -90,6 +90,8 @@
     "github.com/cihub/seelog",
     "github.com/iovisor/gobpf/elf",
     "github.com/mailru/easyjson",
+    "github.com/mailru/easyjson/jlexer",
+    "github.com/mailru/easyjson/jwriter",
     "github.com/pytimer/win-netstat",
     "github.com/stretchr/testify/assert",
     "github.com/stretchr/testify/mock",
