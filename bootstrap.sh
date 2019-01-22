@@ -5,7 +5,8 @@ sudo apt-get install -y \
     apt-transport-https \
     ca-certificates \
     curl \
-    software-properties-common
+    software-properties-common \
+    linux-headers-$(uname -r)
 
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 
@@ -16,7 +17,7 @@ sudo add-apt-repository \
 
 sudo add-apt-repository ppa:gophers/archive
 
-sudo apt-get update && sudo apt-get install -y golang-1.10-go docker-ce
+sudo apt-get update && sudo apt-get install -y golang-1.10-go docker-ce clang llvm go-bindata
 
 sudo cp /usr/lib/go-1.10/bin/go /usr/bin/go
-echo "GOPATH=/opt/stackstate-go" > /etc/environment
+echo "GOPATH=/opt/stackstate-go" | sudo tee --append /etc/environment

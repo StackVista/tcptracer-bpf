@@ -1,33 +1,28 @@
-// +build !linux_bpf
+// +build !linux_bpf,!windows
 
 package tracer
 
 import (
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 )
 
-func CurrentKernelVersion() (uint32, error) {
-	return 0, common.ErrNotImplemented
+type UnsupportedTracer struct{}
+
+func MakeTracer(config *config.Config) (Tracer, error) {
+	return &UnsupportedTracer{}, common.ErrNotImplemented
 }
 
-func IsTracerSupportedByOS() (bool, error) {
+func CheckTracerSupport() (bool, error) {
 	return false, common.ErrNotImplemented
 }
 
-type Tracer struct{}
-
-func NewTracer(config *Config) (*Tracer, error) {
-	return nil, common.ErrNotImplemented
+func (t *UnsupportedTracer) Start() error {
+	return common.ErrNotImplemented
 }
 
-func NewEventTracer(cb Callback) (*Tracer, error) {
-	return nil, common.ErrNotImplemented
-}
+func (t *UnsupportedTracer) Stop() {}
 
-func (t *Tracer) Start() {}
-
-func (t *Tracer) Stop() {}
-
-func (t *Tracer) GetConnections() (*Connections, error) {
+func (t *UnsupportedTracer) GetConnections() (*common.Connections, error) {
 	return nil, common.ErrNotImplemented
 }

@@ -1,10 +1,9 @@
-image: stackstate/tcptracer-bpf-builder:latest
-
 stages:
   - test
 
-test:
+test-linux-bpf:
   stage: test
+  image: stackstate/tcptracer-bpf-builder:latest
   script:
     # Proc root is set by the gitlab ci runner
     - export TEST_PROC_ROOT=/host/proc
@@ -12,8 +11,29 @@ test:
     - cp -a $CI_PROJECT_DIR /go/src/github.com/StackVista/tcptracer-bpf
     - export GOPATH=/go
     - cd /go/src/github.com/StackVista/tcptracer-bpf
-    - make ci-test
+    - go get -u github.com/golang/dep/cmd/dep
+    - $GOPATH/bin/dep ensure
+    - make linux-ci-test
   tags:
     # Run on sts hardware to be able to test ebpf
     - sts-aws
 
+test-windows:
+  stage: test
+  before_script:
+    # install chocolatey
+    - choco --version || @"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
+    - choco install -y golang dep
+  script:
+    - SET GO_STACKVISTA=%SystemRoot%\go\src\github.com\StackVista
+    - if not exist %GO_STACKVISTA% mkdir %GO_STACKVISTA%
+    - if exist %GO_STACKVISTA%\tcptracer-bpf rmdir %GO_STACKVISTA%\tcptracer-bpf /s /q
+    # Alters robocopy's response code to something the terminal expects
+    - (robocopy %CI_PROJECT_DIR% %GO_STACKVISTA%\tcptracer-bpf /COPYALL /MIR) ^& IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
+    - SET GOPATH=%SystemRoot%\go
+    - cd %GO_STACKVISTA%\tcptracer-bpf
+    - dep ensure
+    - go test -v -race ./...
+  tags:
+    # Run on sts windows hardware to be able to test windows connection tracing
+    - sts_windows
