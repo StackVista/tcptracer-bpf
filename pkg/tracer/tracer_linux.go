@@ -9,6 +9,7 @@ import (
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
 	logger "github.com/cihub/seelog"
+	"syscall"
 	"unsafe"
 
 	bpflib "github.com/iovisor/gobpf/elf"
@@ -78,7 +79,33 @@ func CheckTracerSupport() (bool, error) {
 	if currentKernelCode < common.MinRequiredKernelCode {
 		return false, fmt.Errorf("incompatible linux version. at least %d required, got %d", common.MinRequiredKernelCode, currentKernelCode)
 	}
+
+	if err = ensureDebugFsMounted(); err != nil {
+		return false, err
+	}
+
 	return true, nil
+}
+
+// We use debugfs interface to work with kprobes (kernel tracing) and we must ensure debugfs is mounted.
+// On Amazon Linux due to a bug https://forums.aws.amazon.com/thread.jspa?messageID=753257
+// debugfs is not automatically mounted and we try to mount ourselves
+func ensureDebugFsMounted() error {
+	err := syscall.Mount("debugfs", "/sys/kernel/debug", "debugfs", 0, "")
+	if err != nil {
+		switch err {
+		case syscall.EBUSY:
+			fmt.Println("debugfs already mounted")
+			return nil
+		case syscall.EPERM:
+			fmt.Println("no permissions to mount debugfs!")
+		default:
+			fmt.Printf("debugfs mount error: %d - %s\n", err, err)
+		}
+		return err
+	}
+	fmt.Println("debugfs successfully mounted")
+	return nil
 }
 
 func (t *LinuxTracer) Start() error {
