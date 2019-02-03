@@ -93,6 +93,7 @@ func CheckTracerSupport() (bool, error) {
 func ensureDebugFsMounted() error {
 	err := syscall.Mount("debugfs", "/sys/kernel/debug", "debugfs", 0, "")
 	if err != nil {
+		// http://man7.org/linux/man-pages/man2/mount.2.html#ERRORS
 		switch err {
 		case syscall.EBUSY:
 			fmt.Println("debugfs already mounted")
@@ -100,6 +101,7 @@ func ensureDebugFsMounted() error {
 		case syscall.EPERM:
 			fmt.Println("no permissions to mount debugfs!")
 		default:
+			// http://www-numi.fnal.gov/offline_software/srt_public_context/WebDocs/Errors/unix_system_errors.html
 			fmt.Printf("debugfs mount error: %d - %s\n", err, err)
 		}
 		return err
