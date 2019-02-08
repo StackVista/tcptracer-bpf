@@ -4,11 +4,11 @@ package tracer
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
 	logger "github.com/cihub/seelog"
+	"syscall"
 	"unsafe"
 
 	bpflib "github.com/iovisor/gobpf/elf"
@@ -44,13 +44,12 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 	if err != nil {
 		m.Close()
 		if err != nil {
-			logger.Error(err.Error())
+			return nil, logger.Error(err.Error())
 		}
-		return nil, err
 	}
 
 	if err := initialize(m); err != nil {
-		return nil, fmt.Errorf("failed to init module: %s", err)
+		return nil, logger.Errorf("failed to init module: %s", err)
 	}
 
 	// TODO: Improve performance by detaching unnecessary kprobes, once offsets have been figured out in initialize()
@@ -76,9 +75,36 @@ func CheckTracerSupport() (bool, error) {
 	}
 
 	if currentKernelCode < common.MinRequiredKernelCode {
-		return false, fmt.Errorf("incompatible linux version. at least %d required, got %d", common.MinRequiredKernelCode, currentKernelCode)
+		return false, logger.Errorf("incompatible linux version. at least %d required, got %d", common.MinRequiredKernelCode, currentKernelCode)
 	}
+
+	if err = ensureDebugFsMounted(); err != nil {
+		return false, err
+	}
+
 	return true, nil
+}
+
+// We use debugfs interface to work with kprobes (kernel tracing) and we must ensure debugfs is mounted.
+// On Amazon Linux due to a bug https://forums.aws.amazon.com/thread.jspa?messageID=753257
+// debugfs is not automatically mounted and we try to mount ourselves
+func ensureDebugFsMounted() error {
+	err := syscall.Mount("debugfs", "/sys/kernel/debug", "debugfs", 0, "")
+	if err != nil {
+		// http://man7.org/linux/man-pages/man2/mount.2.html#ERRORS
+		switch err {
+		case syscall.EBUSY:
+			logger.Info("debugfs already mounted")
+		case syscall.EPERM:
+			return logger.Error("no permissions to mount debugfs!")
+		default:
+			// http://www-numi.fnal.gov/offline_software/srt_public_context/WebDocs/Errors/unix_system_errors.html
+			return logger.Errorf("debugfs mount error: %d - %s\n", err, err)
+		}
+	} else {
+		logger.Info("debugfs successfully mounted")
+	}
+	return nil
 }
 
 func (t *LinuxTracer) Start() error {
@@ -117,7 +143,7 @@ func (t *LinuxTracer) getProcConnections() error {
 	conns, err := scanner.Connections()
 
 	if err != nil {
-		return fmt.Errorf("failed load existing connections: %s", err)
+		return logger.Errorf("failed load existing connections: %s", err)
 	}
 
 	// No set in go, so we use a map... identify using connectionstats key from local port
@@ -142,7 +168,7 @@ func (t *LinuxTracer) getProcConnections() error {
 		}
 
 		if err != nil {
-			return fmt.Errorf("failed to write to byte buffer: %s", err)
+			return logger.Errorf("failed to write to byte buffer: %s", err)
 		}
 
 		if conn.Listening {
@@ -174,7 +200,7 @@ func (t *LinuxTracer) getProcConnections() error {
 		connKey, err := conn.WithUnknownDirection().ByteKey(buffer)
 
 		if err != nil {
-			return fmt.Errorf("failed to write to byte buffer: %s", err)
+			return logger.Errorf("failed to write to byte buffer: %s", err)
 		}
 
 		t.addInFlight(string(connKey), conn)
@@ -212,7 +238,7 @@ func (t *LinuxTracer) updateInFlightTCPWithEBPF() error {
 		connKey, err := conn.WithUnknownDirection().ByteKey(buffer)
 
 		if err != nil {
-			return fmt.Errorf("failed to write to byte buffer: %s", err)
+			return logger.Errorf("failed to write to byte buffer: %s", err)
 		}
 
 		// We are not interested in connections which are still initializing
@@ -425,14 +451,14 @@ func (t *LinuxTracer) getTCPv6Connections() ([]common.ConnectionStats, error) {
 func (t *LinuxTracer) getMap(mapName string) (*bpflib.Map, error) {
 	mp := t.m.Map(mapName)
 	if mp == nil {
-		return nil, fmt.Errorf("no map with name %s", mapName)
+		return nil, logger.Errorf("no map with name %s", mapName)
 	}
 	return mp, nil
 }
 
 func initialize(m *bpflib.Module) error {
 	if err := guess(m); err != nil {
-		return fmt.Errorf("error guessing offsets: %v", err)
+		return logger.Errorf("error guessing offsets: %v", err)
 	}
 	return nil
 }
@@ -440,12 +466,12 @@ func initialize(m *bpflib.Module) error {
 func loadBPFModule() (*bpflib.Module, error) {
 	buf, err := Asset("tcptracer-ebpf.o")
 	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
+		return nil, logger.Errorf("couldn't find asset: %s", err)
 	}
 
 	m := bpflib.NewModuleFromReader(bytes.NewReader(buf))
 	if m == nil {
-		return nil, fmt.Errorf("BPF not supported")
+		return nil, logger.Errorf("BPF not supported")
 	}
 	return m, nil
 }

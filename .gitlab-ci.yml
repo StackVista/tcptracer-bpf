@@ -16,7 +16,7 @@ test-linux-bpf:
     - make linux-ci-test
   tags:
     # Run on sts hardware to be able to test ebpf
-    - sts-aws
+    - sts-aws-no-agent
 
 test-windows:
   stage: test
