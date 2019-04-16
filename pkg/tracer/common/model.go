@@ -78,65 +78,65 @@ type ConnectionStats struct {
 	Family ConnectionFamily `json:"family"`
 
 	// Local & Remote represented as a string to handle both IPv4 & IPv6
-	Local      string    `json:"local"`
-	Remote     string    `json:"remote"`
-	LocalPort  uint16    `json:"lport"`
-	RemotePort uint16    `json:"rport"`
-	Direction  Direction `json:"direction"`
-	State      State     `json:"state"`
-	NetworkNamespace string `json:"network_namespace"`
-	SendBytes  uint64    `json:"send_bytes"`
-	RecvBytes  uint64    `json:"recv_bytes"`
+	Local            string    `json:"local"`
+	Remote           string    `json:"remote"`
+	LocalPort        uint16    `json:"lport"`
+	RemotePort       uint16    `json:"rport"`
+	Direction        Direction `json:"direction"`
+	State            State     `json:"state"`
+	NetworkNamespace string    `json:"network_namespace"`
+	SendBytes        uint64    `json:"send_bytes"`
+	RecvBytes        uint64    `json:"recv_bytes"`
 }
 
 func (c ConnectionStats) WithOnlyLocal() ConnectionStats {
 	return ConnectionStats{
-		Pid:        c.Pid,
-		Type:       c.Type,
-		Family:     c.Family,
-		Local:      c.Local,
-		Remote:     "",
-		LocalPort:  c.LocalPort,
-		RemotePort: 0,
-		Direction:  UNKNOWN,
-		State:      ACTIVE,
+		Pid:              c.Pid,
+		Type:             c.Type,
+		Family:           c.Family,
+		Local:            c.Local,
+		Remote:           "",
+		LocalPort:        c.LocalPort,
+		RemotePort:       0,
+		Direction:        UNKNOWN,
+		State:            ACTIVE,
 		NetworkNamespace: c.NetworkNamespace,
-		SendBytes:  0,
-		RecvBytes:  0,
+		SendBytes:        0,
+		RecvBytes:        0,
 	}
 }
 
 func (c ConnectionStats) WithUnknownDirection() ConnectionStats {
 	return ConnectionStats{
-		Pid:        c.Pid,
-		Type:       c.Type,
-		Family:     c.Family,
-		Local:      c.Local,
-		Remote:     c.Remote,
-		LocalPort:  c.LocalPort,
-		RemotePort: c.RemotePort,
-		Direction:  UNKNOWN,
-		State:      c.State,
+		Pid:              c.Pid,
+		Type:             c.Type,
+		Family:           c.Family,
+		Local:            c.Local,
+		Remote:           c.Remote,
+		LocalPort:        c.LocalPort,
+		RemotePort:       c.RemotePort,
+		Direction:        UNKNOWN,
+		State:            c.State,
 		NetworkNamespace: c.NetworkNamespace,
-		SendBytes:  c.SendBytes,
-		RecvBytes:  c.RecvBytes,
+		SendBytes:        c.SendBytes,
+		RecvBytes:        c.RecvBytes,
 	}
 }
 
 func (c ConnectionStats) Copy() ConnectionStats {
 	return ConnectionStats{
-		Pid:        c.Pid,
-		Type:       c.Type,
-		Family:     c.Family,
-		Local:      c.Local,
-		Remote:     c.Remote,
-		LocalPort:  c.LocalPort,
-		RemotePort: c.RemotePort,
-		Direction:  c.Direction,
-		State:      c.State,
+		Pid:              c.Pid,
+		Type:             c.Type,
+		Family:           c.Family,
+		Local:            c.Local,
+		Remote:           c.Remote,
+		LocalPort:        c.LocalPort,
+		RemotePort:       c.RemotePort,
+		Direction:        c.Direction,
+		State:            c.State,
 		NetworkNamespace: c.NetworkNamespace,
-		SendBytes:  c.SendBytes,
-		RecvBytes:  c.RecvBytes,
+		SendBytes:        c.SendBytes,
+		RecvBytes:        c.RecvBytes,
 	}
 }
 

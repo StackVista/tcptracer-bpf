@@ -17,6 +17,7 @@ func NewTracer(config *config.Config) (Tracer, error) {
 	// Ensures that each tracer implements a MakeTracer function
 	return MakeTracer(config)
 }
+
 // Generic IsSupported function
 func IsTracerSupportedByOS() (bool, error) {
 	// Ensures that each tracer implements a CheckTracerSupport function
@@ -59,7 +60,6 @@ func containsIp(list []net.IP, ip net.IP) bool {
 	}
 	return false
 }
-
 
 // GetLocalNetworks returns all the local networks.
 func GetLocalNetworks() ([]*net.IPNet, error) {
