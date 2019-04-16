@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"strings"
 )
 
 type ConnectionType uint8
@@ -83,6 +84,7 @@ type ConnectionStats struct {
 	RemotePort uint16    `json:"rport"`
 	Direction  Direction `json:"direction"`
 	State      State     `json:"state"`
+	NetworkNamespace string `json:"network_namespace"`
 	SendBytes  uint64    `json:"send_bytes"`
 	RecvBytes  uint64    `json:"recv_bytes"`
 }
@@ -98,6 +100,7 @@ func (c ConnectionStats) WithOnlyLocal() ConnectionStats {
 		RemotePort: 0,
 		Direction:  UNKNOWN,
 		State:      ACTIVE,
+		NetworkNamespace: c.NetworkNamespace,
 		SendBytes:  0,
 		RecvBytes:  0,
 	}
@@ -114,6 +117,7 @@ func (c ConnectionStats) WithUnknownDirection() ConnectionStats {
 		RemotePort: c.RemotePort,
 		Direction:  UNKNOWN,
 		State:      c.State,
+		NetworkNamespace: c.NetworkNamespace,
 		SendBytes:  c.SendBytes,
 		RecvBytes:  c.RecvBytes,
 	}
@@ -130,14 +134,20 @@ func (c ConnectionStats) Copy() ConnectionStats {
 		RemotePort: c.RemotePort,
 		Direction:  c.Direction,
 		State:      c.State,
+		NetworkNamespace: c.NetworkNamespace,
 		SendBytes:  c.SendBytes,
 		RecvBytes:  c.RecvBytes,
 	}
 }
 
 func (c ConnectionStats) String() string {
-	return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s %d bytes sent, %d bytes received",
-		c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.SendBytes, c.RecvBytes)
+	if len(strings.TrimSpace(c.NetworkNamespace)) != 0 {
+		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s netns:%s [%d bytes sent ↑ %d bytes received ↓]",
+			c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.NetworkNamespace, c.SendBytes, c.RecvBytes)
+	} else {
+		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s [%d bytes sent ↑ %d bytes received ↓]",
+			c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.SendBytes, c.RecvBytes)
+	}
 }
 
 func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {

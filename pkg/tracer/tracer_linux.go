@@ -4,10 +4,12 @@ package tracer
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
 	logger "github.com/cihub/seelog"
+	"strconv"
 	"syscall"
 	"unsafe"
 
@@ -161,6 +163,12 @@ func (t *LinuxTracer) getProcConnections() error {
 	// Collect the data and listening ports
 	for conn := conns.Next(); conn != nil; conn = conns.Next() {
 		connWithStats := connStatsFromProcSpy(conn)
+
+		// check for local connections, add namespace for connection
+		if ipLocal(connWithStats.Local) && ipLocal(connWithStats.Remote) {
+			connWithStats.NetworkNamespace = strconv.FormatUint(conn.Proc.NetNamespaceID, 10)
+		}
+
 		localKey, err := connWithStats.WithOnlyLocal().ByteKey(buffer)
 
 		if conn.Proc.PID == 0 {
@@ -324,17 +332,22 @@ func (t *LinuxTracer) getUDPv4Connections() ([]common.ConnectionStats, error) {
 	}
 
 	// Iterate through all key-value pairs in map
-	key, nextKey, stats := &ConnTupleV4{}, &ConnTupleV4{}, &ConnStatsWithTimestamp{}
+	key, nextKey, connStats := &ConnTupleV4{}, &ConnTupleV4{}, &ConnStatsWithTimestamp{}
 	active := make([]common.ConnectionStats, 0)
 	expired := make([]*ConnTupleV4, 0)
 	for {
-		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
+		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(connStats))
 		if !hasNext {
 			break
-		} else if stats.isExpired(latestTime, t.config.UDPConnTimeout.Nanoseconds()) {
+		} else if connStats.isExpired(latestTime, t.config.UDPConnTimeout.Nanoseconds()) {
 			expired = append(expired, nextKey.copy())
 		} else {
-			active = append(active, connStatsFromUDPv4(nextKey, stats))
+			stats := connStatsFromUDPv4(nextKey, connStats)
+			// check for local connections, add namespace for connection
+			if ipLocal(stats.Local) && ipLocal(stats.Remote) {
+				stats.NetworkNamespace = fmt.Sprint(nextKey.netns)
+			}
+			active = append(active, stats)
 		}
 		key = nextKey
 	}
@@ -364,17 +377,22 @@ func (t *LinuxTracer) getUDPv6Connections() ([]common.ConnectionStats, error) {
 	}
 
 	// Iterate through all key-value pairs in map
-	key, nextKey, stats := &ConnTupleV6{}, &ConnTupleV6{}, &ConnStatsWithTimestamp{}
+	key, nextKey, connStats := &ConnTupleV6{}, &ConnTupleV6{}, &ConnStatsWithTimestamp{}
 	active := make([]common.ConnectionStats, 0)
 	expired := make([]*ConnTupleV6, 0)
 	for {
-		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(stats))
+		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(connStats))
 		if !hasNext {
 			break
-		} else if stats.isExpired(latestTime, t.config.UDPConnTimeout.Nanoseconds()) {
+		} else if connStats.isExpired(latestTime, t.config.UDPConnTimeout.Nanoseconds()) {
 			expired = append(expired, nextKey.copy())
 		} else {
-			active = append(active, connStatsFromUDPv6(nextKey, stats))
+			stats := connStatsFromUDPv6(nextKey, connStats)
+			// check for local connections, add namespace for connection
+			if ipLocal(stats.Local) && ipLocal(stats.Remote) {
+				stats.NetworkNamespace = fmt.Sprint(nextKey.netns)
+			}
+			active = append(active, stats)
 		}
 		key = nextKey
 	}
@@ -393,15 +411,20 @@ func (t *LinuxTracer) getTCPv4Connections() ([]common.ConnectionStats, error) {
 	}
 
 	// Iterate through all key-value pairs in map
-	key, nextKey, val := &ConnTupleV4{}, &ConnTupleV4{}, &ConnStats{}
+	key, nextKey, connStats := &ConnTupleV4{}, &ConnTupleV4{}, &ConnStats{}
 	conns := make([]common.ConnectionStats, 0)
 	closed := make([]*ConnTupleV4, 0)
 	for {
-		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
+		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(connStats))
 		if !hasNext {
 			break
 		} else {
-			stats := connStatsFromTCPv4(nextKey, val)
+			stats := connStatsFromTCPv4(nextKey, connStats)
+			// check for local connections, add namespace for connection
+			if ipLocal(stats.Local) && ipLocal(stats.Remote) {
+				stats.NetworkNamespace = fmt.Sprint(nextKey.netns)
+			}
+
 			conns = append(conns, stats)
 			if stats.State == common.ACTIVE_CLOSED || stats.State == common.CLOSED {
 				closed = append(closed, nextKey.copy())
@@ -424,15 +447,20 @@ func (t *LinuxTracer) getTCPv6Connections() ([]common.ConnectionStats, error) {
 	}
 
 	// Iterate through all key-value pairs in map
-	key, nextKey, val := &ConnTupleV6{}, &ConnTupleV6{}, &ConnStats{}
+	key, nextKey, connStats := &ConnTupleV6{}, &ConnTupleV6{}, &ConnStats{}
 	conns := make([]common.ConnectionStats, 0)
 	closed := make([]*ConnTupleV6, 0)
 	for {
-		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(val))
+		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(connStats))
 		if !hasNext {
 			break
 		} else {
-			stats := connStatsFromTCPv6(nextKey, val)
+			stats := connStatsFromTCPv6(nextKey, connStats)
+			// check for local connections, add namespace for connection
+			if ipLocal(stats.Local) && ipLocal(stats.Remote) {
+				stats.NetworkNamespace = fmt.Sprint(nextKey.netns)
+			}
+
 			conns = append(conns, stats)
 			if stats.State == common.ACTIVE_CLOSED || stats.State == common.CLOSED {
 				closed = append(closed, nextKey.copy())
