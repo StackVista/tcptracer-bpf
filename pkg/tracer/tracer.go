@@ -35,7 +35,7 @@ func ipLocal(ip string) bool {
 
 	parsedIP := net.ParseIP(ip)
 	if parsedIP == nil {
-		logger.Error(fmt.Sprintf("Error occured parsing ip [%s]: %s", ip))
+		logger.Error(fmt.Sprintf("Error occured parsing ip [%s]", ip))
 		return false
 	}
 	return containsIp(ips, parsedIP)
