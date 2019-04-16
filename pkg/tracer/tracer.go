@@ -1,8 +1,10 @@
 package tracer
 
 import (
+	"fmt"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
+	logger "github.com/cihub/seelog"
 	"net"
 )
 
@@ -27,13 +29,13 @@ func IsTracerSupportedByOS() (bool, error) {
 func ipLocal(ip string) bool {
 	ips, err := getLocalIPs()
 	if err != nil {
-		// log error panic(fmt.Sprintf("Error occured: %v", err))
+		logger.Error(fmt.Sprintf("Error getting local ips: %s", err.Error()))
 		return false
 	}
 
-	parsedIP, _, err := net.ParseCIDR(ip)
-	if err != nil {
-		// log error panic(fmt.Sprintf("Error occured: %v", err))
+	parsedIP := net.ParseIP(ip)
+	if parsedIP == nil {
+		logger.Error(fmt.Sprintf("Error occured parsing ip [%s]: %s", ip))
 		return false
 	}
 	return containsIp(ips, parsedIP)
@@ -43,6 +45,7 @@ func ipLocal(ip string) bool {
 func getLocalIPs() ([]net.IP, error) {
 	ipnets, err := GetLocalNetworks()
 	if err != nil {
+		logger.Error(fmt.Sprintf("Error getting local ips: %s", err.Error()))
 		return nil, err
 	}
 	ips := []net.IP{}

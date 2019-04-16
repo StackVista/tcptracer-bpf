@@ -347,6 +347,7 @@ func (t *LinuxTracer) getUDPv4Connections() ([]common.ConnectionStats, error) {
 			if ipLocal(stats.Local) && ipLocal(stats.Remote) {
 				stats.NetworkNamespace = fmt.Sprint(nextKey.netns)
 			}
+
 			active = append(active, stats)
 		}
 		key = nextKey
@@ -392,6 +393,7 @@ func (t *LinuxTracer) getUDPv6Connections() ([]common.ConnectionStats, error) {
 			if ipLocal(stats.Local) && ipLocal(stats.Remote) {
 				stats.NetworkNamespace = fmt.Sprint(nextKey.netns)
 			}
+
 			active = append(active, stats)
 		}
 		key = nextKey
