@@ -24,6 +24,78 @@ func MakeTestConfig() *config.Config {
 	return c
 }
 
+func TestTCPSendAndReceiveWithNamespaces(t *testing.T) {
+	// Enable network tracer
+	tr, err := NewTracer(MakeTestConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr.Start()
+
+	// Create TCP Server which sends back serverMessageSize bytes
+	server := network.NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		c.Write(genPayload(serverMessageSize))
+		r.ReadBytes(byte('\n'))
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	server.Run(doneChan)
+
+	// Connect to server
+	c, err := net.DialTimeout("tcp", server.Address, 50*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	// Write clientMessageSize to server, and read response
+	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
+		t.Fatal(err)
+	}
+	r := bufio.NewReader(c)
+	r.ReadBytes(byte('\n'))
+
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts
+	connections, err := tr.GetConnections()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// One direction
+	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	assert.True(t, ok)
+	if CheckMessageSize {
+		assert.Equal(t, clientMessageSize, int(conn1.SendBytes))
+		assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
+	}
+	assert.Equal(t, conn1.Direction, common.OUTGOING)
+	assert.Equal(t, conn1.State, common.ACTIVE)
+
+	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	assert.True(t, ok)
+	if CheckMessageSize {
+		assert.Equal(t, clientMessageSize, int(conn2.RecvBytes))
+		assert.Equal(t, serverMessageSize, int(conn2.SendBytes))
+	}
+	assert.Equal(t, conn2.Direction, common.INCOMING)
+	assert.Equal(t, conn2.State, common.ACTIVE)
+
+	// assert that localhost connections both have the same namespace
+	assert.NotNil(t, conn1.NetworkNamespace)
+	assert.NotNil(t, conn2.NetworkNamespace)
+	assert.Equal(t, conn1.NetworkNamespace, conn2.NetworkNamespace)
+
+	// Write clientMessageSize to server, to shut down the connection
+	if _, err = c.Write(genPayload(0)); err != nil {
+		t.Fatal(err)
+	}
+
+	doneChan <- struct{}{}
+	tr.Stop()
+}
+
 func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := network.NewTCPServer(func(c net.Conn) {
