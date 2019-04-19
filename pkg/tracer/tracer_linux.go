@@ -4,12 +4,10 @@ package tracer
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
 	logger "github.com/cihub/seelog"
-	"strconv"
 	"syscall"
 	"unsafe"
 
@@ -163,12 +161,6 @@ func (t *LinuxTracer) getProcConnections() error {
 	// Collect the data and listening ports
 	for conn := conns.Next(); conn != nil; conn = conns.Next() {
 		connWithStats := connStatsFromProcSpy(conn)
-
-		// check for local connections, add namespace for connection
-		if ipLocal(connWithStats.Local) && ipLocal(connWithStats.Remote) {
-			connWithStats.NetworkNamespace = strconv.FormatUint(conn.Proc.NetNamespaceID, 10)
-		}
-
 		localKey, err := connWithStats.WithOnlyLocal().ByteKey(buffer)
 
 		if conn.Proc.PID == 0 {
@@ -342,13 +334,7 @@ func (t *LinuxTracer) getUDPv4Connections() ([]common.ConnectionStats, error) {
 		} else if connStats.isExpired(latestTime, t.config.UDPConnTimeout.Nanoseconds()) {
 			expired = append(expired, nextKey.copy())
 		} else {
-			stats := connStatsFromUDPv4(nextKey, connStats)
-			// check for local connections, add namespace for connection
-			if ipLocal(stats.Local) && ipLocal(stats.Remote) {
-				stats.NetworkNamespace = fmt.Sprint(nextKey.netns)
-			}
-
-			active = append(active, stats)
+			active = append(active, connStatsFromUDPv4(nextKey, connStats))
 		}
 		key = nextKey
 	}
@@ -388,13 +374,7 @@ func (t *LinuxTracer) getUDPv6Connections() ([]common.ConnectionStats, error) {
 		} else if connStats.isExpired(latestTime, t.config.UDPConnTimeout.Nanoseconds()) {
 			expired = append(expired, nextKey.copy())
 		} else {
-			stats := connStatsFromUDPv6(nextKey, connStats)
-			// check for local connections, add namespace for connection
-			if ipLocal(stats.Local) && ipLocal(stats.Remote) {
-				stats.NetworkNamespace = fmt.Sprint(nextKey.netns)
-			}
-
-			active = append(active, stats)
+			active = append(active, connStatsFromUDPv6(nextKey, connStats))
 		}
 		key = nextKey
 	}
@@ -422,11 +402,6 @@ func (t *LinuxTracer) getTCPv4Connections() ([]common.ConnectionStats, error) {
 			break
 		} else {
 			stats := connStatsFromTCPv4(nextKey, connStats)
-			// check for local connections, add namespace for connection
-			if ipLocal(stats.Local) && ipLocal(stats.Remote) {
-				stats.NetworkNamespace = fmt.Sprint(nextKey.netns)
-			}
-
 			conns = append(conns, stats)
 			if stats.State == common.ACTIVE_CLOSED || stats.State == common.CLOSED {
 				closed = append(closed, nextKey.copy())
@@ -458,11 +433,6 @@ func (t *LinuxTracer) getTCPv6Connections() ([]common.ConnectionStats, error) {
 			break
 		} else {
 			stats := connStatsFromTCPv6(nextKey, connStats)
-			// check for local connections, add namespace for connection
-			if ipLocal(stats.Local) && ipLocal(stats.Remote) {
-				stats.NetworkNamespace = fmt.Sprint(nextKey.netns)
-			}
-
 			conns = append(conns, stats)
 			if stats.State == common.ACTIVE_CLOSED || stats.State == common.CLOSED {
 				closed = append(closed, nextKey.copy())

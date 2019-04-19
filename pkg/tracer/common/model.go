@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
 	"strings"
 )
 
@@ -170,4 +171,14 @@ func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+// enriches the connection stats with namespace if it's a localhost connection
+func (c ConnectionStats) WithNamespace(namespace string) ConnectionStats {
+	// check for local connections, add namespace for connection
+	if network.IsIPLocal(c.Local) && network.IsIPLocal(c.Remote) {
+		c.NetworkNamespace = namespace
+	}
+
+	return c
 }
