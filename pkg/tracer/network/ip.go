@@ -6,59 +6,82 @@ import (
 	"net"
 )
 
-func IsIPLocal(ip string) bool {
-	ips, err := getLocalIPs()
+type NetScanner interface {
+	getNetworks() ([]*net.IPNet, error)
+	ContainsIP(ip string) bool
+}
+
+func MakeLocalNetworkScanner() NetScanner {
+	return &LocalNetworkScanner{}
+}
+
+type LocalNetworkScanner struct {}
+
+// checks whether the local network scanner contains the given IP
+func (lns *LocalNetworkScanner) ContainsIP(ip string) bool {
+	networks, err := lns.getNetworks()
 	if err != nil {
-		logger.Error(fmt.Sprintf("Error getting local ips: %s", err.Error()))
+		logger.Error(fmt.Sprintf("Error getting local networks: %s", err.Error()))
 		return false
 	}
 
-	parsedIP := net.ParseIP(ip)
-	if parsedIP == nil {
-		logger.Error(fmt.Sprintf("Error occured parsing ip [%s]", ip))
-		return false
-	}
-	return containsIp(ips, parsedIP)
-
+	return containsIp(networks, ip)
 }
 
-func getLocalIPs() ([]net.IP, error) {
-	networks, err := getLocalNetworks()
-	if err != nil {
-		logger.Error(fmt.Sprintf("Error getting local ips: %s", err.Error()))
-		return nil, err
-	}
-	ips := make([]net.IP, 0)
-	for _, ipNet := range networks {
-		ips = append(ips, ipNet.IP)
-	}
-	return ips, nil
-}
-
-func containsIp(list []net.IP, ip net.IP) bool {
-	for _, v := range list {
-		if v.Equal(ip) {
-			return true
-		}
-	}
-	return false
-}
-
-// getLocalNetworks returns all the local networks.
-func getLocalNetworks() ([]*net.IPNet, error) {
+// getNetworks returns all the local networks.
+func (lns *LocalNetworkScanner) getNetworks() ([]*net.IPNet, error) {
 	addresses, err := net.InterfaceAddrs()
 	if err != nil {
 		return nil, err
 	}
-	return getIPNetworks(addresses), nil
-}
 
-func getIPNetworks(addresses []net.Addr) []*net.IPNet {
 	networks := make([]*net.IPNet, 0)
 	for _, address := range addresses {
 		if ipNet, ok := address.(*net.IPNet); ok && ipNet.IP.To4() != nil {
 			networks = append(networks, ipNet)
 		}
 	}
-	return networks
+	return networks, nil
+}
+
+// Test network scanner
+func MakeTestNetworkScanner(networks []*net.IPNet) NetScanner {
+	return &TestNetworkScanner{testNetworks: networks}
+}
+
+
+type TestNetworkScanner struct {
+	testNetworks []*net.IPNet
+}
+
+// checks whether the local network scanner contains the given IP
+func (tns *TestNetworkScanner) ContainsIP(ip string) bool {
+	networks, err := tns.getNetworks()
+	if err != nil {
+		logger.Error(fmt.Sprintf("Error getting local networks: %s", err.Error()))
+		return false
+	}
+
+	return containsIp(networks, ip)
+}
+
+// getNetworks returns all the local networks.
+func (tns *TestNetworkScanner) getNetworks() ([]*net.IPNet, error) {
+	return tns.testNetworks, nil
+}
+
+// Generic function for all network scanners to check whether ip is contained in ipnet's
+func containsIp(list []*net.IPNet, ip string) bool {
+	parsedIP := net.ParseIP(ip)
+	if parsedIP == nil {
+		logger.Error(fmt.Sprintf("Error occured parsing ip [%s]", ip))
+		return false
+	}
+
+	for _, v := range list {
+		if v.Contains(parsedIP) {
+			return true
+		}
+	}
+	return false
 }

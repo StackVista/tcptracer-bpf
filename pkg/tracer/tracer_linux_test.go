@@ -154,8 +154,10 @@ func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
 	assert.Equal(t, conn2.Direction, common.INCOMING)
 	assert.Equal(t, conn2.State, common.ACTIVE)
 
-	// assert that localhost connections both have the same namespace
+	// assert that localhost connections both have the same namespace and that it's not nil
 	assert.Equal(t, conn1.NetworkNamespace, conn2.NetworkNamespace)
+	assert.NotNil(t, conn1.NetworkNamespace)
+	assert.NotNil(t, conn2.NetworkNamespace)
 
 	// Write clientMessageSize to server, to shut down the connection
 	if _, err = c.Write(genPayload(0)); err != nil {

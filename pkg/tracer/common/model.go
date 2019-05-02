@@ -176,7 +176,8 @@ func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 // enriches the connection stats with namespace if it's a localhost connection
 func (c ConnectionStats) WithNamespace(namespace string) ConnectionStats {
 	// check for local connections, add namespace for connection
-	if network.IsIPLocal(c.Local) && network.IsIPLocal(c.Remote) {
+	networkScanner := network.MakeLocalNetworkScanner()
+	if networkScanner.ContainsIP(c.Local) && networkScanner.ContainsIP(c.Remote) {
 		c.NetworkNamespace = namespace
 	}
 
