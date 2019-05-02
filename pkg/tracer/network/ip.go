@@ -15,7 +15,7 @@ func MakeLocalNetworkScanner() NetScanner {
 	return &LocalNetworkScanner{}
 }
 
-type LocalNetworkScanner struct {}
+type LocalNetworkScanner struct{}
 
 // checks whether the local network scanner contains the given IP
 func (lns *LocalNetworkScanner) ContainsIP(ip string) bool {
@@ -48,7 +48,6 @@ func (lns *LocalNetworkScanner) getNetworks() ([]*net.IPNet, error) {
 func MakeTestNetworkScanner(networks []*net.IPNet) NetScanner {
 	return &TestNetworkScanner{testNetworks: networks}
 }
-
 
 type TestNetworkScanner struct {
 	testNetworks []*net.IPNet

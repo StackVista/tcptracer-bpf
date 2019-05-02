@@ -9,14 +9,14 @@ import (
 func TestIPContainedInNetwork(t *testing.T) {
 
 	for _, tc := range []struct {
-		name     string
-		ip       string
+		name         string
+		ip           string
 		testNetworks []*net.IPNet
-		expected bool
+		expected     bool
 	}{
 		{
-			name:     "should contain ip in the 127.0.x.x range",
-			ip:       "127.0.0.1",
+			name: "should contain ip in the 127.0.x.x range",
+			ip:   "127.0.0.1",
 			testNetworks: []*net.IPNet{
 				{IP: net.IPv4(127, 0, 0, 1), Mask: net.IPv4Mask(255, 255, 0, 0)},
 				{IP: net.IPv4(172, 17, 0, 1), Mask: net.IPv4Mask(255, 255, 0, 0)},
@@ -24,8 +24,8 @@ func TestIPContainedInNetwork(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "should not contain ip in the 216.58.x.x range",
-			ip:       "216.58.211.110",
+			name: "should not contain ip in the 216.58.x.x range",
+			ip:   "216.58.211.110",
 			testNetworks: []*net.IPNet{
 				{IP: net.IPv4(127, 0, 0, 1), Mask: net.IPv4Mask(255, 255, 0, 0)},
 				{IP: net.IPv4(172, 17, 0, 1), Mask: net.IPv4Mask(255, 255, 0, 0)},
@@ -34,8 +34,8 @@ func TestIPContainedInNetwork(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "should contain ip in the 216.58.x.x range",
-			ip:       "216.58.211.110",
+			name: "should contain ip in the 216.58.x.x range",
+			ip:   "216.58.211.110",
 			testNetworks: []*net.IPNet{
 				{IP: net.IPv4(127, 0, 0, 1), Mask: net.IPv4Mask(255, 255, 0, 0)},
 				{IP: net.IPv4(172, 17, 0, 1), Mask: net.IPv4Mask(255, 255, 0, 0)},
@@ -44,8 +44,8 @@ func TestIPContainedInNetwork(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "should contain ip in the 172.17.x.x range",
-			ip:       "172.17.0.4",
+			name: "should contain ip in the 172.17.x.x range",
+			ip:   "172.17.0.4",
 			testNetworks: []*net.IPNet{
 				{IP: net.IPv4(127, 0, 0, 1), Mask: net.IPv4Mask(255, 255, 0, 0)},
 				{IP: net.IPv4(172, 17, 0, 1), Mask: net.IPv4Mask(255, 255, 0, 0)},
@@ -53,8 +53,8 @@ func TestIPContainedInNetwork(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "should not contain ip in the 172.18.x.x range",
-			ip:       "172.18.0.1",
+			name: "should not contain ip in the 172.18.x.x range",
+			ip:   "172.18.0.1",
 			testNetworks: []*net.IPNet{
 				{IP: net.IPv4(127, 0, 0, 1), Mask: net.IPv4Mask(255, 255, 0, 0)},
 				{IP: net.IPv4(172, 17, 0, 1), Mask: net.IPv4Mask(255, 255, 0, 0)},
@@ -62,8 +62,8 @@ func TestIPContainedInNetwork(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "should contain ip in the 172.18.x.x range",
-			ip:       "172.18.0.1",
+			name: "should contain ip in the 172.18.x.x range",
+			ip:   "172.18.0.1",
 			testNetworks: []*net.IPNet{
 				{IP: net.IPv4(127, 0, 0, 1), Mask: net.IPv4Mask(255, 255, 0, 0)},
 				{IP: net.IPv4(172, 17, 0, 1), Mask: net.IPv4Mask(255, 255, 0, 0)},
