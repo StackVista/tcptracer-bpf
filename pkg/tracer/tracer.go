@@ -16,6 +16,7 @@ func NewTracer(config *config.Config) (Tracer, error) {
 	// Ensures that each tracer implements a MakeTracer function
 	return MakeTracer(config)
 }
+
 // Generic IsSupported function
 func IsTracerSupportedByOS() (bool, error) {
 	// Ensures that each tracer implements a CheckTracerSupport function

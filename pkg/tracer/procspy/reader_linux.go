@@ -2,10 +2,10 @@ package procspy
 
 import (
 	"bytes"
+	logger "github.com/cihub/seelog"
 	"io"
 	"sync"
 	"time"
-	logger "github.com/cihub/seelog"
 )
 
 const (

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
+	"strings"
 )
 
 type ConnectionType uint8
@@ -77,67 +79,76 @@ type ConnectionStats struct {
 	Family ConnectionFamily `json:"family"`
 
 	// Local & Remote represented as a string to handle both IPv4 & IPv6
-	Local      string    `json:"local"`
-	Remote     string    `json:"remote"`
-	LocalPort  uint16    `json:"lport"`
-	RemotePort uint16    `json:"rport"`
-	Direction  Direction `json:"direction"`
-	State      State     `json:"state"`
-	SendBytes  uint64    `json:"send_bytes"`
-	RecvBytes  uint64    `json:"recv_bytes"`
+	Local            string    `json:"local"`
+	Remote           string    `json:"remote"`
+	LocalPort        uint16    `json:"lport"`
+	RemotePort       uint16    `json:"rport"`
+	Direction        Direction `json:"direction"`
+	State            State     `json:"state"`
+	NetworkNamespace string    `json:"network_namespace"`
+	SendBytes        uint64    `json:"send_bytes"`
+	RecvBytes        uint64    `json:"recv_bytes"`
 }
 
 func (c ConnectionStats) WithOnlyLocal() ConnectionStats {
 	return ConnectionStats{
-		Pid:        c.Pid,
-		Type:       c.Type,
-		Family:     c.Family,
-		Local:      c.Local,
-		Remote:     "",
-		LocalPort:  c.LocalPort,
-		RemotePort: 0,
-		Direction:  UNKNOWN,
-		State:      ACTIVE,
-		SendBytes:  0,
-		RecvBytes:  0,
+		Pid:              c.Pid,
+		Type:             c.Type,
+		Family:           c.Family,
+		Local:            c.Local,
+		Remote:           "",
+		LocalPort:        c.LocalPort,
+		RemotePort:       0,
+		Direction:        UNKNOWN,
+		State:            ACTIVE,
+		NetworkNamespace: c.NetworkNamespace,
+		SendBytes:        0,
+		RecvBytes:        0,
 	}
 }
 
 func (c ConnectionStats) WithUnknownDirection() ConnectionStats {
 	return ConnectionStats{
-		Pid:        c.Pid,
-		Type:       c.Type,
-		Family:     c.Family,
-		Local:      c.Local,
-		Remote:     c.Remote,
-		LocalPort:  c.LocalPort,
-		RemotePort: c.RemotePort,
-		Direction:  UNKNOWN,
-		State:      c.State,
-		SendBytes:  c.SendBytes,
-		RecvBytes:  c.RecvBytes,
+		Pid:              c.Pid,
+		Type:             c.Type,
+		Family:           c.Family,
+		Local:            c.Local,
+		Remote:           c.Remote,
+		LocalPort:        c.LocalPort,
+		RemotePort:       c.RemotePort,
+		Direction:        UNKNOWN,
+		State:            c.State,
+		NetworkNamespace: c.NetworkNamespace,
+		SendBytes:        c.SendBytes,
+		RecvBytes:        c.RecvBytes,
 	}
 }
 
 func (c ConnectionStats) Copy() ConnectionStats {
 	return ConnectionStats{
-		Pid:        c.Pid,
-		Type:       c.Type,
-		Family:     c.Family,
-		Local:      c.Local,
-		Remote:     c.Remote,
-		LocalPort:  c.LocalPort,
-		RemotePort: c.RemotePort,
-		Direction:  c.Direction,
-		State:      c.State,
-		SendBytes:  c.SendBytes,
-		RecvBytes:  c.RecvBytes,
+		Pid:              c.Pid,
+		Type:             c.Type,
+		Family:           c.Family,
+		Local:            c.Local,
+		Remote:           c.Remote,
+		LocalPort:        c.LocalPort,
+		RemotePort:       c.RemotePort,
+		Direction:        c.Direction,
+		State:            c.State,
+		NetworkNamespace: c.NetworkNamespace,
+		SendBytes:        c.SendBytes,
+		RecvBytes:        c.RecvBytes,
 	}
 }
 
 func (c ConnectionStats) String() string {
-	return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s %d bytes sent, %d bytes received",
-		c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.SendBytes, c.RecvBytes)
+	if len(strings.TrimSpace(c.NetworkNamespace)) != 0 {
+		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s netns:%s [%d bytes sent ↑ %d bytes received ↓]",
+			c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.NetworkNamespace, c.SendBytes, c.RecvBytes)
+	} else {
+		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s [%d bytes sent ↑ %d bytes received ↓]",
+			c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.SendBytes, c.RecvBytes)
+	}
 }
 
 func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
@@ -160,4 +171,15 @@ func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+// enriches the connection stats with namespace if it's a localhost connection
+func (c ConnectionStats) WithNamespace(namespace string) ConnectionStats {
+	// check for local connections, add namespace for connection
+	networkScanner := network.MakeLocalNetworkScanner()
+	if networkScanner.ContainsIP(c.Local) && networkScanner.ContainsIP(c.Remote) {
+		c.NetworkNamespace = namespace
+	}
+
+	return c
 }
