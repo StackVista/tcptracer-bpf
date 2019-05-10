@@ -82,7 +82,12 @@ func TestEnsureGuessingFromConnectingSide(t *testing.T) {
 		}
 	}
 
-	// the tcptracer_status should report only connecting events from `connect`s probe
+	err = module.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// the tcptracer_status should report only connecting events from _connect_ probes
 	for i, v := range status.calling_probes {
 		if i < len(status.calling_probes)-1 && v != status.calling_probes[i+1] {
 			t.Log(status.calling_probes)

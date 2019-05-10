@@ -583,7 +583,7 @@ static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *statu
     }
 
     // Make sure the record exists, and checks if the network tracer is ready
-    assert_tcp_record(sk, status, DIRECTION_UNKNOWN, STATE_ACTIVE, calling_probe);
+    assert_tcp_record(sk, status, DIRECTION_UNKNOWN, STATE_ACTIVE);
 
 	struct conn_stats_t *val;
 
@@ -782,7 +782,7 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
 	}
 
 	// We should figure out offsets if they're not already figured out
-	if (update_tracer_status_v4(status, skp, pid, __LINE__) != 0) {
+	if (update_tracer_offset_status_v4(status, skp, pid, __LINE__) != 0) {
 	    return 0;
 	}
 
@@ -825,7 +825,7 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
 	}
 
 	// We should figure out offsets if they're not already figured out
-	if(update_tracer_status_v6(status, skp, pid) != 0) {
+	if (update_tracer_offset_status_v6(status, skp, pid) != 0) {
         return 0;
 	}
 
@@ -979,7 +979,7 @@ int kretprobe__udp_recvmsg(struct pt_regs *ctx) {
 		return 0;
 	}
 
-	increment_udp_stats(sk, status, pid_tgid, 0, copied, __LINE__);
+	increment_udp_stats(sk, status, pid_tgid, 0, copied);
 
 	return 0;
 }
