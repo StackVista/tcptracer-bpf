@@ -5,6 +5,7 @@ package tracer
 import (
 	"encoding/binary"
 	"fmt"
+	logger "github.com/cihub/seelog"
 	"math/rand"
 	"net"
 	"os"
@@ -95,13 +96,13 @@ const listenIP = "127.0.0.2"
 var zero uint64
 
 type fieldValues struct {
+	daddrIPv6 [4]uint32
+	netns     uint32
 	saddr     uint32
 	daddr     uint32
 	sport     uint16
 	dport     uint16
-	netns     uint32
 	family    uint16
-	daddrIPv6 [4]uint32
 }
 
 func startServer() (chan struct{}, uint16, error) {
@@ -127,6 +128,7 @@ func acceptV4(l net.Listener, stop chan struct{}) {
 		_, ok := <-stop
 		if ok {
 			conn, err := l.Accept()
+			logger.Debug("accepted client connection ...")
 			if err != nil {
 				l.Close()
 				return
@@ -187,10 +189,10 @@ func generateRandomIPv6Address() (addr [4]uint32) {
 	return
 }
 
-// tryCurrentOffset creates a IPv4 or IPv6 connection so the corresponding
+// makeNewClientConnection creates a IPv4 or IPv6 connection so the corresponding
 // tcp_v{4,6}_connect kprobes get triggered and save the value at the current
 // offset in the eBPF map
-func tryCurrentOffset(status *tcpTracerStatus, expected *fieldValues, stop chan struct{}) error {
+func makeNewClientConnection(status *tcpTracerStatus, expected *fieldValues, stop chan struct{}) error {
 	// for ipv6, we don't need the source port because we already guessed
 	// it doing ipv4 connections so we use a random destination Address and
 	// try to connect to it
@@ -203,6 +205,7 @@ func tryCurrentOffset(status *tcpTracerStatus, expected *fieldValues, stop chan 
 		// signal the server that we're about to connect, this will block until
 		// the channel is free so we don't overload the server
 		stop <- struct{}{}
+		logger.Debug("client connecting ...")
 		conn, err := net.Dial("tcp4", bindAddress)
 		if err != nil {
 			return fmt.Errorf("error dialing %q: %v", bindAddress, err)
@@ -215,6 +218,8 @@ func tryCurrentOffset(status *tcpTracerStatus, expected *fieldValues, stop chan 
 		}
 
 		expected.sport = uint16(sport)
+
+		logger.Debugf("Expect: daddrV6=%v, netns=%v, saddr=%v, daddr=%v, sport=%v, dport=%v, family=%v", expected.daddrIPv6, expected.netns, expected.saddr, expected.daddr, htons(expected.sport), htons(expected.dport), expected.family)
 
 		// set SO_LINGER to 0 so the connection state after closing is
 		// CLOSE instead of TIME_WAIT. In this way, they will disappear
@@ -263,7 +268,9 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 
 	switch status.what {
 	case guessSaddr:
+		logger.Debugf("finding saddr: %v, at offset %d, actual: %v ...", expected.saddr, status.offset_saddr, status.saddr)
 		if status.saddr == C.__u32(expected.saddr) {
+			logger.Debugf("saddr found")
 			status.what = guessDaddr
 		} else {
 			status.offset_saddr++
@@ -271,7 +278,9 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 		}
 		status.state = stateChecking
 	case guessDaddr:
+		logger.Debugf("finding daddr: %v, at offset %d, actual: %v  ...", expected.daddr, status.offset_daddr, status.daddr)
 		if status.daddr == C.__u32(expected.daddr) {
+			logger.Debugf("daddr found")
 			status.what = guessFamily
 		} else {
 			status.offset_daddr++
@@ -279,7 +288,9 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 		}
 		status.state = stateChecking
 	case guessFamily:
+		logger.Debugf("finding family: %d, at offset %d, actual: %v  ...", expected.family, status.offset_family, status.family)
 		if status.family == C.__u16(expected.family) {
+			logger.Debugf("family found")
 			status.what = guessSport
 			// we know the sport ((struct inet_sock)->inet_sport) is
 			// after the family field, so we start from there
@@ -289,21 +300,27 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 		}
 		status.state = stateChecking
 	case guessSport:
+		logger.Debugf("finding sport: %d, at offset %d, actual: %v  ...", htons(expected.sport), status.offset_sport, status.sport)
 		if status.sport == C.__u16(htons(expected.sport)) {
+			logger.Debugf("sport found")
 			status.what = guessDport
 		} else {
 			status.offset_sport++
 		}
 		status.state = stateChecking
 	case guessDport:
+		logger.Debugf("finding dport: %d, at offset %d, actual: %v  ...", htons(expected.dport), status.offset_dport, status.dport)
 		if status.dport == C.__u16(htons(expected.dport)) {
+			logger.Debugf("dport found")
 			status.what = guessNetns
 		} else {
 			status.offset_dport++
 		}
 		status.state = stateChecking
 	case guessNetns:
+		logger.Debugf("finding netns: %v, at offset %d, actual: %v  ...", expected.netns, status.offset_netns, status.netns)
 		if status.netns == C.__u32(expected.netns) {
+			logger.Debugf("netns found")
 			status.what = guessDaddrIPv6
 		} else {
 			status.offset_ino++
@@ -315,7 +332,9 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 		}
 		status.state = stateChecking
 	case guessDaddrIPv6:
+		logger.Debugf("finding daddr6: %v, at offset %d, actual: %v  ...", expected.daddrIPv6, status.offset_daddr_ipv6, status.daddr_ipv6)
 		if compareIPv6(status.daddr_ipv6, expected.daddrIPv6) {
+			logger.Debugf("daddr6 found")
 			// at this point, we've guessed all the offsets we need,
 			// set the status to "stateReady"
 			status.state = stateReady
@@ -349,23 +368,27 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 // check that value against the expected value of the field, advancing the
 // offset and repeating the process until we find the value we expect. Then, we
 // guess the next field.
-func guess(b *elf.Module) error {
+
+type guessBench struct {
+	stopServer               chan struct{}
+	expectedClientConnection *fieldValues
+	statusBpfMap             *elf.Map
+	status                   *tcpTracerStatus
+}
+
+func setupGuess(b *elf.Module) (*guessBench, error) {
 	currentNetns, err := ownNetNS()
 	if err != nil {
-		return fmt.Errorf("error getting current netns: %v", err)
+		return nil, fmt.Errorf("error getting current netns: %v", err)
 	}
 
 	mp := b.Map("tcptracer_status")
-
-	// pid & tid must not change during the guessing work: the communication
-	// between ebpf and userspace relies on it
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
 
 	processName := filepath.Base(os.Args[0])
 	if len(processName) > procNameMaxSize { // Truncate process name if needed
 		processName = processName[:procNameMaxSize]
 	}
+	logger.Debugf("process name: %v, pid: %d, tid: %d, pidTgid: %d", processName, os.Getpid(), syscall.Gettid())
 
 	cProcName := [procNameMaxSize + 1]C.char{} // Last char has to be null character, so add one
 	for i := range processName {
@@ -380,18 +403,17 @@ func guess(b *elf.Module) error {
 	// if we already have the offsets, just return
 	err = b.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status))
 	if err == nil && status.state == stateReady {
-		return nil
+		return nil, nil
 	}
 
 	stop, listenPort, err := startServer()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer close(stop)
 
 	// initialize map
 	if err := b.UpdateElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status), 0); err != nil {
-		return fmt.Errorf("error initializing tcptracer_status map: %v", err)
+		return nil, fmt.Errorf("error initializing tcptracer_status map: %v", err)
 	}
 
 	expected := &fieldValues{
@@ -406,18 +428,46 @@ func guess(b *elf.Module) error {
 		family: syscall.AF_INET,
 	}
 
+	return &guessBench{
+		stopServer:               stop,
+		expectedClientConnection: expected,
+		statusBpfMap:             mp,
+		status:                   status,
+	}, nil
+}
+
+func guess(module *elf.Module) error {
+	logger.Debug("start guessing ...")
+
+	// pid & tid must not change during the guessing work: the communication
+	// between ebpf and userspace relies on it
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	// if guessBench null tracer is initialized
+	bench, err := setupGuess(module)
+	if err != nil || bench == nil {
+		return err
+	}
+
+	stop := bench.stopServer
+	defer close(stop)
+	expected := bench.expectedClientConnection
+	mp := bench.statusBpfMap
+	status := bench.status
+
 	// if the kretprobe for tcp_v4_connect() is configured with a too-low
 	// maxactive, some kretprobe might be missing. In this case, we detect
 	// it and try again.
 	// See https://github.com/weaveworks/tcptracer-bpf/issues/24
-	var maxRetries int = 100
+	var maxRetries = 100
 
 	for status.state != stateReady {
-		if err := tryCurrentOffset(status, expected, stop); err != nil {
+		if err := makeNewClientConnection(status, expected, stop); err != nil {
 			return err
 		}
 
-		if err := checkAndUpdateCurrentOffset(b, mp, status, expected, &maxRetries); err != nil {
+		if err := checkAndUpdateCurrentOffset(module, mp, status, expected, &maxRetries); err != nil {
 			return err
 		}
 
@@ -431,6 +481,9 @@ func guess(b *elf.Module) error {
 			return fmt.Errorf("overflow while guessing %v, bailing out", whatString[status.what])
 		}
 	}
+
+	logger.Debugf("Actual offsets: daddrV6=%d, netns=%d, saddr=%d, daddr=%d, sport=%d, dport=%d, family=%d",
+		status.offset_daddr_ipv6, status.offset_netns, status.offset_saddr, status.offset_daddr, status.offset_sport, status.offset_dport, status.offset_family)
 
 	return nil
 }

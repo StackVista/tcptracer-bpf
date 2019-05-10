@@ -169,8 +169,27 @@ static bool proc_t_comm_equals(struct proc_t a, struct proc_t b) {
 }
 
 __attribute__((always_inline))
-static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *skp, u64 pid) {
+static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *skp, u64 pid, u64 calling_probe) {
 	u64 zero = 0;
+
+	// Only traffic for the expected process name. Extraneous connections from other processes must be ignored here.
+	// Userland must take care to generate connections from the correct thread. In Golang, this can be achieved
+	// with runtime.LockOSThread.
+	struct proc_t proc = {};
+	bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
+
+	if (!proc_t_comm_equals(status->proc, proc))
+		return 0;
+
+    //bpf_debug("proc: %s, pid: %d, caller: %lu\n", proc.comm, pid, calling_probe);
+
+	// shift existing calling probes by 1
+	int cof;
+	for (cof = 0; cof < 9; cof++) {
+		status->calling_probes[cof+1] = status->calling_probes[cof];
+	}
+	// prepend current calling probe
+	status->calling_probes[0] = calling_probe;
 
 	switch (status->state) {
 		case TCPTRACER_STATE_UNINITIALIZED:
@@ -184,15 +203,6 @@ static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *
 		default:
 			return 0;
 	}
-
-	// Only traffic for the expected process name. Extraneous connections from other processes must be ignored here.
-	// Userland must take care to generate connections from the correct thread. In Golang, this can be achieved
-	// with runtime.LockOSThread.
-	struct proc_t proc = {};
-	bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
-
-	if (!proc_t_comm_equals(status->proc, proc))
-		return 0;
 
 	struct tcptracer_status_t new_status = {};
 	new_status.state = TCPTRACER_STATE_CHECKED;
@@ -218,6 +228,10 @@ static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *
 	int i;
 	for (i = 0; i < 4; i++) {
 		new_status.daddr_ipv6[i] = status->daddr_ipv6[i];
+	}
+	int j;
+	for (j = 0; j < 10; j++) {
+		new_status.calling_probes[j] = status->calling_probes[j];
 	}
 
 	u32 possible_saddr;
@@ -459,13 +473,13 @@ static void update_conn_direction_state(struct conn_stats_t *stats, __u8 directi
  *  - If the state changes to closed, changes the state
  */
 __attribute__((always_inline))
-static int assert_tcp_record(struct sock *sk, struct tcptracer_status_t *status, __u8 direction, __u8 state) {
+static int assert_tcp_record(struct sock *sk, struct tcptracer_status_t *status, __u8 direction, __u8 state, u64 calling_probe) {
 	struct conn_stats_t *val;
 
 	u64 pid = bpf_get_current_pid_tgid();
 
 	if (check_family(sk, status, AF_INET)) {
-		if (!are_offsets_ready_v4(status, sk, pid)) {
+		if (!are_offsets_ready_v4(status, sk, pid, calling_probe)) {
 			return 0;
 		}
 
@@ -549,21 +563,21 @@ static int assert_tcp_record(struct sock *sk, struct tcptracer_status_t *status,
  * Will increment the tcp stats, only if the connection was already observed.
  */
 __attribute__((always_inline))
-static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *status, size_t send_bytes, size_t recv_bytes) {
+static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *status, size_t send_bytes, size_t recv_bytes, u64 calling_probe) {
     // If no data went over the line, we do not treat this as an active connection
     if (send_bytes <= 0 && recv_bytes <= 0) {
         return 0;
     }
 
     // Make sure the record exists
-    assert_tcp_record(sk, status, DIRECTION_UNKNOWN, STATE_ACTIVE);
+    assert_tcp_record(sk, status, DIRECTION_UNKNOWN, STATE_ACTIVE, calling_probe);
 
 	struct conn_stats_t *val;
 
 	u64 pid = bpf_get_current_pid_tgid();
 
 	if (check_family(sk, status, AF_INET)) {
-		if (!are_offsets_ready_v4(status, sk, pid)) {
+		if (!are_offsets_ready_v4(status, sk, pid, calling_probe)) {
 			return 0;
 		}
 
@@ -581,7 +595,7 @@ static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *statu
 			(*val).send_bytes += send_bytes;
 			(*val).recv_bytes += recv_bytes;
 		}
-  } else if (check_family(sk, status, AF_INET6)) {
+    } else if (check_family(sk, status, AF_INET6)) {
 		if (!are_offsets_ready_v6(status, sk, pid)) {
 			return 0;
 		}
@@ -617,7 +631,7 @@ static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *statu
 				(*val).send_bytes += send_bytes;
 				(*val).recv_bytes += recv_bytes;
 			}
-    }
+        }
 	}
 	return 0;
 }
@@ -627,14 +641,15 @@ static int increment_udp_stats(struct sock *sk,
                                struct tcptracer_status_t *status,
                                u64 pid_tgid,
                                size_t send_bytes,
-                               size_t recv_bytes) {
+                               size_t recv_bytes,
+                               u64 calling_probe) {
 	struct conn_stats_ts_t *val;
 
 	u64 zero = 0;
 	u64 ts = bpf_ktime_get_ns();
 
 	if (check_family(sk, status, AF_INET)) {
-		if (!are_offsets_ready_v4(status, sk, pid_tgid)) {
+		if (!are_offsets_ready_v4(status, sk, pid_tgid, calling_probe)) {
 			return 0;
 		}
 
@@ -766,9 +781,9 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
 	}
 
 	// We should figure out offsets if they're not already figured out
-	are_offsets_ready_v4(status, skp, pid);
+	are_offsets_ready_v4(status, skp, pid, __LINE__);
 
-	return assert_tcp_record(skp, status, DIRECTION_OUTGOING, STATE_INITIALIZING);
+	return assert_tcp_record(skp, status, DIRECTION_OUTGOING, STATE_INITIALIZING, __LINE__);
 }
 
 // Used for offset guessing (see: pkg/offsetguess.go)
@@ -815,7 +830,7 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
     	return 0;
     }
 
-    return assert_tcp_record(skp, status, DIRECTION_OUTGOING, STATE_INITIALIZING);
+    return assert_tcp_record(skp, status, DIRECTION_OUTGOING, STATE_INITIALIZING, __LINE__);
 }
 
 SEC("kretprobe/inet_csk_accept")
@@ -832,7 +847,7 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
         return 0;
     }
 
-  return assert_tcp_record(newsk, status, DIRECTION_INCOMING, STATE_INITIALIZING);
+  return assert_tcp_record(newsk, status, DIRECTION_INCOMING, STATE_INITIALIZING, __LINE__);
 }
 
 SEC("kprobe/tcp_sendmsg")
@@ -849,7 +864,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
 		return 0;
 	}
 
-	return increment_tcp_stats(sk, status, size, 0);
+	return increment_tcp_stats(sk, status, size, 0, __LINE__);
 }
 
 SEC("kprobe/tcp_sendpage")
@@ -863,7 +878,7 @@ int kprobe__tcp_sendpage(struct pt_regs *ctx) {
 		return 0;
 	}
 
-	return increment_tcp_stats(sk, status, size, 0);
+	return increment_tcp_stats(sk, status, size, 0, __LINE__);
 }
 
 SEC("kprobe/tcp_cleanup_rbuf")
@@ -880,7 +895,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx) {
 		return 0;
 	}
 
-	return increment_tcp_stats(sk, status, 0, copied);
+	return increment_tcp_stats(sk, status, 0, copied, __LINE__);
 }
 
 SEC("kprobe/tcp_close")
@@ -895,7 +910,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 		return 0;
 	}
 
-    return assert_tcp_record(sk, status, DIRECTION_UNKNOWN, STATE_CLOSED);
+    return assert_tcp_record(sk, status, DIRECTION_UNKNOWN, STATE_CLOSED, __LINE__);
 }
 
 SEC("kprobe/udp_sendmsg")
@@ -910,7 +925,7 @@ int kprobe__udp_sendmsg(struct pt_regs *ctx) {
 		return 0;
 	}
 
-	increment_udp_stats(sk, status, pid_tgid, size, 0);
+	increment_udp_stats(sk, status, pid_tgid, size, 0, __LINE__);
 
 	return 0;
 }
@@ -958,7 +973,7 @@ int kretprobe__udp_recvmsg(struct pt_regs *ctx) {
 		return 0;
 	}
 
-	increment_udp_stats(sk, status, pid_tgid, 0, copied);
+	increment_udp_stats(sk, status, pid_tgid, 0, copied, __LINE__);
 
 	return 0;
 }

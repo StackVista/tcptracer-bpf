@@ -102,6 +102,8 @@ struct tcptracer_status_t {
 	__u16 dport;
 	__u16 family;
 	__u16 padding;
+
+	__u64 calling_probes[10];
 };
 
 #endif
