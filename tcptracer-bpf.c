@@ -782,9 +782,7 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
 	}
 
 	// We should figure out offsets if they're not already figured out
-	if (update_tracer_offset_status_v4(status, skp, pid, __LINE__) != 0) {
-	    return 0;
-	}
+	update_tracer_offset_status_v4(status, skp, pid, __LINE__);
 
 	return assert_tcp_record(skp, status, DIRECTION_OUTGOING, STATE_INITIALIZING);
 }
@@ -825,9 +823,7 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
 	}
 
 	// We should figure out offsets if they're not already figured out
-	if (update_tracer_offset_status_v6(status, skp, pid) != 0) {
-        return 0;
-	}
+	update_tracer_offset_status_v6(status, skp, pid);
 
     if (ret != 0) {
     		// failed to send SYNC packet, may not have populated
