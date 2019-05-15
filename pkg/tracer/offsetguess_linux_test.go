@@ -10,19 +10,16 @@ import (
 )
 
 func TestEnsureGuessingFromConnectingSide(t *testing.T) {
-	t.Log("read bpf ...")
 	module, err := loadBPFModule()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	t.Log("load bpf ...")
 	err = module.Load(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	t.Log("enable kprobe...")
 	// TODO: Only enable kprobes for traffic collection defined in config
 	err = module.EnableKprobes(common.MaxActive)
 	if err != nil {
@@ -40,7 +37,6 @@ func TestEnsureGuessingFromConnectingSide(t *testing.T) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	t.Log("setup guess ...")
 	// if guessBench null tracer is initialized
 	bench, err := setupGuess(module, currentNetns)
 	if err != nil || bench == nil {
@@ -53,7 +49,6 @@ func TestEnsureGuessingFromConnectingSide(t *testing.T) {
 	mp := bench.statusBpfMap
 	status := bench.status
 
-	t.Log("guessing until family ...")
 	var maxRetries = 100
 	for status.state != stateReady {
 		if err := makeNewClientConnection(status, expected, stop); err != nil {
@@ -69,7 +64,6 @@ func TestEnsureGuessingFromConnectingSide(t *testing.T) {
 		}
 	}
 
-	t.Log("make client connection ...")
 	if err := makeNewClientConnection(status, expected, stop); err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +72,6 @@ func TestEnsureGuessingFromConnectingSide(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Log("check status ...")
 	for status.state != stateChecked {
 		//do nothing, until ebpf processed the event
 
@@ -87,7 +80,7 @@ func TestEnsureGuessingFromConnectingSide(t *testing.T) {
 		}
 	}
 
-	err = module.Close()
+	defer module.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
