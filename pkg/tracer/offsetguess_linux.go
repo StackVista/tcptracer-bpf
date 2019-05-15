@@ -205,7 +205,7 @@ func makeNewClientConnection(status *tcpTracerStatus, expected *fieldValues, sto
 		// signal the server that we're about to connect, this will block until
 		// the channel is free so we don't overload the server
 		stop <- struct{}{}
-		logger.Debug("client connecting ...")
+		logger.Debug("client v4 connecting ...")
 		conn, err := net.Dial("tcp4", bindAddress)
 		if err != nil {
 			return fmt.Errorf("error dialing %q: %v", bindAddress, err)
@@ -233,6 +233,7 @@ func makeNewClientConnection(status *tcpTracerStatus, expected *fieldValues, sto
 
 		conn.Close()
 	} else {
+		logger.Debug("client v6 connecting ...")
 		conn, err := net.DialTimeout("tcp6", fmt.Sprintf("[%s]:9092", ip), 10*time.Millisecond)
 		// Since we connect to a random IP, this will most likely fail.
 		// In the unlikely case where it connects successfully, we close
@@ -437,7 +438,6 @@ func guess(module *elf.Module) error {
 	if err != nil {
 		return fmt.Errorf("error getting current netns: %v", err)
 	}
-
 
 	// pid & tid must not change during the guessing work: the communication
 	// between ebpf and userspace relies on it
