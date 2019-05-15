@@ -32,12 +32,17 @@ func TestEnsureGuessingFromConnectingSide(t *testing.T) {
 		}
 	}
 
+	currentNetns, err := ownNetNS()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
 	t.Log("setup guess ...")
 	// if guessBench null tracer is initialized
-	bench, err := setupGuess(module)
+	bench, err := setupGuess(module, currentNetns)
 	if err != nil || bench == nil {
 		t.Fatal(err)
 	}

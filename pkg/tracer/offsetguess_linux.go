@@ -376,12 +376,7 @@ type guessBench struct {
 	status                   *tcpTracerStatus
 }
 
-func setupGuess(b *elf.Module) (*guessBench, error) {
-	currentNetns, err := ownNetNS()
-	if err != nil {
-		return nil, fmt.Errorf("error getting current netns: %v", err)
-	}
-
+func setupGuess(b *elf.Module, netns uint64) (*guessBench, error) {
 	mp := b.Map("tcptracer_status")
 
 	processName := filepath.Base(os.Args[0])
@@ -401,7 +396,7 @@ func setupGuess(b *elf.Module) (*guessBench, error) {
 	}
 
 	// if we already have the offsets, just return
-	err = b.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status))
+	err := b.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status))
 	if err == nil && status.state == stateReady {
 		return nil, nil
 	}
@@ -424,7 +419,7 @@ func setupGuess(b *elf.Module) (*guessBench, error) {
 		// will be set later
 		sport:  0,
 		dport:  listenPort,
-		netns:  uint32(currentNetns),
+		netns:  uint32(netns),
 		family: syscall.AF_INET,
 	}
 
@@ -438,6 +433,11 @@ func setupGuess(b *elf.Module) (*guessBench, error) {
 
 func guess(module *elf.Module) error {
 	logger.Debug("start guessing ...")
+	currentNetns, err := ownNetNS()
+	if err != nil {
+		return fmt.Errorf("error getting current netns: %v", err)
+	}
+
 
 	// pid & tid must not change during the guessing work: the communication
 	// between ebpf and userspace relies on it
@@ -445,7 +445,7 @@ func guess(module *elf.Module) error {
 	defer runtime.UnlockOSThread()
 
 	// if guessBench null tracer is initialized
-	bench, err := setupGuess(module)
+	bench, err := setupGuess(module, currentNetns)
 	if err != nil || bench == nil {
 		return err
 	}
