@@ -66,6 +66,7 @@ func TestTCPSendAndReceiveWithNamespaces(t *testing.T) {
 	// One direction
 	conn1, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	assert.True(t, ok)
+	assert.NotNil(t, conn1)
 	if CheckMessageSize {
 		assert.Equal(t, clientMessageSize, int(conn1.SendBytes))
 		assert.Equal(t, serverMessageSize, int(conn1.RecvBytes))
@@ -75,6 +76,7 @@ func TestTCPSendAndReceiveWithNamespaces(t *testing.T) {
 
 	conn2, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
 	assert.True(t, ok)
+	assert.NotNil(t, conn2)
 	if CheckMessageSize {
 		assert.Equal(t, clientMessageSize, int(conn2.RecvBytes))
 		assert.Equal(t, serverMessageSize, int(conn2.SendBytes))

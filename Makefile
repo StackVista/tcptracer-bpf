@@ -82,8 +82,8 @@ run-nettop:
 		tcptracer-bpf-dd-nettop
 
 # Build network-tracer agent: runs eBPF program and exposes connections via /connections over UDS
-build-agent:
-	go build -a -o network-tracer -tags '$(GO_TAGS)' -ldflags "$(LDFLAGS)" github.com/StackVista/tcptracer-bpf/agent
+build-network-tracer:
+	go build -a -o network-tracer -tags '$(GO_TAGS)' -ldflags "$(LDFLAGS)" github.com/StackVista/tcptracer-bpf/cmd
 
 # easyjson code generation
 codegen:

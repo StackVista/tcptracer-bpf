@@ -169,8 +169,38 @@ static bool proc_t_comm_equals(struct proc_t a, struct proc_t b) {
 }
 
 __attribute__((always_inline))
-static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *skp, u64 pid) {
+static int is_tracer_status_ready(struct tcptracer_status_t *status) {
+	switch (status->state) {
+		case TCPTRACER_STATE_READY:
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+
+__attribute__((always_inline))
+static int update_tracer_offset_status_v4(struct tcptracer_status_t *status, struct sock *skp, u64 pid, u64 calling_probe) {
 	u64 zero = 0;
+
+	// Only traffic for the expected process name. Extraneous connections from other processes must be ignored here.
+	// Userland must take care to generate connections from the correct thread. In Golang, this can be achieved
+	// with runtime.LockOSThread.
+	struct proc_t proc = {};
+	bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
+
+	if (!proc_t_comm_equals(status->proc, proc))
+		return 0;
+
+	//bpf_debug("proc: %s, pid: %d, caller: %lu\n", proc.comm, pid, calling_probe);
+
+	// shift existing calling probes by 1
+	int cof;
+	for (cof = 0; cof < 9; cof++) {
+		status->calling_probes[cof+1] = status->calling_probes[cof];
+	}
+	// prepend current calling probe
+	status->calling_probes[0] = calling_probe;
 
 	switch (status->state) {
 		case TCPTRACER_STATE_UNINITIALIZED:
@@ -184,15 +214,6 @@ static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *
 		default:
 			return 0;
 	}
-
-	// Only traffic for the expected process name. Extraneous connections from other processes must be ignored here.
-	// Userland must take care to generate connections from the correct thread. In Golang, this can be achieved
-	// with runtime.LockOSThread.
-	struct proc_t proc = {};
-	bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
-
-	if (!proc_t_comm_equals(status->proc, proc))
-		return 0;
 
 	struct tcptracer_status_t new_status = {};
 	new_status.state = TCPTRACER_STATE_CHECKED;
@@ -218,6 +239,10 @@ static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *
 	int i;
 	for (i = 0; i < 4; i++) {
 		new_status.daddr_ipv6[i] = status->daddr_ipv6[i];
+	}
+	int j;
+	for (j = 0; j < 10; j++) {
+		new_status.calling_probes[j] = status->calling_probes[j];
 	}
 
 	u32 possible_saddr;
@@ -280,7 +305,7 @@ static int are_offsets_ready_v4(struct tcptracer_status_t *status, struct sock *
 }
 
 __attribute__((always_inline))
-static int are_offsets_ready_v6(struct tcptracer_status_t *status, struct sock *skp, u64 pid) {
+static int update_tracer_offset_status_v6(struct tcptracer_status_t *status, struct sock *skp, u64 pid, u64 calling_probe) {
 	u64 zero = 0;
 
 	switch (status->state) {
@@ -302,8 +327,17 @@ static int are_offsets_ready_v6(struct tcptracer_status_t *status, struct sock *
 	struct proc_t proc = {};
 	bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
 
-	if (!proc_t_comm_equals(status->proc, proc))
+	if (!proc_t_comm_equals(status->proc, proc)) {
 		return 0;
+	}
+
+	// shift existing calling probes by 1
+	int cof;
+	for (cof = 0; cof < 9; cof++) {
+		status->calling_probes[cof+1] = status->calling_probes[cof];
+	}
+	// prepend current calling probe
+	status->calling_probes[0] = calling_probe;
 
 	struct tcptracer_status_t new_status = {};
 	new_status.state = TCPTRACER_STATE_CHECKED;
@@ -329,6 +363,11 @@ static int are_offsets_ready_v6(struct tcptracer_status_t *status, struct sock *
 	int i;
 	for (i = 0; i < 4; i++) {
 		new_status.daddr_ipv6[i] = status->daddr_ipv6[i];
+	}
+
+	int j;
+	for (j = 0; j < 10; j++) {
+		new_status.calling_probes[j] = status->calling_probes[j];
 	}
 
 	u32 possible_daddr_ipv6[4] = {};
@@ -436,21 +475,21 @@ static int read_ipv6_tuple(struct ipv6_tuple_t *tuple, struct tcptracer_status_t
 }
 
 static void update_conn_direction_state(struct conn_stats_t *stats, __u8 direction, __u8 state) {
-    if (direction != DIRECTION_UNKNOWN) {
-        (*stats).direction = direction;
-    }
+	if (direction != DIRECTION_UNKNOWN) {
+		(*stats).direction = direction;
+	}
 
-    if (stats->state == STATE_INITIALIZING && state == STATE_ACTIVE) {
-        // We can move from initializing to active
-        (*stats).state = STATE_ACTIVE;
-    } else if (stats->state == STATE_ACTIVE && state == STATE_CLOSED) {
-        // We can move from active to closed
-        (*stats).state = STATE_ACTIVE_CLOSED;
-    } else if (stats->state == STATE_INITIALIZING && state == STATE_CLOSED) {
-        // We can move from initializing to closed
-        // If we did not see any activity we report the connection as closed without activity, meaning we treat it as failed
-        (*stats).state = STATE_CLOSED;
-    }
+	if (stats->state == STATE_INITIALIZING && state == STATE_ACTIVE) {
+		// We can move from initializing to active
+		(*stats).state = STATE_ACTIVE;
+	} else if (stats->state == STATE_ACTIVE && state == STATE_CLOSED) {
+		// We can move from active to closed
+		(*stats).state = STATE_ACTIVE_CLOSED;
+	} else if (stats->state == STATE_INITIALIZING && state == STATE_CLOSED) {
+		// We can move from initializing to closed
+		// If we did not see any activity we report the connection as closed without activity, meaning we treat it as failed
+		(*stats).state = STATE_CLOSED;
+	}
 }
 
 /**
@@ -464,11 +503,12 @@ static int assert_tcp_record(struct sock *sk, struct tcptracer_status_t *status,
 
 	u64 pid = bpf_get_current_pid_tgid();
 
-	if (check_family(sk, status, AF_INET)) {
-		if (!are_offsets_ready_v4(status, sk, pid)) {
-			return 0;
-		}
+	// If the tracer is not ready we don't assert the tcp record
+	if (!is_tracer_status_ready(status)) {
+		return 0;
+	}
 
+	if (check_family(sk, status, AF_INET)) {
 		struct ipv4_tuple_t t = {};
 		if (!read_ipv4_tuple(&t, status, sk)) {
 			return 0;
@@ -483,18 +523,14 @@ static int assert_tcp_record(struct sock *sk, struct tcptracer_status_t *status,
 			struct conn_stats_t s = {
 				.send_bytes = 0,
 				.recv_bytes = 0,
-                .direction  = direction,
-                .state = state
+				.direction  = direction,
+				.state = state
 			};
 			bpf_map_update_elem(&tcp_stats_ipv4, &t, &s, BPF_ANY);
 		} else {
-		    update_conn_direction_state(val, direction, state);
+			update_conn_direction_state(val, direction, state);
 		}
 	} else if (check_family(sk, status, AF_INET6)) {
-		if (!are_offsets_ready_v6(status, sk, pid)) {
-			return 0;
-		}
-
 		struct ipv6_tuple_t t = {};
 		if (!read_ipv6_tuple(&t, status, sk)) {
 			return 0;
@@ -516,12 +552,12 @@ static int assert_tcp_record(struct sock *sk, struct tcptracer_status_t *status,
 				struct conn_stats_t s = {
 					.send_bytes = 0,
 					.recv_bytes = 0,
-                    .direction  = direction,
-                    .state = state
+					.direction  = direction,
+					.state = state
 				};
 				bpf_map_update_elem(&tcp_stats_ipv4, &t2, &s, BPF_ANY);
 			} else {
-			    update_conn_direction_state(val, direction, state);
+				update_conn_direction_state(val, direction, state);
 			}
 		} else {
 			t.pid = pid >> 32;
@@ -533,12 +569,12 @@ static int assert_tcp_record(struct sock *sk, struct tcptracer_status_t *status,
 				struct conn_stats_t s = {
 					.send_bytes = 0,
 					.recv_bytes = 0,
-                    .direction  = direction,
-                    .state = state
+					.direction  = direction,
+					.state = state
 				};
 				bpf_map_update_elem(&tcp_stats_ipv6, &t, &s, BPF_ANY);
 			} else {
-			    update_conn_direction_state(val, direction, state);
+				update_conn_direction_state(val, direction, state);
 			}
 		}
 	}
@@ -550,23 +586,24 @@ static int assert_tcp_record(struct sock *sk, struct tcptracer_status_t *status,
  */
 __attribute__((always_inline))
 static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *status, size_t send_bytes, size_t recv_bytes) {
-    // If no data went over the line, we do not treat this as an active connection
-    if (send_bytes <= 0 && recv_bytes <= 0) {
-        return 0;
-    }
+	// If no data went over the line, we do not treat this as an active connection
+	if (send_bytes <= 0 && recv_bytes <= 0) {
+		return 0;
+	}
 
-    // Make sure the record exists
-    assert_tcp_record(sk, status, DIRECTION_UNKNOWN, STATE_ACTIVE);
+	// If the tracer is not ready we stop incrementing tcp stats
+	if (!is_tracer_status_ready(status)) {
+		return 0;
+	}
+
+	// Make sure the record exists, and checks if the network tracer is ready
+	assert_tcp_record(sk, status, DIRECTION_UNKNOWN, STATE_ACTIVE);
 
 	struct conn_stats_t *val;
 
 	u64 pid = bpf_get_current_pid_tgid();
 
 	if (check_family(sk, status, AF_INET)) {
-		if (!are_offsets_ready_v4(status, sk, pid)) {
-			return 0;
-		}
-
 		struct ipv4_tuple_t t = {};
 		if (!read_ipv4_tuple(&t, status, sk)) {
 			return 0;
@@ -581,11 +618,7 @@ static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *statu
 			(*val).send_bytes += send_bytes;
 			(*val).recv_bytes += recv_bytes;
 		}
-  } else if (check_family(sk, status, AF_INET6)) {
-		if (!are_offsets_ready_v6(status, sk, pid)) {
-			return 0;
-		}
-
+	} else if (check_family(sk, status, AF_INET6)) {
 		struct ipv6_tuple_t t = {};
 		if (!read_ipv6_tuple(&t, status, sk)) {
 			return 0;
@@ -617,27 +650,28 @@ static int increment_tcp_stats(struct sock *sk, struct tcptracer_status_t *statu
 				(*val).send_bytes += send_bytes;
 				(*val).recv_bytes += recv_bytes;
 			}
-    }
+		}
 	}
 	return 0;
 }
 
 __attribute__((always_inline))
 static int increment_udp_stats(struct sock *sk,
-                               struct tcptracer_status_t *status,
-                               u64 pid_tgid,
-                               size_t send_bytes,
-                               size_t recv_bytes) {
+							   struct tcptracer_status_t *status,
+							   u64 pid_tgid,
+							   size_t send_bytes,
+							   size_t recv_bytes) {
 	struct conn_stats_ts_t *val;
+
+	// If the network tracer is not ready we don't increment UDP stats
+	if (!is_tracer_status_ready(status)) {
+		return 0;
+	}
 
 	u64 zero = 0;
 	u64 ts = bpf_ktime_get_ns();
 
 	if (check_family(sk, status, AF_INET)) {
-		if (!are_offsets_ready_v4(status, sk, pid_tgid)) {
-			return 0;
-		}
-
 		struct ipv4_tuple_t t = {};
 		if (!read_ipv4_tuple(&t, status, sk)) {
 			return 0;
@@ -663,10 +697,6 @@ static int increment_udp_stats(struct sock *sk,
 			bpf_map_update_elem(&udp_stats_ipv4, &t, &s, BPF_ANY);
 		}
 	} else if (check_family(sk, status, AF_INET6)) {
-		if (!are_offsets_ready_v6(status, sk, pid_tgid)) {
-			return 0;
-		}
-
 		struct ipv6_tuple_t t = {};
 		if (!read_ipv6_tuple(&t, status, sk)) {
 			return 0;
@@ -766,7 +796,9 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
 	}
 
 	// We should figure out offsets if they're not already figured out
-	are_offsets_ready_v4(status, skp, pid);
+	if(!update_tracer_offset_status_v4(status, skp, pid, __LINE__)) {
+		return 0;
+	}
 
 	return assert_tcp_record(skp, status, DIRECTION_OUTGOING, STATE_INITIALIZING);
 }
@@ -787,7 +819,7 @@ int kprobe__tcp_v6_connect(struct pt_regs *ctx) {
 // Used for offset guessing (see: pkg/offsetguess.go)
 SEC("kretprobe/tcp_v6_connect")
 int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
-    int ret = PT_REGS_RC(ctx);
+	int ret = PT_REGS_RC(ctx);
 	u64 pid = bpf_get_current_pid_tgid();
 	u64 zero = 0;
 	struct sock **skpp;
@@ -807,32 +839,35 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
 	}
 
 	// We should figure out offsets if they're not already figured out
-	are_offsets_ready_v6(status, skp, pid);
+	if(!update_tracer_offset_status_v6(status, skp, pid, __LINE__)) {
+		return 0;
+	}
 
-    if (ret != 0) {
-    		// failed to send SYNC packet, may not have populated
-    		// socket __sk_common.{skc_rcv_saddr, ...}
-    	return 0;
-    }
+	if (ret != 0) {
+			// failed to send SYNC packet, may not have populated
+			// socket __sk_common.{skc_rcv_saddr, ...}
+		return 0;
+	}
 
-    return assert_tcp_record(skp, status, DIRECTION_OUTGOING, STATE_INITIALIZING);
+	return assert_tcp_record(skp, status, DIRECTION_OUTGOING, STATE_INITIALIZING);
 }
 
 SEC("kretprobe/inet_csk_accept")
 int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 {
-  struct sock *newsk = (struct sock *)PT_REGS_RC(ctx);
+	struct sock *newsk = (struct sock *)PT_REGS_RC(ctx);
 
-  if (newsk == NULL)
-	return 0;
+	if (newsk == NULL) {
+		return 0;
+	}
 
-    u64 zero = 0;
-    struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-    if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
-        return 0;
-    }
+	u64 zero = 0;
+	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
+	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
+		return 0;
+	}
 
-  return assert_tcp_record(newsk, status, DIRECTION_INCOMING, STATE_INITIALIZING);
+	return assert_tcp_record(newsk, status, DIRECTION_INCOMING, STATE_INITIALIZING);
 }
 
 SEC("kprobe/tcp_sendmsg")
@@ -895,7 +930,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 		return 0;
 	}
 
-    return assert_tcp_record(sk, status, DIRECTION_UNKNOWN, STATE_CLOSED);
+	return assert_tcp_record(sk, status, DIRECTION_UNKNOWN, STATE_CLOSED);
 }
 
 SEC("kprobe/udp_sendmsg")
