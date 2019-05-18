@@ -308,19 +308,6 @@ __attribute__((always_inline))
 static int update_tracer_offset_status_v6(struct tcptracer_status_t *status, struct sock *skp, u64 pid, u64 calling_probe) {
 	u64 zero = 0;
 
-	switch (status->state) {
-		case TCPTRACER_STATE_UNINITIALIZED:
-			return 0;
-		case TCPTRACER_STATE_CHECKING:
-			break;
-		case TCPTRACER_STATE_CHECKED:
-			return 0;
-		case TCPTRACER_STATE_READY:
-			return 1;
-		default:
-			return 0;
-	}
-
 	// Only traffic for the expected process name. Extraneous connections from other processes must be ignored here.
 	// Userland must take care to generate connections from the correct thread. In Golang, this can be achieved
 	// with runtime.LockOSThread.
@@ -338,6 +325,19 @@ static int update_tracer_offset_status_v6(struct tcptracer_status_t *status, str
 	}
 	// prepend current calling probe
 	status->calling_probes[0] = calling_probe;
+
+	switch (status->state) {
+		case TCPTRACER_STATE_UNINITIALIZED:
+			return 0;
+		case TCPTRACER_STATE_CHECKING:
+			break;
+		case TCPTRACER_STATE_CHECKED:
+			return 0;
+		case TCPTRACER_STATE_READY:
+			return 1;
+		default:
+			return 0;
+	}
 
 	struct tcptracer_status_t new_status = {};
 	new_status.state = TCPTRACER_STATE_CHECKED;
@@ -796,9 +796,7 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
 	}
 
 	// We should figure out offsets if they're not already figured out
-	if(!update_tracer_offset_status_v4(status, skp, pid, __LINE__)) {
-		return 0;
-	}
+	update_tracer_offset_status_v4(status, skp, pid, __LINE__);
 
 	return assert_tcp_record(skp, status, DIRECTION_OUTGOING, STATE_INITIALIZING);
 }
@@ -824,6 +822,7 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
 	u64 zero = 0;
 	struct sock **skpp;
 	struct tcptracer_status_t *status;
+
 	skpp = bpf_map_lookup_elem(&connectsock_ipv6, &pid);
 	if (skpp == 0) {
 		return 0; // missed entry
@@ -839,13 +838,11 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
 	}
 
 	// We should figure out offsets if they're not already figured out
-	if(!update_tracer_offset_status_v6(status, skp, pid, __LINE__)) {
-		return 0;
-	}
+	update_tracer_offset_status_v6(status, skp, pid, __LINE__);
 
 	if (ret != 0) {
-			// failed to send SYNC packet, may not have populated
-			// socket __sk_common.{skc_rcv_saddr, ...}
+        // failed to send SYNC packet, may not have populated
+        // socket __sk_common.{skc_rcv_saddr, ...}
 		return 0;
 	}
 
