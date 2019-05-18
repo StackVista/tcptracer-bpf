@@ -36,7 +36,7 @@ ifeq ($(NETWORK_AGENT_STATIC), true)
 endif
 
 # Generate and install eBPF program via gobindata
-all: build-docker-image build-ebpf-object install-generated-go
+all: install-generated-go test
 
 build-docker-image:
 	$(SUDO) docker build -t $(DOCKER_IMAGE) -f $(DOCKER_FILE) .
@@ -90,7 +90,7 @@ codegen:
 	go get -u github.com/mailru/easyjson/...
 	easyjson pkg/tracer/common/model.go
 
-test: build-ebpf-object
+test:
 	go list ./... | grep -v vendor | sudo -E PATH=${PATH} GOCACHE=off xargs go test -tags 'linux_bpf'
 
 linux-ci-test: build-ebpf-object-ci
