@@ -14,6 +14,12 @@ func TestEnsureGuessingFromConnectingSide(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		err = module.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
 
 	err = module.Load(nil)
 	if err != nil {
@@ -23,7 +29,7 @@ func TestEnsureGuessingFromConnectingSide(t *testing.T) {
 	// TODO: Only enable kprobes for traffic collection defined in config
 	err = module.EnableKprobes(common.MaxActive)
 	if err != nil {
-		module.Close()
+		err = module.Close()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -78,11 +84,6 @@ func TestEnsureGuessingFromConnectingSide(t *testing.T) {
 		if err := module.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status)); err != nil {
 			t.Fatal(err)
 		}
-	}
-
-	defer module.Close()
-	if err != nil {
-		t.Fatal(err)
 	}
 
 	// the tcptracer_status should report only connecting events from _connect_ probes

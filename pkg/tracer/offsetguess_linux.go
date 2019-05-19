@@ -128,7 +128,7 @@ func acceptV4(l net.Listener, stop chan struct{}) {
 		_, ok := <-stop
 		if ok {
 			conn, err := l.Accept()
-			logger.Debug("accepted client connection ...")
+			logger.Trace("accepted client connection ...")
 			if err != nil {
 				l.Close()
 				return
@@ -163,7 +163,7 @@ func ownNetNS() (uint64, error) {
 func ipv6FromUint32Arr(ipv6Addr [4]uint32) net.IP {
 	buf := make([]byte, 16)
 	for i := 0; i < 16; i++ {
-		buf[i] = *(*byte)(unsafe.Pointer((uintptr(unsafe.Pointer(&ipv6Addr[0])) + uintptr(i))))
+		buf[i] = *(*byte)(unsafe.Pointer(uintptr(unsafe.Pointer(&ipv6Addr[0])) + uintptr(i)))
 	}
 	return net.IP(buf)
 }
@@ -205,7 +205,7 @@ func makeNewClientConnection(status *tcpTracerStatus, expected *fieldValues, sto
 		// signal the server that we're about to connect, this will block until
 		// the channel is free so we don't overload the server
 		stop <- struct{}{}
-		logger.Debug("client v4 connecting ...")
+		logger.Trace("client v4 connecting ...")
 		conn, err := net.Dial("tcp4", bindAddress)
 		if err != nil {
 			return fmt.Errorf("error dialing %q: %v", bindAddress, err)
@@ -219,7 +219,7 @@ func makeNewClientConnection(status *tcpTracerStatus, expected *fieldValues, sto
 
 		expected.sport = uint16(sport)
 
-		logger.Debugf("Expect: daddrV6=%v, netns=%v, saddr=%v, daddr=%v, sport=%v, dport=%v, family=%v", expected.daddrIPv6, expected.netns, expected.saddr, expected.daddr, htons(expected.sport), htons(expected.dport), expected.family)
+		logger.Tracef("Expect: daddrV6=%v, netns=%v, saddr=%v, daddr=%v, sport=%v, dport=%v, family=%v", expected.daddrIPv6, expected.netns, expected.saddr, expected.daddr, htons(expected.sport), htons(expected.dport), expected.family)
 
 		// set SO_LINGER to 0 so the connection state after closing is
 		// CLOSE instead of TIME_WAIT. In this way, they will disappear
@@ -233,7 +233,7 @@ func makeNewClientConnection(status *tcpTracerStatus, expected *fieldValues, sto
 
 		conn.Close()
 	} else {
-		logger.Debug("client v6 connecting ...")
+		logger.Trace("client v6 connecting ...")
 		conn, err := net.DialTimeout("tcp6", fmt.Sprintf("[%s]:9092", ip), 10*time.Millisecond)
 		// Since we connect to a random IP, this will most likely fail.
 		// In the unlikely case where it connects successfully, we close
@@ -269,7 +269,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 
 	switch status.what {
 	case guessSaddr:
-		logger.Debugf("finding saddr: %v, at offset %d, actual: %v ...", expected.saddr, status.offset_saddr, status.saddr)
+		logger.Tracef("finding saddr: %v, at offset %d, actual: %v ...", expected.saddr, status.offset_saddr, status.saddr)
 		if status.saddr == C.__u32(expected.saddr) {
 			logger.Debugf("saddr found")
 			status.what = guessDaddr
@@ -279,7 +279,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 		}
 		status.state = stateChecking
 	case guessDaddr:
-		logger.Debugf("finding daddr: %v, at offset %d, actual: %v  ...", expected.daddr, status.offset_daddr, status.daddr)
+		logger.Tracef("finding daddr: %v, at offset %d, actual: %v  ...", expected.daddr, status.offset_daddr, status.daddr)
 		if status.daddr == C.__u32(expected.daddr) {
 			logger.Debugf("daddr found")
 			status.what = guessFamily
@@ -289,7 +289,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 		}
 		status.state = stateChecking
 	case guessFamily:
-		logger.Debugf("finding family: %d, at offset %d, actual: %v  ...", expected.family, status.offset_family, status.family)
+		logger.Tracef("finding family: %d, at offset %d, actual: %v  ...", expected.family, status.offset_family, status.family)
 		if status.family == C.__u16(expected.family) {
 			logger.Debugf("family found")
 			status.what = guessSport
@@ -301,7 +301,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 		}
 		status.state = stateChecking
 	case guessSport:
-		logger.Debugf("finding sport: %d, at offset %d, actual: %v  ...", htons(expected.sport), status.offset_sport, status.sport)
+		logger.Tracef("finding sport: %d, at offset %d, actual: %v  ...", htons(expected.sport), status.offset_sport, status.sport)
 		if status.sport == C.__u16(htons(expected.sport)) {
 			logger.Debugf("sport found")
 			status.what = guessDport
@@ -310,7 +310,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 		}
 		status.state = stateChecking
 	case guessDport:
-		logger.Debugf("finding dport: %d, at offset %d, actual: %v  ...", htons(expected.dport), status.offset_dport, status.dport)
+		logger.Tracef("finding dport: %d, at offset %d, actual: %v  ...", htons(expected.dport), status.offset_dport, status.dport)
 		if status.dport == C.__u16(htons(expected.dport)) {
 			logger.Debugf("dport found")
 			status.what = guessNetns
@@ -319,7 +319,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 		}
 		status.state = stateChecking
 	case guessNetns:
-		logger.Debugf("finding netns: %v, at offset %d, actual: %v  ...", expected.netns, status.offset_netns, status.netns)
+		logger.Tracef("finding netns: %v, at offset %d, actual: %v  ...", expected.netns, status.offset_netns, status.netns)
 		if status.netns == C.__u32(expected.netns) {
 			logger.Debugf("netns found")
 			status.what = guessDaddrIPv6
@@ -333,7 +333,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 		}
 		status.state = stateChecking
 	case guessDaddrIPv6:
-		logger.Debugf("finding daddr6: %v, at offset %d, actual: %v  ...", expected.daddrIPv6, status.offset_daddr_ipv6, status.daddr_ipv6)
+		logger.Tracef("finding daddr6: %v, at offset %d, actual: %v  ...", expected.daddrIPv6, status.offset_daddr_ipv6, status.daddr_ipv6)
 		if compareIPv6(status.daddr_ipv6, expected.daddrIPv6) {
 			logger.Debugf("daddr6 found")
 			// at this point, we've guessed all the offsets we need,
@@ -384,7 +384,7 @@ func setupGuess(b *elf.Module, netns uint64) (*guessBench, error) {
 	if len(processName) > procNameMaxSize { // Truncate process name if needed
 		processName = processName[:procNameMaxSize]
 	}
-	logger.Debugf("process name: %v, pid: %d, tid: %d, pidTgid: %d", processName, os.Getpid(), syscall.Gettid())
+	logger.Debugf("process name: %v, pid: %d, tid: %d", processName, os.Getpid(), syscall.Gettid())
 
 	cProcName := [procNameMaxSize + 1]C.char{} // Last char has to be null character, so add one
 	for i := range processName {

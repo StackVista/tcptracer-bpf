@@ -4,6 +4,7 @@ package tracer
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
@@ -28,6 +29,11 @@ type LinuxTracer struct {
 	inFlightTCP map[string]*common.ConnectionStats
 }
 
+var (
+	DebugFsPath  = "/sys/kernel/debug"
+	DebugFsMagic = int64(0x64626720) //http://man7.org/linux/man-pages/man2/statfs.2.html
+)
+
 func MakeTracer(config *config.Config) (Tracer, error) {
 	m, err := loadBPFModule()
 	if err != nil {
@@ -42,7 +48,7 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 	// TODO: Only enable kprobes for traffic collection defined in config
 	err = m.EnableKprobes(common.MaxActive)
 	if err != nil {
-		m.Close()
+		err = m.Close()
 		if err != nil {
 			return nil, logger.Error(err.Error())
 		}
@@ -89,22 +95,39 @@ func CheckTracerSupport() (bool, error) {
 // On Amazon Linux due to a bug https://forums.aws.amazon.com/thread.jspa?messageID=753257
 // debugfs is not automatically mounted and we try to mount ourselves
 func ensureDebugFsMounted() error {
-	err := syscall.Mount("debugfs", "/sys/kernel/debug", "debugfs", 0, "")
-	if err != nil {
-		// http://man7.org/linux/man-pages/man2/mount.2.html#ERRORS
-		switch err {
-		case syscall.EBUSY:
-			logger.Info("debugfs already mounted")
-		case syscall.EPERM:
-			return logger.Error("no permissions to mount debugfs!")
-		default:
-			// http://www-numi.fnal.gov/offline_software/srt_public_context/WebDocs/Errors/unix_system_errors.html
-			return logger.Errorf("debugfs mount error: %d - %s\n", err, err)
+	if ok, err := isDebugFsMounted(); err == nil {
+		if ok {
+			logger.Debug("debugfs already mounted")
+			return nil
+		} else {
+			err := syscall.Mount("debugfs", DebugFsPath, "debugfs", 0, "")
+			if err != nil {
+				// http://man7.org/linux/man-pages/man2/mount.2.html#ERRORS
+				switch err {
+				case syscall.EBUSY:
+					logger.Info("debugfs already mounted")
+				case syscall.EPERM:
+					return logger.Error("no permissions to mount debugfs!")
+				default:
+					// http://www-numi.fnal.gov/offline_software/srt_public_context/WebDocs/Errors/unix_system_errors.html
+					return logger.Errorf("debugfs mount error: %d - %v\n", err, err)
+				}
+			} else {
+				logger.Info("debugfs successfully mounted")
+			}
+			return nil
 		}
 	} else {
-		logger.Info("debugfs successfully mounted")
+		return logger.Errorf("cannot check debugfs mount: %v\n", err)
 	}
-	return nil
+}
+
+func isDebugFsMounted() (bool, error) {
+	var data syscall.Statfs_t
+	if err := syscall.Statfs(DebugFsPath, &data); err != nil {
+		return false, fmt.Errorf("cannot statfs %q: %v", DebugFsPath, err)
+	}
+	return data.Type == DebugFsMagic, nil
 }
 
 func (t *LinuxTracer) Start() error {
