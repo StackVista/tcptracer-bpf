@@ -130,6 +130,10 @@ func TestConnStatsByteKey(t *testing.T) {
 			a: common.ConnectionStats{Pid: 1, Remote: "b", Type: common.TCP, LocalPort: 3},
 			b: common.ConnectionStats{Pid: 1, Remote: "b", Type: common.TCP, RemotePort: 3},
 		},
+		{
+			a: common.ConnectionStats{Pid: 1, Remote: "b", Type: common.TCP, LocalPort: 3, NetworkNamespace: "yo"},
+			b: common.ConnectionStats{Pid: 1, Remote: "b", Type: common.TCP, LocalPort: 3, NetworkNamespace: "yo2"},
+		},
 	} {
 		var keyA, keyB string
 		if b, err := test.a.ByteKey(buf); assert.NoError(t, err) {
