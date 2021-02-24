@@ -4,9 +4,10 @@ package main
 
 import (
 	"fmt"
+	"syscall"
+
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
-	"syscall"
 )
 
 func main() {

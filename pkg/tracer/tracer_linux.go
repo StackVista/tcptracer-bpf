@@ -5,12 +5,13 @@ package tracer
 import (
 	"bytes"
 	"fmt"
+	"syscall"
+	"unsafe"
+
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
 	logger "github.com/cihub/seelog"
-	"syscall"
-	"unsafe"
 
 	bpflib "github.com/iovisor/gobpf/elf"
 )
@@ -154,6 +155,12 @@ func (t *LinuxTracer) GetConnections() (*common.Connections, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	fdCount, err := t.getActiveFds()
+	if err != nil {
+		return nil, err
+	}
+	logger.Info(fmt.Sprintf("Active file descriptors -> %d", fdCount))
 
 	return &common.Connections{Conns: append(tcpConns, udpConns...)}, nil
 }
@@ -407,6 +414,31 @@ func (t *LinuxTracer) getUDPv6Connections() ([]common.ConnectionStats, error) {
 		t.m.DeleteElement(mp, unsafe.Pointer(expired[i]))
 	}
 	return active, nil
+}
+
+func (t *LinuxTracer) getActiveFds() (int, error) {
+	mp, err := t.getMap(common.ActiveFdsMapName)
+	if err != nil {
+		return -1, err
+	}
+
+	key := new(int)
+	nextKey := new(int)
+	value := new(bool)
+	counter := 0
+	for {
+		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(value))
+		if !hasNext {
+			break
+		} else {
+			counter += 1
+			if counter > 100 {
+				break
+			}
+		}
+	}
+
+	return counter, nil
 }
 
 func (t *LinuxTracer) getTCPv4Connections() ([]common.ConnectionStats, error) {

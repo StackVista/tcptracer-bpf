@@ -6,6 +6,7 @@
 #include <linux/ptrace.h>
 #pragma clang diagnostic pop
 #include <linux/bpf.h>
+#include <linux/blk_types.h>
 #include <linux/version.h>
 #include "bpf_helpers.h"
 #include "tcptracer-bpf.h"
@@ -24,6 +25,8 @@
 		char ____fmt[] = fmt;                                      \
 		bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
 	})
+
+#define MAX_MSG_SIZE 1024
 
 /* This is a key/value store with the keys being an ipv4_tuple_t for send & recv calls
  * and the values being the struct conn_stats_ts_t *.
@@ -110,6 +113,67 @@ struct bpf_map_def SEC("maps/udp_recv_sock") udp_recv_sock = {
 	.max_entries = 1024,
 	.pinning = 0,
 	.namespace = "",
+};
+
+struct bpf_map_def SEC("maps/http_stats") http_stats = {
+		.type = BPF_MAP_TYPE_HASH,
+		.key_size = sizeof(struct ipv4_tuple_t),
+		.value_size = sizeof(struct http_stats_t),
+		.max_entries = 1024,
+		.pinning = 0,
+		.namespace = "",
+};
+
+// struct addr_info_t
+// {
+// 	struct sockaddr *addr;
+// 	size_t *addrlen;
+// };
+
+// #define MAX_MSG_SIZE 1024
+// BPF_PERF_OUTPUT(syscall_write_events);
+
+// // This needs to match exactly with the Go version of the struct.
+// struct syscall_write_event_t
+// {
+// 	// We split attributes into a separate struct, because BPF gets upset if you do lots of
+// 	// size arithmetic. This makes it so that it's attributes followed by message.
+// 	struct attr_t
+// 	{
+// 		int event_type;
+// 		int fd;
+// 		int bytes;
+// 		// Care needs to be taken as only msg_size bytes of msg are guaranteed
+// 		// to be valid.
+// 		int msg_size;
+// 	} attr;
+// 	char msg[MAX_MSG_SIZE];
+// };
+
+// const int kEventTypeSyscallAddrEvent = 1;
+// const int kEventTypeSyscallWriteEvent = 2;
+// const int kEventTypeSyscallCloseEvent = 3;
+
+// BPF programs are limited to a 512-byte stack. We store this value per CPU
+// and use it as a heap allocated value.
+
+struct bpf_map_def SEC("maps/write_buffer_heap") write_buffer_heap = {
+		.type = BPF_MAP_TYPE_PERCPU_ARRAY,
+		.key_size = sizeof(int),
+		.value_size = sizeof(char[MAX_MSG_SIZE]),
+		.max_entries = 1,
+		.pinning = 0,
+		.namespace = "",
+};
+
+// The set of file descriptors we are tracking.
+struct bpf_map_def SEC("maps/active_fds") active_fds = {
+		.type = BPF_MAP_TYPE_HASH,
+		.key_size = sizeof(int),
+		.value_size = sizeof(bool),
+		.max_entries = 10240,
+		.pinning = 0,
+		.namespace = "",
 };
 
 /* http://stackoverflow.com/questions/1001307/detecting-endianness-programmatically-in-a-c-program */
@@ -761,6 +825,11 @@ int kprobe__tcp_v4_connect(struct pt_regs *ctx) {
 
 	sk = (struct sock *) PT_REGS_PARM1(ctx);
 
+	// The file descriptor is the value returned from the syscall.
+	// int fd = PT_REGS_PARM1(ctx);
+	// bool t = true;
+	// bpf_map_update_elem(&active_fds, &fd, &t, BPF_ANY);
+
 	bpf_map_update_elem(&connectsock_ipv4, &pid, &sk, BPF_ANY);
 
 	return 0;
@@ -781,6 +850,11 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
 	}
 
 	struct sock *skp = *skpp;
+
+	// The file descriptor is the value returned from the syscall.
+	// int fd = PT_REGS_PARM1(ctx);
+	// bool t = true;
+	// bpf_map_update_elem(&active_fds, &fd, &t, BPF_ANY);
 
 	bpf_map_delete_elem(&connectsock_ipv4, &pid);
 
@@ -858,6 +932,11 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 		return 0;
 	}
 
+	// The file descriptor is the value returned from the syscall.
+	int fd = PT_REGS_RC(ctx);
+	bool t = true;
+	bpf_map_update_elem(&active_fds, &fd, &t, BPF_ANY);
+
 	u64 zero = 0;
 	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
 	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
@@ -865,6 +944,60 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 	}
 
 	return assert_tcp_record(newsk, status, DIRECTION_INCOMING, STATE_INITIALIZING);
+}
+
+// Is kretprobe__inet_csk_accept sufficient or is this one needed as well or instead?
+
+// SEC("kprobe/__x64_sys_accept4")
+// int kprobe__x64_sys_accept4(struct pt_regs *ctx)
+// {
+	// The file descriptor is the value returned from the syscall.
+	// int fd = PT_REGS_RC(ctx);
+	// bool t = true;
+	// bpf_map_update_elem(&active_fds, &fd, &t, BPF_ANY);
+
+// 	return 0;
+// }
+
+SEC("kprobe/__x64_sys_write")
+int kprobe__sys_write(struct pt_regs *ctx, int fd, const void *buf, size_t count)
+{
+	int zero = 0;
+	// char *data[MAX_MSG_SIZE] = bpf_arr write_buffer_heap.lookup(&zero);
+	// if (event == NULL)
+	// {
+	// 	return 0;
+	// }
+	// u64 id = bpf_get_current_pid_tgid();
+	// u32 pid = id >> 32;
+	if (bpf_map_lookup_elem(&active_fds, &fd) == NULL) {
+		// This file descriptor is not for a socket we're tracking
+		return 0;
+	}
+
+	
+	size_t buf_size = count < sizeof(data) ? count : sizeof(data);
+	bpf_probe_read(&data, buf_size, &buf);
+
+	if ((data[0] == 'H') && (data[1] == 'T') && (data[2] == 'T') && (data[3] == 'P'))
+	{
+
+	}
+	// if (active_fds.lookup(&fd) == NULL)
+	// {
+	// 	// Bail early if we aren't tracking fd.
+	// 	return 0;
+	// }
+	// event->attr.fd = fd;
+	// event->attr.bytes = count;
+	// size_t buf_size = count < sizeof(event->msg) ? count : sizeof(event->msg);
+	// bpf_probe_read(&event->msg, buf_size, (void *)buf);
+	// event->attr.msg_size = buf_size;
+	// unsigned int size_to_submit = sizeof(event->attr) + buf_size;
+	// event->attr.event_type = kEventTypeSyscallWriteEvent;
+	// // Write snooped arguments to perf ring buffer.
+	// syscall_write_events.perf_submit(ctx, event, size_to_submit);
+	return 0;
 }
 
 SEC("kprobe/tcp_sendmsg")
@@ -922,6 +1055,10 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 	u64 zero = 0;
 	sk = (struct sock *) PT_REGS_PARM1(ctx);
 
+	int fd = PT_REGS_PARM1(ctx);
+
+	bpf_map_delete_elem(&active_fds, &fd);
+	
 	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
 	if (status == NULL || status->state != TCPTRACER_STATE_READY) {
 		return 0;

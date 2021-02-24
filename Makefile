@@ -41,7 +41,7 @@ all: install-generated-go test
 build-docker-image:
 	$(SUDO) docker build -t $(DOCKER_IMAGE) -f $(DOCKER_FILE) .
 
-build-ebpf-object: build-docker-image
+build-ebpf-object:
 	$(SUDO) docker run --rm -e DEBUG=$(DEBUG) \
 		-e CIRCLE_BUILD_URL=$(CIRCLE_BUILD_URL) \
 		-v $(PWD):/src:ro \
@@ -49,7 +49,7 @@ build-ebpf-object: build-docker-image
 		--workdir=/src \
 		$(DOCKER_IMAGE) \
 		make DEST_DIR=/dist -f ebpf.mk build
-	$(SUDO) chown -R $(UID):$(UID) ebpf
+	sudo chown -R $(UID):$(UID) ebpf
 
 build-ebpf-object-local:
 	make -f ebpf.mk build
@@ -91,7 +91,7 @@ codegen:
 	easyjson pkg/tracer/common/model.go
 
 test:
-	go list ./... | grep -v vendor | sudo -E PATH=${PATH} GOCACHE=off xargs go test -tags 'linux_bpf'
+	go list ./... | grep -v vendor | sudo -E PATH=${PATH} xargs go test -tags 'linux_bpf'
 
 linux-ci-test: build-ebpf-object-ci
-	go list ./... | grep -v vendor | sudo -E PATH=${PATH} GOCACHE=off xargs go test -tags 'linux_bpf'
+	go list ./... | grep -v vendor | sudo -E PATH=${PATH} xargs go test -tags 'linux_bpf'

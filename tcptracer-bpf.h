@@ -37,9 +37,9 @@ struct conn_stats_t {
 	__u64 send_bytes;
 	__u64 recv_bytes;
 	// These are big to have a 64 bit aligned struct
-    __u32 direction;
-    // Was the connection active or closed?
-    __u32 state;
+	__u32 direction;
+	// Was the connection active or closed?
+	__u32 state;
 };
 
 struct conn_stats_ts_t {
@@ -70,6 +70,13 @@ struct ipv6_tuple_t {
 	__u16 rport;
 	__u32 netns;
 	__u32 pid;
+};
+
+struct http_stats_t
+{
+	__u64 success_count;
+	__u64 bad_request_count;
+	__u64 server_error_count;
 };
 
 #define TCPTRACER_STATE_UNINITIALIZED 0
