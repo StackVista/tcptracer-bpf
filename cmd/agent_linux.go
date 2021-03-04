@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"syscall"
+	"time"
 
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
@@ -22,9 +23,13 @@ func main() {
 		fmt.Println(err)
 	}
 
-	conns, err := t.GetConnections()
+	tracer.RunTracepipe()
 
-	for _, c := range conns.Conns {
-		fmt.Println(c.String())
+	for {
+		conns, _ := t.GetConnections()
+		for _, c := range conns.Conns {
+			fmt.Println(c.String())
+		}
+		time.Sleep(1 * time.Second)
 	}
 }

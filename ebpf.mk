@@ -13,6 +13,7 @@ build:
 		-DCIRCLE_BUILD_URL=\"$(CIRCLE_BUILD_URL)\" \
 		-DDEBUG=1 \
 		-Wno-unused-value \
+		-DKBUILD_MODNAME='"bpftrace"' \
 		-Wno-pointer-sign \
 		-Wno-compare-distinct-pointer-types \
 		-Wunused \

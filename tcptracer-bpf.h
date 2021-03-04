@@ -79,6 +79,11 @@ struct http_stats_t
 	__u64 server_error_count;
 };
 
+struct fd_info {
+    __u16 active;
+    __u64 start_time_ns;
+};
+
 #define TCPTRACER_STATE_UNINITIALIZED 0
 #define TCPTRACER_STATE_CHECKING      1
 #define TCPTRACER_STATE_CHECKED       2

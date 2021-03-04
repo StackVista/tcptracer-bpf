@@ -10,6 +10,9 @@
 #include <linux/version.h>
 #include "bpf_helpers.h"
 #include "tcptracer-bpf.h"
+#include "tcptracer-maps.h"
+
+#include <uapi/linux/ptrace.h>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wtautological-compare"
@@ -19,6 +22,7 @@
 #pragma clang diagnostic pop
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
+#include <linux/tcp.h>
 
 #define bpf_debug(fmt, ...)                                        \
 	({                                                             \
@@ -28,101 +32,6 @@
 
 #define MAX_MSG_SIZE 1024
 
-/* This is a key/value store with the keys being an ipv4_tuple_t for send & recv calls
- * and the values being the struct conn_stats_ts_t *.
- */
-struct bpf_map_def SEC("maps/udp_stats_ipv4") udp_stats_ipv4 = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct ipv4_tuple_t),
-	.value_size = sizeof(struct conn_stats_ts_t),
-	.max_entries = 32768,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* This is a key/value store with the keys being an ipv4_tuple_t for send & recv calls
- * and the values being the struct conn_stats_ts_t *.
- */
-struct bpf_map_def SEC("maps/udp_stats_ipv6") udp_stats_ipv6 = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct ipv6_tuple_t),
-	.value_size = sizeof(struct conn_stats_ts_t),
-	.max_entries = 32768,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* This is a key/value store with the keys being an ipv4_tuple_t for send & recv calls
- * and the values being the struct conn_stats_t *.
- */
-struct bpf_map_def SEC("maps/tcp_stats_ipv4") tcp_stats_ipv4 = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct ipv4_tuple_t),
-	.value_size = sizeof(struct conn_stats_t),
-	.max_entries = 32768,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* This is a key/value store with the keys being an ipv6_tuple_t for send & recv calls
- * and the values being the struct conn_stats_t *.
- */
-struct bpf_map_def SEC("maps/tcp_stats_ipv6") tcp_stats_ipv6 = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct ipv6_tuple_t),
-	.value_size = sizeof(struct conn_stats_t),
-	.max_entries = 32768,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* These maps are used to match the kprobe & kretprobe of connect for IPv4 */
-/* This is a key/value store with the keys being a pid
- * and the values being a struct sock *.
- */
-struct bpf_map_def SEC("maps/connectsock_ipv4") connectsock_ipv4 = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(__u64),
-	.value_size = sizeof(void *),
-	.max_entries = 1024,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* These maps are used to match the kprobe & kretprobe of connect for IPv6 */
-/* This is a key/value store with the keys being a pid
- * and the values being a struct sock *.
- */
-struct bpf_map_def SEC("maps/connectsock_ipv6") connectsock_ipv6 = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(__u64),
-	.value_size = sizeof(void *),
-	.max_entries = 1024,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* This map is used to match the kprobe & kretprobe of udp_recvmsg */
-/* This is a key/value store with the keys being a pid
- * and the values being a struct sock *.
- */
-struct bpf_map_def SEC("maps/udp_recv_sock") udp_recv_sock = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(__u64),
-	.value_size = sizeof(void *),
-	.max_entries = 1024,
-	.pinning = 0,
-	.namespace = "",
-};
-
-struct bpf_map_def SEC("maps/http_stats") http_stats = {
-		.type = BPF_MAP_TYPE_HASH,
-		.key_size = sizeof(struct ipv4_tuple_t),
-		.value_size = sizeof(struct http_stats_t),
-		.max_entries = 1024,
-		.pinning = 0,
-		.namespace = "",
-};
 
 // struct addr_info_t
 // {
@@ -158,22 +67,22 @@ struct bpf_map_def SEC("maps/http_stats") http_stats = {
 // and use it as a heap allocated value.
 
 struct bpf_map_def SEC("maps/write_buffer_heap") write_buffer_heap = {
-		.type = BPF_MAP_TYPE_PERCPU_ARRAY,
-		.key_size = sizeof(int),
-		.value_size = sizeof(char[MAX_MSG_SIZE]),
-		.max_entries = 1,
-		.pinning = 0,
-		.namespace = "",
+        .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+        .key_size = sizeof(int),
+        .value_size = sizeof(char[MAX_MSG_SIZE]),
+        .max_entries = 1,
+        .pinning = 0,
+        .namespace = "",
 };
 
 // The set of file descriptors we are tracking.
 struct bpf_map_def SEC("maps/active_fds") active_fds = {
-		.type = BPF_MAP_TYPE_HASH,
-		.key_size = sizeof(int),
-		.value_size = sizeof(bool),
-		.max_entries = 10240,
-		.pinning = 0,
-		.namespace = "",
+        .type = BPF_MAP_TYPE_HASH,
+        .key_size = sizeof(int),
+        .value_size = sizeof(struct fd_info),
+        .max_entries = 10240,
+        .pinning = 0,
+        .namespace = "",
 };
 
 /* http://stackoverflow.com/questions/1001307/detecting-endianness-programmatically-in-a-c-program */
@@ -232,6 +141,12 @@ static bool proc_t_comm_equals(struct proc_t a, struct proc_t b) {
 	return true;
 }
 
+//
+//__attribute__((always_inline))
+//static bool is_digit(char ch) {
+//    return '0' <= ch && ch <= '9';
+//}
+
 __attribute__((always_inline))
 static int is_tracer_status_ready(struct tcptracer_status_t *status) {
 	switch (status->state) {
@@ -256,7 +171,7 @@ static int update_tracer_offset_status_v4(struct tcptracer_status_t *status, str
 	if (!proc_t_comm_equals(status->proc, proc))
 		return 0;
 
-	//bpf_debug("proc: %s, pid: %d, caller: %lu\n", proc.comm, pid, calling_probe);
+//	bpf_debug("proc: %s, pid: %d, caller: %lu\n", proc.comm, pid, calling_probe);
 
 	// shift existing calling probes by 1
 	int cof;
@@ -820,6 +735,7 @@ static int increment_udp_stats(struct sock *sk,
 // Used for offset guessing (see: pkg/offsetguess.go)
 SEC("kprobe/tcp_v4_connect")
 int kprobe__tcp_v4_connect(struct pt_regs *ctx) {
+//	 bpf_debug("kprobe__tcp_v4_connect\n");
 	struct sock *sk;
 	u64 pid = bpf_get_current_pid_tgid();
 
@@ -838,6 +754,7 @@ int kprobe__tcp_v4_connect(struct pt_regs *ctx) {
 // Used for offset guessing (see: pkg/offsetguess.go)
 SEC("kretprobe/tcp_v4_connect")
 int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
+//	 bpf_debug("kretprobe__tcp_v4_connect\n");
 	int ret = PT_REGS_RC(ctx);
 	u64 pid = bpf_get_current_pid_tgid();
 	struct sock **skpp;
@@ -878,6 +795,7 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
 // Used for offset guessing (see: pkg/offsetguess.go)
 SEC("kprobe/tcp_v6_connect")
 int kprobe__tcp_v6_connect(struct pt_regs *ctx) {
+//	 bpf_debug("kprobe__tcp_v6_connect\n");
 	struct sock *sk;
 	u64 pid = bpf_get_current_pid_tgid();
 
@@ -891,6 +809,7 @@ int kprobe__tcp_v6_connect(struct pt_regs *ctx) {
 // Used for offset guessing (see: pkg/offsetguess.go)
 SEC("kretprobe/tcp_v6_connect")
 int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
+//	 bpf_debug("kretprobe__tcp_v6_connect\n");
 	int ret = PT_REGS_RC(ctx);
 	u64 pid = bpf_get_current_pid_tgid();
 	u64 zero = 0;
@@ -932,16 +851,18 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 		return 0;
 	}
 
-	// The file descriptor is the value returned from the syscall.
-	int fd = PT_REGS_RC(ctx);
-	bool t = true;
-	bpf_map_update_elem(&active_fds, &fd, &t, BPF_ANY);
-
 	u64 zero = 0;
 	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
 	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
 		return 0;
 	}
+
+//    bpf_debug("kretprobe__inet_csk_accept(%d)\n", newsk);
+
+    struct fd_info t = { .active = 1 };
+    t.start_time_ns = bpf_ktime_get_ns();
+
+    bpf_map_update_elem(&active_fds, &newsk, &t, BPF_ANY);
 
 	return assert_tcp_record(newsk, status, DIRECTION_INCOMING, STATE_INITIALIZING);
 }
@@ -958,31 +879,75 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 
 // 	return 0;
 // }
-
 SEC("kprobe/__x64_sys_write")
-int kprobe__sys_write(struct pt_regs *ctx, int fd, const void *buf, size_t count)
+int kprobe__sys_write(struct pt_regs *ctx) {
+    int fd = PT_REGS_PARM1(ctx);
+    char *buf = (char *)PT_REGS_PARM2(ctx);
+    size_t buf_size = (size_t) PT_REGS_PARM3(ctx);
+
+    struct fd_info *res = bpf_map_lookup_elem(&active_fds, &fd);
+
+    if (res == NULL) {
+//		 This file descriptor is not for a socket we're tracking
+        return 0;
+    }
+
+
+    bpf_debug("__x64_sys_write(%d, %d, %d)\n", fd, buf, buf_size);
+
+    return 0;
+}
+
+SEC("kprobe/__x64_sys_writev")
+int kprobe__sys_writev(struct pt_regs *ctx)
 {
-	int zero = 0;
-	// char *data[MAX_MSG_SIZE] = bpf_arr write_buffer_heap.lookup(&zero);
+    int fd = PT_REGS_PARM1(ctx);
+    struct iovec *vectors = (struct iovec *)PT_REGS_PARM2(ctx);
+    size_t vector_count = (size_t) PT_REGS_PARM3(ctx);
+
+    struct fd_info *res = bpf_map_lookup_elem(&active_fds, &fd);
+    if (res == NULL) {
+//		 This file descriptor is not for a socket we're tracking
+        return 0;
+    }
+
+    int zero = 0;
+    void *data = bpf_map_lookup_elem(&write_buffer_heap, &zero);
+    if (data == NULL) {
+        return 0;
+    }
+
+    struct iovec vec = {};
+    bpf_probe_read(&vec, sizeof(struct iovec), vectors);
+
+    bpf_debug("writev( %d %d )\n", fd, &fd);
+
+//    int vec_total_size = 0;
+//    size_t bytes_read = 0;
+//    for (size_t i = 0; i < vector_count; i++) {
+//        void *addr = vectors + i*sizeof(void *);
+//        bpf_probe_read(&vec, sizeof(vec), addr);
+//        bpf_probe_read(data + bytes_read, vec.iov_len, vec.iov_base);
+//        bytes_read += vec->iov_len;
+//    }
+
+    bpf_debug("writev with %d vectors of total size %d\n", (int) vector_count, vec.iov_len);
+
 	// if (event == NULL)
 	// {
 	// 	return 0;
 	// }
 	// u64 id = bpf_get_current_pid_tgid();
 	// u32 pid = id >> 32;
-	if (bpf_map_lookup_elem(&active_fds, &fd) == NULL) {
-		// This file descriptor is not for a socket we're tracking
-		return 0;
-	}
 
 	
-	size_t buf_size = count < sizeof(data) ? count : sizeof(data);
-	bpf_probe_read(&data, buf_size, &buf);
-
-	if ((data[0] == 'H') && (data[1] == 'T') && (data[2] == 'T') && (data[3] == 'P'))
-	{
-
-	}
+//	size_t buf_size = count < sizeof(data) ? count : sizeof(data);
+//	bpf_probe_read(&data, buf_size, &buf);
+//
+//	if ((data[0] == 'H') && (data[1] == 'T') && (data[2] == 'T') && (data[3] == 'P'))
+//	{
+//	    bpf_debug("got HTTP response");
+//	}
 	// if (active_fds.lookup(&fd) == NULL)
 	// {
 	// 	// Bail early if we aren't tracking fd.
@@ -1000,11 +965,91 @@ int kprobe__sys_write(struct pt_regs *ctx, int fd, const void *buf, size_t count
 	return 0;
 }
 
+
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
+
 	struct sock *sk = (struct sock *) PT_REGS_PARM1(ctx);
-	size_t size = (size_t) PT_REGS_PARM3(ctx);
+	struct msghdr *k_msg = (void *) PT_REGS_PARM2(ctx);
+	const size_t size = (size_t) PT_REGS_PARM3(ctx);
 	u64 zero = 0;
+
+
+    struct fd_info *res = bpf_map_lookup_elem(&active_fds, &sk);
+    if (res == NULL) {
+//		 This file descriptor is not for a socket we're tracking
+        return 0;
+    }
+
+    char *data = bpf_map_lookup_elem(&write_buffer_heap, &zero);
+    if (data == NULL) {
+        return 0;
+    }
+
+    const char http_marker[4] = "HTTP";
+
+    u64 ttfb = bpf_ktime_get_ns() - res->start_time_ns;
+
+    struct msghdr msg = {};
+    bpf_probe_read(&msg, sizeof(msg), k_msg);
+    if ((msg.msg_iter.type & 4) == 4) {
+        struct iovec iov = {};
+        bpf_probe_read(&iov, sizeof(iov), (void *) msg.msg_iter.iov);
+        bpf_probe_read(data, MAX_MSG_SIZE, iov.iov_base);
+
+        int status_code = 100*(data[9]-'0') + 10*(data[10]-'0') + (data[11]-'0');
+
+        if (memcmp(data, http_marker, sizeof(http_marker)) == 0) {
+            bpf_debug("got http response with status code %d within %d millis\n", status_code, ttfb / 1000 / 1000);
+        } else {
+            bpf_debug("not HTTP: %d %d\n", data[0], http_marker[0] );
+        }
+    } else {
+        bpf_debug("unsupported iter type %d\n", msg.msg_iter.type & ~(READ | WRITE));
+    }
+
+    // metrics: time to response and status code
+    // (not now) get hostname
+    // (not now) get path (go? bpf? perhaps not for every status code)
+
+
+//
+//
+//    if (size < 12) {
+//        // not HTTP resp
+//        return 0;
+//    }
+//
+//
+//    int to_read = size;
+//    if (size > MAX_MSG_SIZE) {
+//        to_read = MAX_MSG_SIZE;
+//    }
+//
+//    bpf_probe_read(data, MAX_MSG_SIZE, msg_buf);
+//    for (size_t i = 0; i < MAX_MSG_SIZE-1; i++) {
+//        if (data[i] == 0) {
+//            data[i] = '?';
+//        }
+//    }
+//    bpf_debug("tcpsendmsg: %s\n", data + size - 80 );
+
+
+////    make_string(data, MAX_MSG_SIZE);
+//    bpf_debug("%s\n", data);
+//    bpf_probe_read(data, MAX_MSG_SIZE, &msg_buf);
+////    make_string(data, MAX_MSG_SIZE);
+//    bpf_debug("%s\n", data);
+//
+//
+
+
+
+//    struct net *skc_net = NULL;
+//    bpf_probe_read(&skc_net, sizeof(skc_net), &sk->sk_net);
+//    if (skc_net == NULL) {
+//        return 0;
+//    }
 
 	// TODO: Add DEBUG macro so this is only printed, if enabled
 	// bpf_debug("map: tcp_send_ipv4 kprobe\n");
