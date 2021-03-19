@@ -84,6 +84,11 @@ struct fd_info {
     __u64 start_time_ns;
 };
 
+struct log_http_request {
+    __u16 status_code;
+    __u16 response_time;
+};
+
 #define TCPTRACER_STATE_UNINITIALIZED 0
 #define TCPTRACER_STATE_CHECKING      1
 #define TCPTRACER_STATE_CHECKED       2

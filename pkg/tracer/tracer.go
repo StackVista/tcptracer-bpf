@@ -3,12 +3,14 @@ package tracer
 import (
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type Tracer interface {
 	Start() error
 	Stop()
 	GetConnections() (*common.Connections, error)
+	GetMetrics() prometheus.Gatherer
 }
 
 // Generic New Tracer function

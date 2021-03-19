@@ -14,6 +14,7 @@ const (
 	V4TCPMapName           = "tcp_stats_ipv4"
 	V6TCPMapName           = "tcp_stats_ipv6"
 	ActiveFdsMapName       = "active_fds"
+	PerfEvents             = "perf_events"
 	LatestTimestampMapName = "latest_ts"
 	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
 	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).

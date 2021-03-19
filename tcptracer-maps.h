@@ -27,6 +27,14 @@ struct bpf_map_def SEC("maps/udp_stats_ipv6") udp_stats_ipv6 = {
         .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/perf_events") perf_events = {
+        .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+        .key_size = sizeof(int),
+        .value_size = sizeof(__u32),
+        .max_entries = 1024,
+        .pinning = 0,
+};
+
 /* This is a key/value store with the keys being an ipv4_tuple_t for send & recv calls
  * and the values being the struct conn_stats_t *.
  */

@@ -9,6 +9,8 @@ import (
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
 	"net"
 	"strconv"
+	"time"
+	"unsafe"
 )
 
 /*
@@ -77,9 +79,26 @@ __u64 timestamp;
 */
 type ConnStatsWithTimestamp C.struct_conn_stats_ts_t
 
+/* struct log_http_request
+__u16 status_code;
+__u16 response_time;
+*/
+type LogHTTPRequest C.struct_log_http_request
+
 func (cs *ConnStatsWithTimestamp) isExpired(latestTime int64, timeout int64) bool {
 	return latestTime-int64(cs.timestamp) > timeout
 }
+
+
+func httpRequestLog(data []byte) (ret common.HttpRequest) {
+	eventC := (*LogHTTPRequest)(unsafe.Pointer(&data[0]))
+
+	return common.HttpRequest{
+		ResponseTime:  time.Duration(int(uint16(eventC.response_time))) * time.Microsecond,
+		StatusCode: int(uint16(eventC.status_code)),
+	}
+}
+
 
 func connStatsFromTCPv4(t *ConnTupleV4, s *ConnStats) common.ConnectionStats {
 	return common.ConnectionStats{

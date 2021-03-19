@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
 	"strings"
+	"time"
 )
 
 type ConnectionType uint8
@@ -88,6 +89,11 @@ type ConnectionStats struct {
 	NetworkNamespace string    `json:"network_namespace"`
 	SendBytes        uint64    `json:"send_bytes"`
 	RecvBytes        uint64    `json:"recv_bytes"`
+}
+
+type HttpRequest struct {
+	StatusCode   int
+	ResponseTime time.Duration
 }
 
 func (c ConnectionStats) WithOnlyLocal() ConnectionStats {

@@ -1000,7 +1000,14 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
         int status_code = 100*(data[9]-'0') + 10*(data[10]-'0') + (data[11]-'0');
 
         if (memcmp(data, http_marker, sizeof(http_marker)) == 0) {
-            bpf_debug("got http response with status code %d within %d millis\n", status_code, ttfb / 1000 / 1000);
+            struct log_http_request complete_req = {
+                    .status_code = status_code,
+                    .response_time = ttfb / 1000,
+            };
+            u64 cpu = bpf_get_smp_processor_id();
+
+            bpf_perf_event_output(ctx, &perf_events, cpu, &complete_req, sizeof(complete_req));
+//            bpf_debug("111111 code %d within %d millis %d\n", status_code, ttfb / 1000 / 1000, sizeof(complete_req));
         } else {
             bpf_debug("not HTTP: %d %d\n", data[0], http_marker[0] );
         }

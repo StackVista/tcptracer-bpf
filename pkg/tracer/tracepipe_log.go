@@ -8,7 +8,7 @@ import (
 
 // RunTracepipe reads data produced by bpf_trace_printk() in eBPF program
 // and prints this data to stdout
-func RunTracepipe() {}
+func RunTracepipe() {
 
 	go func() {
 		tp, err := tracepipe.New()
@@ -23,7 +23,7 @@ func RunTracepipe() {}
 		for {
 			select {
 			case event := <-channel:
-				fmt.Printf("%+v\n", event)
+				fmt.Printf("%+v\n", event.Message)
 			case err := <-errorChannel:
 				fmt.Printf("%+v\n", err)
 			}

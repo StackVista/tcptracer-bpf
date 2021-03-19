@@ -10,7 +10,10 @@ import (
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
 	"github.com/stretchr/testify/assert"
 	"io"
+	"io/ioutil"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -473,6 +476,72 @@ func TestUDPSendAndReceive(t *testing.T) {
 
 	doneChan <- struct{}{}
 	tr.Stop()
+}
+
+func TestHTTPRequestLog(t *testing.T) {
+	tr, err := NewTracer(MakeTestConfig())
+	assert.NoError(t, err)
+	assert.NoError(t, tr.Start())
+
+	testServer := createTestHTTPServer()
+
+	// perform test calls to HTTP server that should be caught by BPF the tracer
+	statusCode, respText := runGETRequest(t, testServer, "/")
+	assert.Equal(t, 200, statusCode)
+	assert.Equal(t, "OK", respText)
+
+	// give it a little time to settle in buffers
+	time.Sleep(1 * time.Second)
+
+	//type HttpMetric struct {
+	//	Code int
+	//	Count int
+	//
+	//}
+
+	metrics, err := tr.GetMetrics().Gather()
+	assert.NoError(t, err)
+	//actualMetrics, err := encodeMetrics(tr)
+	//assert.NoError(t, err)
+	//
+	//assert.Equal(t, expectedMetrics, actualMetrics)
+
+	assert.Len(t, metrics, 1)
+
+	respTimeMetricFamily := metrics[0]
+	assert.Equal(t, "tcptracer_http_response_time", *respTimeMetricFamily.Name)
+	//respTimeMetrics := respTimeMetricFamily.GetMetric()
+	//
+	//for i := range respTimeMetrics {
+	//	fmt.Printf("%v\n", respTimeMetrics[i])
+	//}
+}
+
+
+func runGETRequest(t *testing.T, srv *httptest.Server, path string) (int, string) {
+	resp, err := srv.Client().Get("http://" + srv.Listener.Addr().String() + path)
+	assert.NoError(t, err)
+	respBytes, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(t, resp.Body.Close())
+	assert.NoError(t, err)
+	return resp.StatusCode, string(respBytes)
+}
+
+func createTestHTTPServer() *httptest.Server {
+	handler := http.NewServeMux()
+	handler.Handle("/", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(200)
+		_, _ = writer.Write([]byte("OK"))
+	}))
+	handler.Handle("/notfound", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(404)
+		_, _ = writer.Write([]byte("Not found"))
+	}))
+	handler.Handle("/error", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(500)
+		_, _ = writer.Write([]byte("Internal error"))
+	}))
+	return httptest.NewServer(handler)
 }
 
 func TestTCPSendPage(t *testing.T) {
