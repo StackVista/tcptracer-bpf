@@ -128,7 +128,7 @@ func acceptV4(l net.Listener, stop chan struct{}) {
 		_, ok := <-stop
 		if ok {
 			conn, err := l.Accept()
-			//logger.Trace("accepted client connection ...")
+			logger.Trace("accepted client connection ...")
 			if err != nil {
 				l.Close()
 				return

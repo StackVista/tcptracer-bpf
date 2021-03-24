@@ -735,7 +735,6 @@ static int increment_udp_stats(struct sock *sk,
 // Used for offset guessing (see: pkg/offsetguess.go)
 SEC("kprobe/tcp_v4_connect")
 int kprobe__tcp_v4_connect(struct pt_regs *ctx) {
-//	 bpf_debug("kprobe__tcp_v4_connect\n");
 	struct sock *sk;
 	u64 pid = bpf_get_current_pid_tgid();
 
@@ -754,7 +753,6 @@ int kprobe__tcp_v4_connect(struct pt_regs *ctx) {
 // Used for offset guessing (see: pkg/offsetguess.go)
 SEC("kretprobe/tcp_v4_connect")
 int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
-//	 bpf_debug("kretprobe__tcp_v4_connect\n");
 	int ret = PT_REGS_RC(ctx);
 	u64 pid = bpf_get_current_pid_tgid();
 	struct sock **skpp;
@@ -795,7 +793,6 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
 // Used for offset guessing (see: pkg/offsetguess.go)
 SEC("kprobe/tcp_v6_connect")
 int kprobe__tcp_v6_connect(struct pt_regs *ctx) {
-//	 bpf_debug("kprobe__tcp_v6_connect\n");
 	struct sock *sk;
 	u64 pid = bpf_get_current_pid_tgid();
 
@@ -809,7 +806,6 @@ int kprobe__tcp_v6_connect(struct pt_regs *ctx) {
 // Used for offset guessing (see: pkg/offsetguess.go)
 SEC("kretprobe/tcp_v6_connect")
 int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
-//	 bpf_debug("kretprobe__tcp_v6_connect\n");
 	int ret = PT_REGS_RC(ctx);
 	u64 pid = bpf_get_current_pid_tgid();
 	u64 zero = 0;
@@ -857,8 +853,6 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 		return 0;
 	}
 
-//    bpf_debug("kretprobe__inet_csk_accept(%d)\n", newsk);
-
     struct fd_info t = { .active = 1 };
     t.start_time_ns = bpf_ktime_get_ns();
 
@@ -879,6 +873,7 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 
 // 	return 0;
 // }
+
 SEC("kprobe/__x64_sys_write")
 int kprobe__sys_write(struct pt_regs *ctx) {
     int fd = PT_REGS_PARM1(ctx);
@@ -922,46 +917,8 @@ int kprobe__sys_writev(struct pt_regs *ctx)
 
     bpf_debug("writev( %d %d )\n", fd, &fd);
 
-//    int vec_total_size = 0;
-//    size_t bytes_read = 0;
-//    for (size_t i = 0; i < vector_count; i++) {
-//        void *addr = vectors + i*sizeof(void *);
-//        bpf_probe_read(&vec, sizeof(vec), addr);
-//        bpf_probe_read(data + bytes_read, vec.iov_len, vec.iov_base);
-//        bytes_read += vec->iov_len;
-//    }
 
     bpf_debug("writev with %d vectors of total size %d\n", (int) vector_count, vec.iov_len);
-
-	// if (event == NULL)
-	// {
-	// 	return 0;
-	// }
-	// u64 id = bpf_get_current_pid_tgid();
-	// u32 pid = id >> 32;
-
-	
-//	size_t buf_size = count < sizeof(data) ? count : sizeof(data);
-//	bpf_probe_read(&data, buf_size, &buf);
-//
-//	if ((data[0] == 'H') && (data[1] == 'T') && (data[2] == 'T') && (data[3] == 'P'))
-//	{
-//	    bpf_debug("got HTTP response");
-//	}
-	// if (active_fds.lookup(&fd) == NULL)
-	// {
-	// 	// Bail early if we aren't tracking fd.
-	// 	return 0;
-	// }
-	// event->attr.fd = fd;
-	// event->attr.bytes = count;
-	// size_t buf_size = count < sizeof(event->msg) ? count : sizeof(event->msg);
-	// bpf_probe_read(&event->msg, buf_size, (void *)buf);
-	// event->attr.msg_size = buf_size;
-	// unsigned int size_to_submit = sizeof(event->attr) + buf_size;
-	// event->attr.event_type = kEventTypeSyscallWriteEvent;
-	// // Write snooped arguments to perf ring buffer.
-	// syscall_write_events.perf_submit(ctx, event, size_to_submit);
 	return 0;
 }
 
@@ -1007,59 +964,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
             u64 cpu = bpf_get_smp_processor_id();
 
             bpf_perf_event_output(ctx, &perf_events, cpu, &complete_req, sizeof(complete_req));
-//            bpf_debug("111111 code %d within %d millis %d\n", status_code, ttfb / 1000 / 1000, sizeof(complete_req));
         } else {
             bpf_debug("not HTTP: %d %d\n", data[0], http_marker[0] );
         }
     } else {
         bpf_debug("unsupported iter type %d\n", msg.msg_iter.type & ~(READ | WRITE));
     }
-
-    // metrics: time to response and status code
-    // (not now) get hostname
-    // (not now) get path (go? bpf? perhaps not for every status code)
-
-
-//
-//
-//    if (size < 12) {
-//        // not HTTP resp
-//        return 0;
-//    }
-//
-//
-//    int to_read = size;
-//    if (size > MAX_MSG_SIZE) {
-//        to_read = MAX_MSG_SIZE;
-//    }
-//
-//    bpf_probe_read(data, MAX_MSG_SIZE, msg_buf);
-//    for (size_t i = 0; i < MAX_MSG_SIZE-1; i++) {
-//        if (data[i] == 0) {
-//            data[i] = '?';
-//        }
-//    }
-//    bpf_debug("tcpsendmsg: %s\n", data + size - 80 );
-
-
-////    make_string(data, MAX_MSG_SIZE);
-//    bpf_debug("%s\n", data);
-//    bpf_probe_read(data, MAX_MSG_SIZE, &msg_buf);
-////    make_string(data, MAX_MSG_SIZE);
-//    bpf_debug("%s\n", data);
-//
-//
-
-
-
-//    struct net *skc_net = NULL;
-//    bpf_probe_read(&skc_net, sizeof(skc_net), &sk->sk_net);
-//    if (skc_net == NULL) {
-//        return 0;
-//    }
-
-	// TODO: Add DEBUG macro so this is only printed, if enabled
-	// bpf_debug("map: tcp_send_ipv4 kprobe\n");
 
 	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
 	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {

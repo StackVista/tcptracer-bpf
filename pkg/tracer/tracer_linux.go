@@ -29,16 +29,21 @@ type LinuxTracer struct {
 	// In flight connections are the connections that already existed before the EBPF module was loaded.
 	// These connections are stored with a key without direction, to make it possible to merge with undirected
 	// metric stats
-	inFlightTCP map[string]*common.ConnectionStats
+	inFlightTCP     map[string]*common.ConnectionStats
 	metricsGatherer prometheus.Gatherer
 
-	perfEventsBytes chan []byte
-	perfEventsLostLog uint64
+	perfEventsBytes   chan []byte
+	perfEventsLostLog chan uint64
+	perfMap           *bpflib.PerfMap
+
+	httpStatusCodes *prometheus.HistogramVec
+	stopCh          chan bool
 }
 
 var (
 	DebugFsPath  = "/sys/kernel/debug"
 	DebugFsMagic = int64(0x64626720) //http://man7.org/linux/man-pages/man2/statfs.2.html
+	PerfEventsBuffer = 100
 )
 
 func MakeTracer(config *config.Config) (Tracer, error) {
@@ -85,27 +90,13 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 	logger.Info("Starting tracepipe")
 	RunTracepipe()
 
-	perfEventsBytes := make(chan []byte, 1000) // some unreasonable bufferization
-	perfEventsLostLog := make(chan uint64, 100) // some unreasonable bufferization
+	perfEventsBytes := make(chan []byte, PerfEventsBuffer)
+	perfEventsLostLog := make(chan uint64, PerfEventsBuffer)
 
 	perfMap, err := bpflib.InitPerfMap(m, common.PerfEvents, perfEventsBytes, perfEventsLostLog)
 	if err != nil {
 		return nil, err
 	}
-	go func() {
-		for payload := range perfEventsBytes {
-			logger.Infof("received %d: %v", len(payload), payload)
-			httpReq := httpRequestLog(payload)
-			httpStatusCodes.With(prometheus.Labels{"code": strconv.Itoa(httpReq.StatusCode)}).Observe(float64(httpReq.ResponseTime.Nanoseconds()) / 1000000000)
-		}
-		for lost := range perfEventsLostLog {
-			logger.Infof("Lost %d", lost)
-		}
-	}()
-
-	logger.Info("start polling")
-
-	perfMap.PollStart()
 
 	// TODO: Improve performance by detaching unnecessary kprobes, once offsets have been figured out in initialize()
 	tracer := &LinuxTracer{
@@ -113,6 +104,11 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 		config: config,
 		inFlightTCP: make(map[string]*common.ConnectionStats),
 		metricsGatherer: metricsGatherer,
+		perfMap: perfMap,
+		perfEventsBytes: perfEventsBytes,
+		perfEventsLostLog: perfEventsLostLog,
+		httpStatusCodes: httpStatusCodes,
+		stopCh: make(chan bool),
 	}
 
 	// Get data from /proc AFTER ebpf has been initialized. This makes sure that we do not miss any
@@ -190,11 +186,33 @@ func isDebugFsMounted() (bool, error) {
 }
 
 func (t *LinuxTracer) Start() error {
+
+	go func() {
+	EvLoop:
+		for {
+			select {
+			case payload := <-t.perfEventsBytes:
+				logger.Debugf("received %d: %v", len(payload), payload)
+				httpReq := httpRequestLog(payload)
+				t.httpStatusCodes.With(prometheus.Labels{"code": strconv.Itoa(httpReq.StatusCode)}).Observe(float64(httpReq.ResponseTime.Nanoseconds()) / 1000000000)
+				break
+			case lost := <-t.perfEventsLostLog:
+				logger.Infof("Lost %d", lost)
+				break
+			case <-t.stopCh:
+				break EvLoop
+			}
+		}
+	}()
+
+	t.perfMap.PollStart()
+
 	return nil
 }
 
 func (t *LinuxTracer) Stop() {
 	logger.Info("Stopping linux network tracer")
+	t.stopCh <- true
 	err := t.m.Close()
 	if err != nil {
 		logger.Error(err.Error())
