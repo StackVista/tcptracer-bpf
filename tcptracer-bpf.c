@@ -874,31 +874,11 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 // 	return 0;
 // }
 
-SEC("kprobe/__x64_sys_write")
-int kprobe__sys_write(struct pt_regs *ctx) {
-    int fd = PT_REGS_PARM1(ctx);
-    char *buf = (char *)PT_REGS_PARM2(ctx);
-    size_t buf_size = (size_t) PT_REGS_PARM3(ctx);
-
-    struct fd_info *res = bpf_map_lookup_elem(&active_fds, &fd);
-
-    if (res == NULL) {
-//		 This file descriptor is not for a socket we're tracking
-        return 0;
-    }
-
-
-    bpf_debug("__x64_sys_write(%d, %d, %d)\n", fd, buf, buf_size);
-
-    return 0;
-}
-
 SEC("kprobe/__x64_sys_writev")
 int kprobe__sys_writev(struct pt_regs *ctx)
 {
     int fd = PT_REGS_PARM1(ctx);
     struct iovec *vectors = (struct iovec *)PT_REGS_PARM2(ctx);
-    size_t vector_count = (size_t) PT_REGS_PARM3(ctx);
 
     struct fd_info *res = bpf_map_lookup_elem(&active_fds, &fd);
     if (res == NULL) {
@@ -914,11 +894,6 @@ int kprobe__sys_writev(struct pt_regs *ctx)
 
     struct iovec vec = {};
     bpf_probe_read(&vec, sizeof(struct iovec), vectors);
-
-    bpf_debug("writev( %d %d )\n", fd, &fd);
-
-
-    bpf_debug("writev with %d vectors of total size %d\n", (int) vector_count, vec.iov_len);
 	return 0;
 }
 
@@ -964,11 +939,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
             u64 cpu = bpf_get_smp_processor_id();
 
             bpf_perf_event_output(ctx, &perf_events, cpu, &complete_req, sizeof(complete_req));
-        } else {
-            bpf_debug("not HTTP: %d %d\n", data[0], http_marker[0] );
         }
-    } else {
-        bpf_debug("unsupported iter type %d\n", msg.msg_iter.type & ~(READ | WRITE));
     }
 
 	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
