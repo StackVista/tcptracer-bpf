@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
+	"net"
 	"strings"
 	"time"
 )
@@ -79,6 +80,8 @@ type ConnectionStats struct {
 	Type   ConnectionType   `json:"type"`
 	Family ConnectionFamily `json:"family"`
 
+	ApplicationProtocol string `json:"app_proto"`
+
 	// Local & Remote represented as a string to handle both IPv4 & IPv6
 	Local            string    `json:"local"`
 	Remote           string    `json:"remote"`
@@ -91,9 +94,43 @@ type ConnectionStats struct {
 	RecvBytes        uint64    `json:"recv_bytes"`
 }
 
-type HttpRequest struct {
+type ConnTupleV4 struct {
+	Laddr string
+	Lport uint16
+	Raddr string
+	Rport uint16
+	Netns uint32
+	Pid uint16
+}
+
+func (ct *ConnTupleV4) Matches(stats *ConnectionStats) bool {
+ if stats.Pid == uint32(ct.Pid) &&
+	stats.Local == ct.Laddr && stats.Remote == ct.Raddr &&
+	stats.LocalPort == ct.Lport && stats.RemotePort == ct.Rport {
+ 	return true
+ }
+ return false
+}
+
+type HTTPResponse struct {
+	Connection   ConnTupleV4
 	StatusCode   int
 	ResponseTime time.Duration
+}
+
+type MySQLGreeting struct {
+	Connection      ConnTupleV4
+	ProtocolVersion int
+}
+
+type EventError struct {
+	Code int
+}
+
+type PerfEvent struct {
+	HTTPResponse *HTTPResponse
+	MySQLGreeting *MySQLGreeting
+	Error *EventError
 }
 
 func (c ConnectionStats) WithOnlyLocal() ConnectionStats {
@@ -188,4 +225,17 @@ func (c ConnectionStats) WithNamespace(namespace string) ConnectionStats {
 	}
 
 	return c
+}
+
+func V4IPString(addr uint32) string {
+	addrbuf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(addrbuf, uint32(addr))
+	return net.IPv4(addrbuf[0], addrbuf[1], addrbuf[2], addrbuf[3]).String()
+}
+
+func V6IPString(addr_h, addr_l uint64) string {
+	addrbuf := make([]byte, 16)
+	binary.LittleEndian.PutUint64(addrbuf, uint64(addr_h))
+	binary.LittleEndian.PutUint64(addrbuf[8:], uint64(addr_l))
+	return net.IP(addrbuf).String()
 }

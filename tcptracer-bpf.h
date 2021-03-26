@@ -84,10 +84,35 @@ struct fd_info {
     __u64 start_time_ns;
 };
 
-struct log_http_request {
+#define EVENT_ERROR 0
+#define EVENT_HTTP_RESPONSE 1
+#define EVENT_MYSQL_GREETING 2
+
+struct event_http_response {
     __u16 status_code;
     __u16 response_time;
+    struct ipv4_tuple_t connection;
 };
+
+struct event_mysql_greeting {
+    __u16 protocol_version;
+    __u16 whatever;
+    struct ipv4_tuple_t connection;
+};
+
+struct event_error {
+    __u16 code;
+};
+
+struct perf_event {
+    __u16 event_type;
+    union Payload {
+        struct event_http_response http_response;
+        struct event_mysql_greeting mysql_greeting;
+        struct event_error error;
+    } payload;
+};
+
 
 #define TCPTRACER_STATE_UNINITIALIZED 0
 #define TCPTRACER_STATE_CHECKING      1

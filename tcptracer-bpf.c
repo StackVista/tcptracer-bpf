@@ -897,6 +897,37 @@ int kprobe__sys_writev(struct pt_regs *ctx)
 	return 0;
 }
 
+__attribute__((always_inline))
+bool parse_http_response(char *buffer, int size, int *status_code_result) {
+    const char http_marker[4] = "HTTP";
+    if (size > 11) {
+        int status_code = 100 * (buffer[9] - '0') + 10 * (buffer[10] - '0') + (buffer[11] - '0');
+        if (status_code > 99 && status_code < 1000) {
+            if (memcmp(buffer, http_marker, sizeof(http_marker)) == 0) {
+                *status_code_result = status_code;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+__attribute__((always_inline))
+bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) {
+    if (size > 4) {
+        int packet_length = buffer[0] + buffer[1]*0x100 + buffer[2]*0x100;
+        int packet_number = (int) buffer[3];
+
+        bool is_greeting_packet = (size - 4) == packet_length && 0 == packet_number;
+        if (is_greeting_packet) {
+            u16 protocol_version = (u16) buffer[4];
+            *protocol_version_result = protocol_version;
+            return true;
+        }
+    }
+    return false;
+}
+
 
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
@@ -918,9 +949,15 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
         return 0;
     }
 
-    const char http_marker[4] = "HTTP";
+
+    struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
+    if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
+        bpf_debug("not initialized\n");
+        return 0;
+    }
 
     u64 ttfb = bpf_ktime_get_ns() - res->start_time_ns;
+    u64 cpu = bpf_get_smp_processor_id();
 
     struct msghdr msg = {};
     bpf_probe_read(&msg, sizeof(msg), k_msg);
@@ -929,23 +966,43 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
         bpf_probe_read(&iov, sizeof(iov), (void *) msg.msg_iter.iov);
         bpf_probe_read(data, MAX_MSG_SIZE, iov.iov_base);
 
-        int status_code = 100*(data[9]-'0') + 10*(data[10]-'0') + (data[11]-'0');
+//      if (check_family(sk, status, AF_INET)) {
+        struct ipv4_tuple_t t = {};
+        if (!read_ipv4_tuple(&t, status, sk)) {
+            bpf_debug("Not IPv4\n");
+        } // }
+        t.lport = ntohs(t.lport); // Making ports human-readable
+        t.rport = ntohs(t.rport);
 
-        if (memcmp(data, http_marker, sizeof(http_marker)) == 0) {
-            struct log_http_request complete_req = {
-                    .status_code = status_code,
+        int http_status_code = 0;
+        u16 mysql_greeting_protocol_version = 0;
+        if (parse_http_response(data, iov.iov_len, &http_status_code)) {
+            struct event_http_response http_response = {
+                    .connection = t,
+                    .status_code = http_status_code,
                     .response_time = ttfb / 1000,
             };
-            u64 cpu = bpf_get_smp_processor_id();
-
-            bpf_perf_event_output(ctx, &perf_events, cpu, &complete_req, sizeof(complete_req));
+            struct perf_event event = {
+                    .event_type = EVENT_HTTP_RESPONSE,
+                    .payload = { .http_response = http_response },
+            };
+            bpf_perf_event_output(ctx, &perf_events, cpu, &event, sizeof(event));
         }
+        else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
+            struct event_mysql_greeting greeting = {
+                    .connection = t,
+                    .protocol_version = mysql_greeting_protocol_version,
+                    .whatever = 99+256*99,
+            };
+            struct perf_event event = {
+                    .event_type = EVENT_MYSQL_GREETING,
+                    .payload = { .mysql_greeting = greeting },
+            };
+            bpf_perf_event_output(ctx, &perf_events, cpu, &event, sizeof(event));
+        }
+    } else {
+        bpf_debug("not supported\n");
     }
-
-	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
-		return 0;
-	}
 
 	return increment_tcp_stats(sk, status, size, 0);
 }

@@ -485,6 +485,12 @@ func TestHTTPRequestLog(t *testing.T) {
 	assert.NoError(t, tr.Start())
 
 	testServer := createTestHTTPServer()
+	time.Sleep(200 * time.Millisecond)
+	println("ok\n")
+	conns, _ := tr.GetConnections()
+	for i := range conns.Conns {
+		fmt.Printf("connection: %v\n", conns.Conns[i])
+	}
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
 	statusCode, respText := runGETRequest(t, testServer, "/")
@@ -492,6 +498,12 @@ func TestHTTPRequestLog(t *testing.T) {
 	assert.Equal(t, "OK", respText)
 	// give it a little time to settle in buffers
 	time.Sleep(200 * time.Millisecond)
+
+	println("ok\n")
+	conns, _ = tr.GetConnections()
+	for i := range conns.Conns {
+		fmt.Printf("connection: %v\n", conns.Conns[i])
+	}
 
 	assert.Equal(t, 1, getStatusCodeCount(t, tr, 200))
 	assert.Equal(t, 0, getStatusCodeCount(t, tr, 404))
@@ -501,7 +513,7 @@ func TestHTTPRequestLog(t *testing.T) {
 	statusCode, respText = runGETRequest(t, testServer, "/notfound")
 	assert.Equal(t, 404, statusCode)
 	assert.Equal(t, "Not found", respText)
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(5000 * time.Millisecond)
 
 	assert.Equal(t, 1, getStatusCodeCount(t, tr, 200))
 	assert.Equal(t, 1, getStatusCodeCount(t, tr, 404))
@@ -534,6 +546,7 @@ func getStatusCodeCount(t *testing.T, tr Tracer, code int) int {
 
 
 func runGETRequest(t *testing.T, srv *httptest.Server, path string) (int, string) {
+	fmt.Printf("Address: %s\n", srv.Listener.Addr().String())
 	resp, err := srv.Client().Get("http://" + srv.Listener.Addr().String() + path)
 	assert.NoError(t, err)
 	respBytes, err := ioutil.ReadAll(resp.Body)
@@ -566,6 +579,8 @@ func TestTCPSendPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+
+	RunTracepipe()
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := network.NewTCPServer(func(c net.Conn) {

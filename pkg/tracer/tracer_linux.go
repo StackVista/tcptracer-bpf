@@ -37,6 +37,7 @@ type LinuxTracer struct {
 	perfMap           *bpflib.PerfMap
 
 	httpStatusCodes *prometheus.HistogramVec
+	onPerfEvent     func(event common.PerfEvent)
 	stopCh          chan bool
 }
 
@@ -98,17 +99,35 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 		return nil, err
 	}
 
+	inFlightTCP := make(map[string]*common.ConnectionStats)
+
+	onPerfEvent := func(event common.PerfEvent) {
+		if event.HTTPResponse != nil {
+			httpReq := event.HTTPResponse
+			logger.Infof("http response: %v", event.HTTPResponse)
+			httpStatusCodes.With(prometheus.Labels{"code": strconv.Itoa(httpReq.StatusCode)}).Observe(float64(httpReq.ResponseTime.Nanoseconds()) / 1000000000)
+		} else if event.MySQLGreeting != nil {
+			//for k := range inFlightTCP {
+			//	logger.Infof("inFlight: %s %v\n", k, inFlightTCP[k])
+			//}
+			logger.Infof("mysql greeting: %v", event.MySQLGreeting)
+		} else if event.Error != nil {
+			logger.Infof("perf events error: %v", event.Error)
+		}
+	}
+
 	// TODO: Improve performance by detaching unnecessary kprobes, once offsets have been figured out in initialize()
 	tracer := &LinuxTracer{
 		m: m,
 		config: config,
-		inFlightTCP: make(map[string]*common.ConnectionStats),
+		inFlightTCP: inFlightTCP,
 		metricsGatherer: metricsGatherer,
 		perfMap: perfMap,
 		perfEventsBytes: perfEventsBytes,
 		perfEventsLostLog: perfEventsLostLog,
 		httpStatusCodes: httpStatusCodes,
 		stopCh: make(chan bool),
+		onPerfEvent: onPerfEvent,
 	}
 
 	// Get data from /proc AFTER ebpf has been initialized. This makes sure that we do not miss any
@@ -121,6 +140,14 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 	}
 
 	return tracer, nil
+}
+
+func (t *LinuxTracer) OnPerfEvent(callback func(eventError common.PerfEvent)) {
+	prevCb := t.onPerfEvent
+	t.onPerfEvent = func(event common.PerfEvent) {
+		prevCb(event)
+		callback(event)
+	}
 }
 
 func (t *LinuxTracer) GetMetrics() prometheus.Gatherer {
@@ -192,9 +219,10 @@ func (t *LinuxTracer) Start() error {
 		for {
 			select {
 			case payload := <-t.perfEventsBytes:
-				logger.Debugf("received %d: %v", len(payload), payload)
-				httpReq := httpRequestLog(payload)
-				t.httpStatusCodes.With(prometheus.Labels{"code": strconv.Itoa(httpReq.StatusCode)}).Observe(float64(httpReq.ResponseTime.Nanoseconds()) / 1000000000)
+				logger.Infof("received event bytes %d: %v", len(payload), payload)
+				perfEvent := perfEvent(payload)
+				logger.Infof("received event: %v", perfEvent)
+				t.onPerfEvent(perfEvent)
 				break
 			case lost := <-t.perfEventsLostLog:
 				logger.Infof("Lost %d", lost)

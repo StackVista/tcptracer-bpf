@@ -10,6 +10,7 @@ type Tracer interface {
 	Start() error
 	Stop()
 	GetConnections() (*common.Connections, error)
+    OnPerfEvent(callback func(eventError common.PerfEvent))
 	GetMetrics() prometheus.Gatherer
 }
 
