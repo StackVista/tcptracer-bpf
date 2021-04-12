@@ -665,8 +665,6 @@ func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.Co
 				conn.ApplicationProtocol = connInsight.ApplicationProtocol
 			}
 			for statusCode, metric := range connInsight.HttpMetrics {
-				metric.
-					metric.ToProto().ProtoMessage()
 				quantiles := []float64{0.5, 0.75, 0.9, 0.95, 0.99, 0.999}
 				values, err := metric.GetValuesAtQuantiles(quantiles)
 				if err != nil {

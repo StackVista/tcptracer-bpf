@@ -94,24 +94,24 @@ func httpResponseEvent(data []byte) common.HTTPResponse {
 			Lport: uint16(eventC.connection.lport),
 			Raddr: common.V4IPString(uint32(eventC.connection.raddr)),
 			Rport: uint16(eventC.connection.rport),
-			Netns: uint32(eventC.connection.netns),
-			Pid:   uint16(eventC.connection.pid),
+			//Netns: uint32(eventC.connection.netns),
+			Pid: uint16(eventC.connection.pid),
 		},
-		ResponseTime:  time.Duration(int(uint16(eventC.response_time))) * time.Microsecond,
-		StatusCode: int(uint16(eventC.status_code)),
+		ResponseTime: time.Duration(int(uint16(eventC.response_time))) * time.Microsecond,
+		StatusCode:   int(uint16(eventC.status_code)),
 	}
 }
 
 func mysqlGreetingEvent(data []byte) common.MySQLGreeting {
 	eventC := (*EventMYSQLGreeting)(unsafe.Pointer(&data[0]))
 	return common.MySQLGreeting{
-		Connection:      common.ConnTupleV4{
+		Connection: common.ConnTupleV4{
 			Laddr: common.V4IPString(uint32(eventC.connection.laddr)),
 			Lport: uint16(eventC.connection.lport),
 			Raddr: common.V4IPString(uint32(eventC.connection.raddr)),
 			Rport: uint16(eventC.connection.rport),
-			Netns: uint32(eventC.connection.netns),
-			Pid:   uint16(eventC.connection.pid),
+			//Netns: uint32(eventC.connection.netns),
+			Pid: uint16(eventC.connection.pid),
 		},
 		ProtocolVersion: int(uint16(eventC.protocol_version)),
 	}
@@ -128,7 +128,7 @@ func perfEvent(data []byte) common.PerfEvent {
 	case 0:
 		result := errorEvent(data[4:])
 		return common.PerfEvent{
-			Error:         &result,
+			Error: &result,
 		}
 	case 1:
 		result := httpResponseEvent(data[4:])
@@ -142,10 +142,9 @@ func perfEvent(data []byte) common.PerfEvent {
 		}
 	}
 	return common.PerfEvent{
-		Error:         &common.EventError{Code: 0},
+		Error: &common.EventError{Code: 0},
 	}
 }
-
 
 func connStatsFromTCPv4(t *ConnTupleV4, s *ConnStats) common.ConnectionStats {
 	return common.ConnectionStats{
@@ -231,4 +230,3 @@ func connStatsFromProcSpy(t *procspy.Connection) common.ConnectionStats {
 		RecvBytes:  0,
 	}.WithNamespace(strconv.FormatUint(t.Proc.NetNamespaceID, 10))
 }
-
