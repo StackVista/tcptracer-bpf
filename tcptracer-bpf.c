@@ -30,60 +30,6 @@
 		bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
 	})
 
-#define MAX_MSG_SIZE 1024
-
-
-// struct addr_info_t
-// {
-// 	struct sockaddr *addr;
-// 	size_t *addrlen;
-// };
-
-// #define MAX_MSG_SIZE 1024
-// BPF_PERF_OUTPUT(syscall_write_events);
-
-// // This needs to match exactly with the Go version of the struct.
-// struct syscall_write_event_t
-// {
-// 	// We split attributes into a separate struct, because BPF gets upset if you do lots of
-// 	// size arithmetic. This makes it so that it's attributes followed by message.
-// 	struct attr_t
-// 	{
-// 		int event_type;
-// 		int fd;
-// 		int bytes;
-// 		// Care needs to be taken as only msg_size bytes of msg are guaranteed
-// 		// to be valid.
-// 		int msg_size;
-// 	} attr;
-// 	char msg[MAX_MSG_SIZE];
-// };
-
-// const int kEventTypeSyscallAddrEvent = 1;
-// const int kEventTypeSyscallWriteEvent = 2;
-// const int kEventTypeSyscallCloseEvent = 3;
-
-// BPF programs are limited to a 512-byte stack. We store this value per CPU
-// and use it as a heap allocated value.
-
-struct bpf_map_def SEC("maps/write_buffer_heap") write_buffer_heap = {
-        .type = BPF_MAP_TYPE_PERCPU_ARRAY,
-        .key_size = sizeof(int),
-        .value_size = sizeof(char[MAX_MSG_SIZE]),
-        .max_entries = 1,
-        .pinning = 0,
-        .namespace = "",
-};
-
-// The set of file descriptors we are tracking.
-struct bpf_map_def SEC("maps/active_fds") active_fds = {
-        .type = BPF_MAP_TYPE_HASH,
-        .key_size = sizeof(int),
-        .value_size = sizeof(struct fd_info),
-        .max_entries = 10240,
-        .pinning = 0,
-        .namespace = "",
-};
 
 /* http://stackoverflow.com/questions/1001307/detecting-endianness-programmatically-in-a-c-program */
 __attribute__((always_inline))
@@ -111,25 +57,6 @@ static bool is_ipv4_mapped_ipv6(u64 saddr_h, u64 saddr_l, u64 daddr_h, u64 daddr
 	}
 }
 
-struct bpf_map_def SEC("maps/tcptracer_status") tcptracer_status = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(__u64),
-	.value_size = sizeof(struct tcptracer_status_t),
-	.max_entries = 1,
-	.pinning = 0,
-	.namespace = "",
-};
-
-// Keeping track of latest timestamp of monotonic clock
-struct bpf_map_def SEC("maps/latest_ts") latest_ts = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(__u64),
-	.value_size = sizeof(__u64),
-	.max_entries = 1,
-	.pinning = 0,
-	.namespace = "",
-};
-
 __attribute__((always_inline))
 static bool proc_t_comm_equals(struct proc_t a, struct proc_t b) {
 	int i;
@@ -140,12 +67,6 @@ static bool proc_t_comm_equals(struct proc_t a, struct proc_t b) {
 	}
 	return true;
 }
-
-//
-//__attribute__((always_inline))
-//static bool is_digit(char ch) {
-//    return '0' <= ch && ch <= '9';
-//}
 
 __attribute__((always_inline))
 static int is_tracer_status_ready(struct tcptracer_status_t *status) {

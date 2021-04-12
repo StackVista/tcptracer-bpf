@@ -5,14 +5,14 @@ package tracer
 import (
 	"bytes"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
-	"strconv"
 	"syscall"
 	"unsafe"
 
+	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
+
 	logger "github.com/cihub/seelog"
 
 	bpflib "github.com/iovisor/gobpf/elf"
@@ -23,43 +23,47 @@ import (
 */
 import "C"
 
+type HttpCode = int
+
+type HttpStatusCodeGroup = string
+
+const (
+	Http_1xx HttpStatusCodeGroup = "1xx"
+	Http_2xx HttpStatusCodeGroup = "2xx"
+	Http_3xx HttpStatusCodeGroup = "3xx"
+	Http_4xx HttpStatusCodeGroup = "4xx"
+	Http_5xx HttpStatusCodeGroup = "5xx"
+)
+
+type ConnInsight struct {
+	ApplicationProtocol string
+	HttpMetrics         map[HttpStatusCodeGroup]*ddsketch.DDSketch
+}
+
 type LinuxTracer struct {
 	m      *bpflib.Module
 	config *config.Config
 	// In flight connections are the connections that already existed before the EBPF module was loaded.
 	// These connections are stored with a key without direction, to make it possible to merge with undirected
 	// metric stats
-	inFlightTCP     map[string]*common.ConnectionStats
-	metricsGatherer prometheus.Gatherer
+	inFlightTCP map[string]*common.ConnectionStats
 
 	perfEventsBytes   chan []byte
 	perfEventsLostLog chan uint64
 	perfMap           *bpflib.PerfMap
 
-	httpStatusCodes *prometheus.HistogramVec
+	tcpConnInsights map[common.ConnTupleV4]ConnInsight
 	onPerfEvent     func(event common.PerfEvent)
 	stopCh          chan bool
 }
 
 var (
-	DebugFsPath  = "/sys/kernel/debug"
-	DebugFsMagic = int64(0x64626720) //http://man7.org/linux/man-pages/man2/statfs.2.html
+	DebugFsPath      = "/sys/kernel/debug"
+	DebugFsMagic     = int64(0x64626720) //http://man7.org/linux/man-pages/man2/statfs.2.html
 	PerfEventsBuffer = 100
 )
 
 func MakeTracer(config *config.Config) (Tracer, error) {
-
-	metricsGatherer := prometheus.NewRegistry()
-	httpStatusCodes := prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "tcptracer",
-		Subsystem: "http",
-		Name: "response_time",
-	}, []string{"code"})
-	err := metricsGatherer.Register(httpStatusCodes)
-	if err != nil {
-		return nil, err
-	}
-
 
 	m, err := loadBPFModule()
 	if err != nil {
@@ -67,7 +71,7 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 	}
 
 	sectionParams := make(map[string]bpflib.SectionParams)
-	sectionParams["maps/" +  common.PerfEvents] = bpflib.SectionParams{
+	sectionParams["maps/"+common.PerfEvents] = bpflib.SectionParams{
 		PerfRingBufferPageCount: 256,
 	}
 	err = m.Load(sectionParams)
@@ -101,33 +105,16 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 
 	inFlightTCP := make(map[string]*common.ConnectionStats)
 
-	onPerfEvent := func(event common.PerfEvent) {
-		if event.HTTPResponse != nil {
-			httpReq := event.HTTPResponse
-			logger.Infof("http response: %v", event.HTTPResponse)
-			httpStatusCodes.With(prometheus.Labels{"code": strconv.Itoa(httpReq.StatusCode)}).Observe(float64(httpReq.ResponseTime.Nanoseconds()) / 1000000000)
-		} else if event.MySQLGreeting != nil {
-			//for k := range inFlightTCP {
-			//	logger.Infof("inFlight: %s %v\n", k, inFlightTCP[k])
-			//}
-			logger.Infof("mysql greeting: %v", event.MySQLGreeting)
-		} else if event.Error != nil {
-			logger.Infof("perf events error: %v", event.Error)
-		}
-	}
-
 	// TODO: Improve performance by detaching unnecessary kprobes, once offsets have been figured out in initialize()
 	tracer := &LinuxTracer{
-		m: m,
-		config: config,
-		inFlightTCP: inFlightTCP,
-		metricsGatherer: metricsGatherer,
-		perfMap: perfMap,
-		perfEventsBytes: perfEventsBytes,
+		m:                 m,
+		config:            config,
+		inFlightTCP:       inFlightTCP,
+		perfMap:           perfMap,
+		perfEventsBytes:   perfEventsBytes,
 		perfEventsLostLog: perfEventsLostLog,
-		httpStatusCodes: httpStatusCodes,
-		stopCh: make(chan bool),
-		onPerfEvent: onPerfEvent,
+		tcpConnInsights:   make(map[common.ConnTupleV4]ConnInsight),
+		stopCh:            make(chan bool),
 	}
 
 	// Get data from /proc AFTER ebpf has been initialized. This makes sure that we do not miss any
@@ -141,19 +128,6 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 
 	return tracer, nil
 }
-
-func (t *LinuxTracer) OnPerfEvent(callback func(eventError common.PerfEvent)) {
-	prevCb := t.onPerfEvent
-	t.onPerfEvent = func(event common.PerfEvent) {
-		prevCb(event)
-		callback(event)
-	}
-}
-
-func (t *LinuxTracer) GetMetrics() prometheus.Gatherer {
-	return t.metricsGatherer
-}
-
 
 // CheckTracerSupport returns whether or not the current kernel version supports tracer functionality
 func CheckTracerSupport() (bool, error) {
@@ -219,10 +193,9 @@ func (t *LinuxTracer) Start() error {
 		for {
 			select {
 			case payload := <-t.perfEventsBytes:
-				logger.Infof("received event bytes %d: %v", len(payload), payload)
 				perfEvent := perfEvent(payload)
-				logger.Infof("received event: %v", perfEvent)
-				t.onPerfEvent(perfEvent)
+				logger.Tracef("received perf event: %v (bytes [%d]%v)", perfEvent, len(payload), payload)
+				t.dispatchPerfEvent(perfEvent)
 				break
 			case lost := <-t.perfEventsLostLog:
 				logger.Infof("Lost %d", lost)
@@ -248,12 +221,15 @@ func (t *LinuxTracer) Stop() {
 }
 
 func (t *LinuxTracer) GetConnections() (*common.Connections, error) {
+
 	err := t.updateInFlightTCPWithEBPF()
 	if err != nil {
 		return nil, err
 	}
 
 	tcpConns := t.getTcpConnectionsFromInFlight()
+
+	tcpConns = t.enrichTcpConns(tcpConns)
 
 	udpConns, err := t.getEbpfUDPConnections()
 	if err != nil {
@@ -613,6 +589,102 @@ func (t *LinuxTracer) getMap(mapName string) (*bpflib.Map, error) {
 		return nil, logger.Errorf("no map with name %s", mapName)
 	}
 	return mp, nil
+}
+
+func (t *LinuxTracer) dispatchPerfEvent(event common.PerfEvent) {
+	if event.HTTPResponse != nil {
+		logger.Tracef("http response: %v", event.HTTPResponse)
+		httpRes := event.HTTPResponse
+
+		conn, ok := t.tcpConnInsights[httpRes.Connection]
+		if !ok {
+			conn = ConnInsight{
+				ApplicationProtocol: "http",
+				HttpMetrics:         make(map[HttpStatusCodeGroup]*ddsketch.DDSketch),
+			}
+		}
+		conn.ApplicationProtocol = "http"
+
+		var httpStatusGroup HttpStatusCodeGroup
+		if httpRes.StatusCode >= 100 && httpRes.StatusCode < 200 {
+			httpStatusGroup = Http_1xx
+		} else if httpRes.StatusCode >= 200 && httpRes.StatusCode < 300 {
+			httpStatusGroup = Http_2xx
+		} else if httpRes.StatusCode >= 300 && httpRes.StatusCode < 400 {
+			httpStatusGroup = Http_3xx
+		} else if httpRes.StatusCode >= 400 && httpRes.StatusCode < 500 {
+			httpStatusGroup = Http_4xx
+		} else if httpRes.StatusCode >= 500 && httpRes.StatusCode < 600 {
+			httpStatusGroup = Http_5xx
+		} else {
+			logger.Tracef("incorrect status code")
+			return
+		}
+
+		latencyCounter, ok := conn.HttpMetrics[httpStatusGroup]
+		if !ok {
+			var err error
+			latencyCounter, err = ddsketch.NewDefaultDDSketch(0.001)
+			if err != nil {
+				logger.Errorf("can't create dd sketch")
+			}
+			conn.HttpMetrics[httpStatusGroup] = latencyCounter
+		}
+		err := latencyCounter.Add(httpRes.ResponseTime.Seconds())
+		if err != nil {
+			logger.Errorf("can't count")
+		}
+		t.tcpConnInsights[httpRes.Connection] = conn
+
+	} else if event.MySQLGreeting != nil {
+		logger.Tracef("mysql greeting: %v", event.MySQLGreeting)
+		mysqlGreeting := event.MySQLGreeting
+
+		conn, ok := t.tcpConnInsights[mysqlGreeting.Connection]
+		if !ok {
+			conn = ConnInsight{
+				ApplicationProtocol: "mysql",
+				HttpMetrics:         make(map[HttpStatusCodeGroup]*ddsketch.DDSketch),
+			}
+		}
+		conn.ApplicationProtocol = "mysql"
+		t.tcpConnInsights[mysqlGreeting.Connection] = conn
+	} else if event.Error != nil {
+		logger.Infof("perf events error: %v", event.Error)
+	}
+}
+
+func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.ConnectionStats {
+	logger.Infof("enrich tcp connections")
+	for i := range conns {
+		conn := conns[i]
+		connInsight, ok := t.tcpConnInsights[conn.GetConnection()]
+		if ok {
+			logger.Infof("enriched %v with %v", conn.GetConnection(), connInsight)
+			if connInsight.ApplicationProtocol != "" {
+				conn.ApplicationProtocol = connInsight.ApplicationProtocol
+			}
+			for statusCode, metric := range connInsight.HttpMetrics {
+				metric.
+					metric.ToProto().ProtoMessage()
+				quantiles := []float64{0.5, 0.75, 0.9, 0.95, 0.99, 0.999}
+				values, err := metric.GetValuesAtQuantiles(quantiles)
+				if err != nil {
+					logger.Errorf("can't get quantiles from %v", metric)
+				}
+				conn.Metrics = append(conn.Metrics, common.Metric{
+					Labels: map[string]string{"code": statusCode},
+					Histogram: common.Histogram{
+						Quantiles: quantiles,
+						Values:    values,
+					},
+				})
+			}
+		}
+		//logger.Infof("updated", conn)
+		conns[i] = conn
+	}
+	return conns
 }
 
 func initialize(m *bpflib.Module) error {

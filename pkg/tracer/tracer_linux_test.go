@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 )
@@ -485,11 +484,21 @@ func TestHTTPRequestLog(t *testing.T) {
 	assert.NoError(t, tr.Start())
 
 	testServer := createTestHTTPServer()
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 	println("ok\n")
-	conns, _ := tr.GetConnections()
-	for i := range conns.Conns {
-		fmt.Printf("connection: %v\n", conns.Conns[i])
+
+	getServerStats := func() ([]map[string]string, error) {
+		conns, err := tr.GetConnections()
+		if err != nil {
+			return nil, err
+		}
+		labels := make([]map[string]string, 0)
+		for i := range conns.Conns {
+			for mi := range conns.Conns[i].Metrics {
+				labels = append(labels, conns.Conns[i].Metrics[mi].Labels)
+			}
+		}
+		return labels, nil
 	}
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
@@ -499,51 +508,25 @@ func TestHTTPRequestLog(t *testing.T) {
 	// give it a little time to settle in buffers
 	time.Sleep(200 * time.Millisecond)
 
-	println("ok\n")
-	conns, _ = tr.GetConnections()
-	for i := range conns.Conns {
-		fmt.Printf("connection: %v\n", conns.Conns[i])
-	}
-
-	assert.Equal(t, 1, getStatusCodeCount(t, tr, 200))
-	assert.Equal(t, 0, getStatusCodeCount(t, tr, 404))
-
+	stats, err := getServerStats()
+	assert.NoError(t, err)
+	assert.Equal(t, []map[string]string{
+		{"code": "2xx"},
+	}, stats)
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
 	statusCode, respText = runGETRequest(t, testServer, "/notfound")
 	assert.Equal(t, 404, statusCode)
 	assert.Equal(t, "Not found", respText)
-	time.Sleep(5000 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
-	assert.Equal(t, 1, getStatusCodeCount(t, tr, 200))
-	assert.Equal(t, 1, getStatusCodeCount(t, tr, 404))
-}
-
-func getStatusCodeCount(t *testing.T, tr Tracer, code int) int {
-	metrics, err := tr.GetMetrics().Gather()
+	stats, err = getServerStats()
 	assert.NoError(t, err)
-
-	assert.Len(t, metrics, 1)
-
-	respTimeMetricFamily := metrics[0]
-	assert.Equal(t, "tcptracer_http_response_time", *respTimeMetricFamily.Name)
-	respTimeMetrics := respTimeMetricFamily.GetMetric()
-
-	for i := range respTimeMetrics {
-		labels := respTimeMetrics[i].GetLabel()
-		match := false
-		for j := range labels {
-			if *labels[j].Name == "code" && *labels[j].Value == strconv.Itoa(code) {
-				match = true
-			}
-		}
-		if match {
-			return int(*respTimeMetrics[i].Histogram.SampleCount)
-		}
-	}
-	return 0
+	assert.Equal(t, []map[string]string{
+		{"code": "2xx"},
+		{"code": "4xx"},
+	}, stats)
 }
-
 
 func runGETRequest(t *testing.T, srv *httptest.Server, path string) (int, string) {
 	fmt.Printf("Address: %s\n", srv.Listener.Addr().String())

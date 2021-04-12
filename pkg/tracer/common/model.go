@@ -90,8 +90,23 @@ type ConnectionStats struct {
 	Direction        Direction `json:"direction"`
 	State            State     `json:"state"`
 	NetworkNamespace string    `json:"network_namespace"`
-	SendBytes        uint64    `json:"send_bytes"`
-	RecvBytes        uint64    `json:"recv_bytes"`
+
+	SendBytes uint64 `json:"send_bytes"`
+	RecvBytes uint64 `json:"recv_bytes"`
+
+	Metrics []Metric `json:"metrics"`
+}
+
+//easyjson:json
+type Metric struct {
+	Labels    map[string]string `json:"labels"`
+	Histogram Histogram         `json:"histogram"`
+}
+
+//easyjson:json
+type Histogram struct {
+	Quantiles []float64 `json:"quantiles"`
+	Values    []float64 `json:"values"`
 }
 
 type ConnTupleV4 struct {
@@ -99,17 +114,16 @@ type ConnTupleV4 struct {
 	Lport uint16
 	Raddr string
 	Rport uint16
-	Netns uint32
-	Pid uint16
+	Pid   uint16
 }
 
 func (ct *ConnTupleV4) Matches(stats *ConnectionStats) bool {
- if stats.Pid == uint32(ct.Pid) &&
-	stats.Local == ct.Laddr && stats.Remote == ct.Raddr &&
-	stats.LocalPort == ct.Lport && stats.RemotePort == ct.Rport {
- 	return true
- }
- return false
+	if stats.Pid == uint32(ct.Pid) &&
+		stats.Local == ct.Laddr && stats.Remote == ct.Raddr &&
+		stats.LocalPort == ct.Lport && stats.RemotePort == ct.Rport {
+		return true
+	}
+	return false
 }
 
 type HTTPResponse struct {
@@ -128,9 +142,19 @@ type EventError struct {
 }
 
 type PerfEvent struct {
-	HTTPResponse *HTTPResponse
+	HTTPResponse  *HTTPResponse
 	MySQLGreeting *MySQLGreeting
-	Error *EventError
+	Error         *EventError
+}
+
+func (c ConnectionStats) GetConnection() ConnTupleV4 {
+	return ConnTupleV4{
+		Laddr: c.Local,
+		Lport: c.LocalPort,
+		Raddr: c.Remote,
+		Rport: c.RemotePort,
+		Pid:   0,
+	}
 }
 
 func (c ConnectionStats) WithOnlyLocal() ConnectionStats {
@@ -186,11 +210,11 @@ func (c ConnectionStats) Copy() ConnectionStats {
 
 func (c ConnectionStats) String() string {
 	if len(strings.TrimSpace(c.NetworkNamespace)) != 0 {
-		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s netns:%s [%d bytes sent ↑ %d bytes received ↓]",
-			c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.NetworkNamespace, c.SendBytes, c.RecvBytes)
+		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s netns=%s protocol=%v [%d bytes sent ↑ %d bytes received ↓]",
+			c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.NetworkNamespace, c.ApplicationProtocol, c.SendBytes, c.RecvBytes)
 	} else {
-		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s [%d bytes sent ↑ %d bytes received ↓]",
-			c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.SendBytes, c.RecvBytes)
+		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s protocol=%v  [%d bytes sent ↑ %d bytes received ↓]",
+			c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.ApplicationProtocol, c.SendBytes, c.RecvBytes)
 	}
 }
 
