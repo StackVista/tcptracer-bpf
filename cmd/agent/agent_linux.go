@@ -24,6 +24,7 @@ func main() {
 	}
 
 	tracer.RunTracepipe()
+	t.Start()
 
 	for {
 		conns, _ := t.GetConnections()
