@@ -822,6 +822,7 @@ __attribute__((always_inline))
 bool parse_http_response(char *buffer, int size, int *status_code_result) {
     const char http_marker[4] = "HTTP";
     if (size > 11) {
+
         int status_code = 100 * (buffer[9] - '0') + 10 * (buffer[10] - '0') + (buffer[11] - '0');
         if (status_code > 99 && status_code < 1000) {
             if (memcmp(buffer, http_marker, sizeof(http_marker)) == 0) {
@@ -849,6 +850,22 @@ bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) 
     return false;
 }
 
+//TODO
+//__attribute__((always_inline))
+//struct perf_event create_http_request_event(struct ipv4_tuple_t *t, __u64 timestamp) {
+//    struct event_http_request http_request;
+//    __builtin_memset(&http_request, 0, sizeof(http_request));
+//    http_request.connection = *t;
+//    union event_payload payload;
+//    __builtin_memset(&payload, 0, sizeof(payload));
+//    payload.http_request = http_request;
+//    struct perf_event event;
+//    __builtin_memset(&event, 0, sizeof(event));
+//    event.event_type = EVENT_HTTP_REQUEST;
+//    event.timestamp = timestamp;
+//    event.payload = payload;
+//    return event;
+//}
 
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
@@ -857,7 +874,6 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
 	struct msghdr *k_msg = (void *) PT_REGS_PARM2(ctx);
 	const size_t size = (size_t) PT_REGS_PARM3(ctx);
 	u64 zero = 0;
-
 
     struct fd_info *res = bpf_map_lookup_elem(&active_fds, &sk);
     if (res == NULL) {
@@ -877,7 +893,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
         return 0;
     }
 
-    u64 ttfb = bpf_ktime_get_ns() - res->start_time_ns;
+//    u64 ttfb = bpf_ktime_get_ns() - res->start_time_ns;
     u64 cpu = bpf_get_smp_processor_id();
 
     struct msghdr msg = {};
@@ -898,16 +914,35 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
         int http_status_code = 0;
         u16 mysql_greeting_protocol_version = 0;
         if (parse_http_response(data, iov.iov_len, &http_status_code)) {
-            struct event_http_response http_response = {
-                    .connection = t,
-                    .status_code = http_status_code,
-                    .response_time = ttfb / 1000,
-            };
-            struct perf_event event = {
-                    .event_type = EVENT_HTTP_RESPONSE,
-                    .payload = { .http_response = http_response },
-            };
-            bpf_perf_event_output(ctx, &perf_events, cpu, &event, sizeof(event));
+
+//TODO          struct event_http_request request_event = create_event_http_request(&t, res->start_time_ns);
+            struct event_http_request http_request;
+            __builtin_memset(&http_request, 0, sizeof(http_request));
+            http_request.connection = t;
+            union event_payload request_payload;
+            __builtin_memset(&request_payload, 0, sizeof(request_payload));
+            request_payload.http_request = http_request;
+            struct perf_event request_event;
+            __builtin_memset(&request_event, 0, sizeof(request_event));
+            request_event.event_type = EVENT_HTTP_REQUEST;
+            request_event.timestamp = res->start_time_ns;
+            request_event.payload = request_payload;
+            bpf_perf_event_output(ctx, &perf_events, cpu, &request_event, sizeof(request_event));
+
+
+            struct event_http_response http_response;
+            __builtin_memset(&http_request, 0, sizeof(http_request));
+            http_request.connection = t;
+            http_response.status_code = http_status_code;
+            union event_payload payload;
+            __builtin_memset(&payload, 0, sizeof(payload));
+            payload.http_response = http_response;
+            struct perf_event response_event;
+            __builtin_memset(&response_event, 0, sizeof(response_event));
+            response_event.event_type = EVENT_HTTP_RESPONSE;
+            response_event.timestamp = res->start_time_ns;
+            response_event.payload = payload;
+            bpf_perf_event_output(ctx, &perf_events, cpu, &response_event, sizeof(response_event));
         }
         else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
             struct event_mysql_greeting greeting = {
