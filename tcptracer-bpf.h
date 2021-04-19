@@ -95,9 +95,12 @@ struct fd_info
 #define EVENT_MYSQL_GREETING 2
 #define EVENT_HTTP_REQUEST 3
 
+#define HTTP_REQUEST_MIN_LEN 7
+
 struct event_http_request
 {
 	// __u16 status_code;
+
 	struct ipv4_tuple_t connection;
 };
 

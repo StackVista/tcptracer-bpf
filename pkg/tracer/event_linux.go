@@ -78,71 +78,94 @@ __u64 timestamp;
 type ConnStatsWithTimestamp C.struct_conn_stats_ts_t
 
 type PerfEvent C.struct_perf_event
+type PerfEventPayload C.union_event_payload
 type EventHTTPResponse C.struct_event_http_response
 type EventMYSQLGreeting C.struct_event_mysql_greeting
+type EventHTTPRequest C.struct_event_http_request
 type EventError C.struct_event_error
 
 func (cs *ConnStatsWithTimestamp) isExpired(latestTime int64, timeout int64) bool {
 	return latestTime-int64(cs.timestamp) > timeout
 }
 
-func httpResponseEvent(data []byte) common.HTTPResponse {
-	eventC := (*EventHTTPResponse)(unsafe.Pointer(&data[0]))
-	return common.HTTPResponse{
-		Connection: common.ConnTupleV4{
-			Laddr: common.V4IPString(uint32(eventC.connection.laddr)),
-			Lport: uint16(eventC.connection.lport),
-			Raddr: common.V4IPString(uint32(eventC.connection.raddr)),
-			Rport: uint16(eventC.connection.rport),
-			//Netns: uint32(eventC.connection.netns),
-			Pid: uint16(eventC.connection.pid),
+func httpResponseEvent(eventC *EventHTTPResponse, timestamp time.Time) common.PerfEvent {
+	return common.PerfEvent{
+		Timestamp: timestamp,
+		HTTPResponse: &common.HTTPResponse{
+			Connection: common.ConnTupleV4{
+				Laddr: common.V4IPString(uint32(eventC.connection.laddr)),
+				Lport: uint16(eventC.connection.lport),
+				Raddr: common.V4IPString(uint32(eventC.connection.raddr)),
+				Rport: uint16(eventC.connection.rport),
+				//Netns: uint32(eventC.connection.netns),
+				Pid: uint16(eventC.connection.pid),
+			},
+			StatusCode: int(uint16(eventC.status_code)),
 		},
-		ResponseTime: time.Duration(int(uint16(eventC.response_time))) * time.Microsecond,
-		StatusCode:   int(uint16(eventC.status_code)),
 	}
 }
 
-func mysqlGreetingEvent(data []byte) common.MySQLGreeting {
-	eventC := (*EventMYSQLGreeting)(unsafe.Pointer(&data[0]))
-	return common.MySQLGreeting{
-		Connection: common.ConnTupleV4{
-			Laddr: common.V4IPString(uint32(eventC.connection.laddr)),
-			Lport: uint16(eventC.connection.lport),
-			Raddr: common.V4IPString(uint32(eventC.connection.raddr)),
-			Rport: uint16(eventC.connection.rport),
-			//Netns: uint32(eventC.connection.netns),
-			Pid: uint16(eventC.connection.pid),
+func httpRequestEvent(eventC *EventHTTPRequest, timestamp time.Time) common.PerfEvent {
+	return common.PerfEvent{
+		Timestamp: timestamp,
+		HTTPRequest: &common.HTTPRequest{
+			Connection: common.ConnTupleV4{
+				Laddr: common.V4IPString(uint32(eventC.connection.laddr)),
+				Lport: uint16(eventC.connection.lport),
+				Raddr: common.V4IPString(uint32(eventC.connection.raddr)),
+				Rport: uint16(eventC.connection.rport),
+				//Netns: uint32(eventC.connection.netns),
+				Pid: uint16(eventC.connection.pid),
+			},
 		},
-		ProtocolVersion: int(uint16(eventC.protocol_version)),
 	}
 }
 
-func errorEvent(data []byte) common.EventError {
-	eventC := (*EventError)(unsafe.Pointer(&data[0]))
-	return common.EventError{Code: int(uint16(eventC.code))}
+func mysqlGreetingEvent(eventC *EventMYSQLGreeting, timestamp time.Time) common.PerfEvent {
+	return common.PerfEvent{
+		Timestamp: timestamp,
+		MySQLGreeting: &common.MySQLGreeting{
+			Connection: common.ConnTupleV4{
+				Laddr: common.V4IPString(uint32(eventC.connection.laddr)),
+				Lport: uint16(eventC.connection.lport),
+				Raddr: common.V4IPString(uint32(eventC.connection.raddr)),
+				Rport: uint16(eventC.connection.rport),
+				//Netns: uint32(eventC.connection.netns),
+				Pid: uint16(eventC.connection.pid),
+			},
+			ProtocolVersion: int(uint16(eventC.protocol_version)),
+		},
+	}
+}
+
+func errorEvent(eventC *EventError, timestamp time.Time) common.PerfEvent {
+	return common.PerfEvent{
+		Timestamp: timestamp,
+		Error:     &common.EventError{Code: int(uint16(eventC.code))},
+	}
 }
 
 func perfEvent(data []byte) common.PerfEvent {
 	eventC := (*PerfEvent)(unsafe.Pointer(&data[0]))
+	timestamp := time.Unix(int64(uint64(eventC.timestamp)), 0)
+	eventPayload := eventC.payload
 	switch int(uint16(eventC.event_type)) {
 	case 0:
-		result := errorEvent(data[4:])
-		return common.PerfEvent{
-			Error: &result,
-		}
+		eventC := (*EventError)(unsafe.Pointer(&eventPayload))
+		return errorEvent(eventC, timestamp)
 	case 1:
-		result := httpResponseEvent(data[4:])
-		return common.PerfEvent{
-			HTTPResponse: &result,
-		}
+		eventC := (*EventHTTPResponse)(unsafe.Pointer(&eventPayload))
+		return httpResponseEvent(eventC, timestamp)
 	case 2:
-		result := mysqlGreetingEvent(data[4:])
+		eventC := (*EventMYSQLGreeting)(unsafe.Pointer(&eventPayload))
+		return mysqlGreetingEvent(eventC, timestamp)
+	case 3:
+		eventC := (*EventHTTPRequest)(unsafe.Pointer(&eventPayload))
+		return httpRequestEvent(eventC, timestamp)
+	default:
 		return common.PerfEvent{
-			MySQLGreeting: &result,
+			Error: &common.EventError{Code: 0},
 		}
-	}
-	return common.PerfEvent{
-		Error: &common.EventError{Code: 0},
 	}
 }
 

@@ -193,8 +193,9 @@ func (t *LinuxTracer) Start() error {
 		for {
 			select {
 			case payload := <-t.perfEventsBytes:
+				logger.Infof("received event: (bytes [%d]%v)", len(payload), payload)
 				perfEvent := perfEvent(payload)
-				logger.Tracef("received perf event: %v (bytes [%d]%v)", perfEvent, len(payload), payload)
+				logger.Infof("received perf event: %v", perfEvent)
 				t.dispatchPerfEvent(perfEvent)
 				break
 			case lost := <-t.perfEventsLostLog:
@@ -630,10 +631,11 @@ func (t *LinuxTracer) dispatchPerfEvent(event common.PerfEvent) {
 			}
 			conn.HttpMetrics[httpStatusGroup] = latencyCounter
 		}
-		err := latencyCounter.Add(httpRes.ResponseTime.Seconds())
-		if err != nil {
-			logger.Errorf("can't count")
-		}
+		// TODO what to do here?
+		//err := latencyCounter.Add(httpRes.ResponseTime.Seconds())
+		//if err != nil {
+		//	logger.Errorf("can't count")
+		//}
 		t.tcpConnInsights[httpRes.Connection] = conn
 
 	} else if event.MySQLGreeting != nil {
@@ -649,6 +651,11 @@ func (t *LinuxTracer) dispatchPerfEvent(event common.PerfEvent) {
 		}
 		conn.ApplicationProtocol = "mysql"
 		t.tcpConnInsights[mysqlGreeting.Connection] = conn
+	} else if event.HTTPRequest != nil {
+		httpRequest := event.HTTPRequest
+		logger.Tracef("http request: %v", httpRequest)
+		//TODO
+
 	} else if event.Error != nil {
 		logger.Infof("perf events error: %v", event.Error)
 	}
