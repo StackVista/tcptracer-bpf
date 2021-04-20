@@ -661,11 +661,6 @@ int kprobe__tcp_v4_connect(struct pt_regs *ctx) {
 
 	sk = (struct sock *) PT_REGS_PARM1(ctx);
 
-	// The file descriptor is the value returned from the syscall.
-	// int fd = PT_REGS_PARM1(ctx);
-	// bool t = true;
-	// bpf_map_update_elem(&active_fds, &fd, &t, BPF_ANY);
-
 	bpf_map_update_elem(&connectsock_ipv4, &pid, &sk, BPF_ANY);
 
 	return 0;
@@ -686,11 +681,6 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
 	}
 
 	struct sock *skp = *skpp;
-
-	// The file descriptor is the value returned from the syscall.
-	// int fd = PT_REGS_PARM1(ctx);
-	// bool t = true;
-	// bpf_map_update_elem(&active_fds, &fd, &t, BPF_ANY);
 
 	bpf_map_delete_elem(&connectsock_ipv4, &pid);
 
@@ -782,42 +772,6 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 	return assert_tcp_record(newsk, status, DIRECTION_INCOMING, STATE_INITIALIZING);
 }
 
-// Is kretprobe__inet_csk_accept sufficient or is this one needed as well or instead?
-
-// SEC("kprobe/__x64_sys_accept4")
-// int kprobe__x64_sys_accept4(struct pt_regs *ctx)
-// {
-	// The file descriptor is the value returned from the syscall.
-	// int fd = PT_REGS_RC(ctx);
-	// bool t = true;
-	// bpf_map_update_elem(&active_fds, &fd, &t, BPF_ANY);
-
-// 	return 0;
-// }
-
-SEC("kprobe/__x64_sys_writev")
-int kprobe__sys_writev(struct pt_regs *ctx)
-{
-    int fd = PT_REGS_PARM1(ctx);
-    struct iovec *vectors = (struct iovec *)PT_REGS_PARM2(ctx);
-
-    struct fd_info *res = bpf_map_lookup_elem(&active_fds, &fd);
-    if (res == NULL) {
-//		 This file descriptor is not for a socket we're tracking
-        return 0;
-    }
-
-    int zero = 0;
-    void *data = bpf_map_lookup_elem(&write_buffer_heap, &zero);
-    if (data == NULL) {
-        return 0;
-    }
-
-    struct iovec vec = {};
-    bpf_probe_read(&vec, sizeof(struct iovec), vectors);
-	return 0;
-}
-
 __attribute__((always_inline))
 bool parse_http_response(char *buffer, int size, int *status_code_result) {
     const char http_marker[4] = "HTTP";
@@ -884,11 +838,14 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
         bpf_probe_read(&iov, sizeof(iov), (void *) msg.msg_iter.iov);
         bpf_probe_read(data, MAX_MSG_SIZE, iov.iov_base);
 
-//      if (check_family(sk, status, AF_INET)) {
         struct ipv4_tuple_t t = {};
-        if (!read_ipv4_tuple(&t, status, sk)) {
-            bpf_debug("Not IPv4\n");
-        } // }
+        if (check_family(sk, status, AF_INET)) {
+            if (!read_ipv4_tuple(&t, status, sk)) {
+                return 0;
+            }
+        } else {
+            return 0;
+        }
         t.lport = ntohs(t.lport); // Making ports human-readable
         t.rport = ntohs(t.rport);
 
@@ -909,17 +866,19 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
             response_event.timestamp = res->start_time_ns;
             response_event.payload = payload;
             bpf_perf_event_output(ctx, &perf_events, cpu, &response_event, sizeof(response_event));
-        }
-        else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
-            struct event_mysql_greeting greeting = {
-                    .connection = t,
-                    .protocol_version = mysql_greeting_protocol_version,
-                    .whatever = 99+256*99,
-            };
-            struct perf_event event = {
-                    .event_type = EVENT_MYSQL_GREETING,
-                    .payload = { .mysql_greeting = greeting },
-            };
+        } else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
+            struct event_mysql_greeting greeting;
+            __builtin_memset(&greeting, 0, sizeof(greeting));
+            greeting.connection = t;
+            greeting.protocol_version = mysql_greeting_protocol_version;
+            union event_payload payload;
+            __builtin_memset(&payload, 0, sizeof(payload));
+            payload.mysql_greeting = greeting;
+            struct perf_event event;
+            __builtin_memset(&event, 0, sizeof(event));
+            event.event_type = EVENT_MYSQL_GREETING;
+            event.timestamp = res->start_time_ns;
+            event.payload = payload;
             bpf_perf_event_output(ctx, &perf_events, cpu, &event, sizeof(event));
         }
     } else {

@@ -96,7 +96,6 @@ struct event_http_response {
 
 struct event_mysql_greeting {
     __u16 protocol_version;
-    __u16 whatever;
     struct ipv4_tuple_t connection;
 };
 
