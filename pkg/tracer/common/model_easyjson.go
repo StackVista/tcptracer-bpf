@@ -7,6 +7,7 @@ import (
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
+	"time"
 )
 
 // suppress unused package warning
@@ -469,8 +470,8 @@ func easyjsonC80ae7adDecodeGithubComStackVistaTcptracerBpfPkgTracerCommon4(in *j
 			(out.Connection).UnmarshalEasyJSON(in)
 		case "StatusCode":
 			out.StatusCode = int(in.Int())
-		//case "ResponseTime":
-		//	out.ResponseTime = time.Duration(in.Int64())
+		case "ResponseTime":
+			out.ResponseTime = time.Duration(in.Int64())
 		default:
 			in.SkipRecursive()
 		}
@@ -495,11 +496,11 @@ func easyjsonC80ae7adEncodeGithubComStackVistaTcptracerBpfPkgTracerCommon4(out *
 		out.RawString(prefix)
 		out.Int(int(in.StatusCode))
 	}
-	//{
-	//const prefix string = ",\"ResponseTime\":"
-	//out.RawString(prefix)
-	//out.Int64(int64(in.ResponseTime))
-	//}
+	{
+		const prefix string = ",\"ResponseTime\":"
+		out.RawString(prefix)
+		out.Int64(int64(in.ResponseTime))
+	}
 	out.RawByte('}')
 }
 

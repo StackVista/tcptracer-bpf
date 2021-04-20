@@ -49,7 +49,7 @@ build-ebpf-object:
 		--workdir=/src \
 		$(DOCKER_IMAGE) \
 		make DEST_DIR=/dist -f ebpf.mk build
-	sudo chown -R $(UID):$(UID) ebpf
+	$(SUDO) chown -R $(UID):$(UID) ebpf
 
 build-ebpf-object-local:
 	make -f ebpf.mk build

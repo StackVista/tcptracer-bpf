@@ -81,7 +81,6 @@ type PerfEvent C.struct_perf_event
 type PerfEventPayload C.union_event_payload
 type EventHTTPResponse C.struct_event_http_response
 type EventMYSQLGreeting C.struct_event_mysql_greeting
-type EventHTTPRequest C.struct_event_http_request
 type EventError C.struct_event_error
 
 func (cs *ConnStatsWithTimestamp) isExpired(latestTime int64, timeout int64) bool {
@@ -101,22 +100,6 @@ func httpResponseEvent(eventC *EventHTTPResponse, timestamp time.Time) common.Pe
 				Pid: uint16(eventC.connection.pid),
 			},
 			StatusCode: int(uint16(eventC.status_code)),
-		},
-	}
-}
-
-func httpRequestEvent(eventC *EventHTTPRequest, timestamp time.Time) common.PerfEvent {
-	return common.PerfEvent{
-		Timestamp: timestamp,
-		HTTPRequest: &common.HTTPRequest{
-			Connection: common.ConnTupleV4{
-				Laddr: common.V4IPString(uint32(eventC.connection.laddr)),
-				Lport: uint16(eventC.connection.lport),
-				Raddr: common.V4IPString(uint32(eventC.connection.raddr)),
-				Rport: uint16(eventC.connection.rport),
-				//Netns: uint32(eventC.connection.netns),
-				Pid: uint16(eventC.connection.pid),
-			},
 		},
 	}
 }
@@ -147,21 +130,15 @@ func errorEvent(eventC *EventError, timestamp time.Time) common.PerfEvent {
 
 func perfEvent(data []byte) common.PerfEvent {
 	eventC := (*PerfEvent)(unsafe.Pointer(&data[0]))
-	timestamp := time.Unix(int64(uint64(eventC.timestamp)), 0)
+	timestamp := time.Now()
 	eventPayload := eventC.payload
 	switch int(uint16(eventC.event_type)) {
 	case 0:
-		eventC := (*EventError)(unsafe.Pointer(&eventPayload))
-		return errorEvent(eventC, timestamp)
+		return errorEvent((*EventError)(unsafe.Pointer(&eventPayload)), timestamp)
 	case 1:
-		eventC := (*EventHTTPResponse)(unsafe.Pointer(&eventPayload))
-		return httpResponseEvent(eventC, timestamp)
+		return httpResponseEvent((*EventHTTPResponse)(unsafe.Pointer(&eventPayload)), timestamp)
 	case 2:
-		eventC := (*EventMYSQLGreeting)(unsafe.Pointer(&eventPayload))
-		return mysqlGreetingEvent(eventC, timestamp)
-	case 3:
-		eventC := (*EventHTTPRequest)(unsafe.Pointer(&eventPayload))
-		return httpRequestEvent(eventC, timestamp)
+		return mysqlGreetingEvent((*EventMYSQLGreeting)(unsafe.Pointer(&eventPayload)), timestamp)
 	default:
 		return common.PerfEvent{
 			Error: &common.EventError{Code: 0},

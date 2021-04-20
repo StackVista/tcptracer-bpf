@@ -193,9 +193,8 @@ func (t *LinuxTracer) Start() error {
 		for {
 			select {
 			case payload := <-t.perfEventsBytes:
-				logger.Infof("received event: (bytes [%d]%v)", len(payload), payload)
 				perfEvent := perfEvent(payload)
-				logger.Infof("received perf event: %v", perfEvent)
+				logger.Tracef("received perf event: %v (bytes [%d]%v)", perfEvent, len(payload), payload)
 				t.dispatchPerfEvent(perfEvent)
 				break
 			case lost := <-t.perfEventsLostLog:
@@ -236,12 +235,6 @@ func (t *LinuxTracer) GetConnections() (*common.Connections, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	fdCount, err := t.getActiveFds()
-	if err != nil {
-		return nil, err
-	}
-	logger.Info(fmt.Sprintf("Active file descriptors -> %d", fdCount))
 
 	return &common.Connections{Conns: append(tcpConns, udpConns...)}, nil
 }
@@ -497,31 +490,6 @@ func (t *LinuxTracer) getUDPv6Connections() ([]common.ConnectionStats, error) {
 	return active, nil
 }
 
-func (t *LinuxTracer) getActiveFds() (int, error) {
-	mp, err := t.getMap(common.ActiveFdsMapName)
-	if err != nil {
-		return -1, err
-	}
-
-	key := new(int)
-	nextKey := new(int)
-	value := new(bool)
-	counter := 0
-	for {
-		hasNext, _ := t.m.LookupNextElement(mp, unsafe.Pointer(key), unsafe.Pointer(nextKey), unsafe.Pointer(value))
-		if !hasNext {
-			break
-		} else {
-			counter += 1
-			if counter > 100 {
-				break
-			}
-		}
-	}
-
-	return counter, nil
-}
-
 func (t *LinuxTracer) getTCPv4Connections() ([]common.ConnectionStats, error) {
 	mp, err := t.getMap(common.V4TCPMapName)
 	if err != nil {
@@ -631,11 +599,10 @@ func (t *LinuxTracer) dispatchPerfEvent(event common.PerfEvent) {
 			}
 			conn.HttpMetrics[httpStatusGroup] = latencyCounter
 		}
-		// TODO what to do here?
-		//err := latencyCounter.Add(httpRes.ResponseTime.Seconds())
-		//if err != nil {
-		//	logger.Errorf("can't count")
-		//}
+		err := latencyCounter.Add(httpRes.ResponseTime.Seconds())
+		if err != nil {
+			logger.Errorf("can't count")
+		}
 		t.tcpConnInsights[httpRes.Connection] = conn
 
 	} else if event.MySQLGreeting != nil {
@@ -651,11 +618,6 @@ func (t *LinuxTracer) dispatchPerfEvent(event common.PerfEvent) {
 		}
 		conn.ApplicationProtocol = "mysql"
 		t.tcpConnInsights[mysqlGreeting.Connection] = conn
-	} else if event.HTTPRequest != nil {
-		httpRequest := event.HTTPRequest
-		logger.Tracef("http request: %v", httpRequest)
-		//TODO
-
 	} else if event.Error != nil {
 		logger.Infof("perf events error: %v", event.Error)
 	}

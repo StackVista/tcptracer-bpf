@@ -126,13 +126,10 @@ func (ct *ConnTupleV4) Matches(stats *ConnectionStats) bool {
 	return false
 }
 
-type HTTPRequest struct {
-	Connection ConnTupleV4
-}
-
 type HTTPResponse struct {
-	Connection ConnTupleV4
-	StatusCode int
+	Connection   ConnTupleV4
+	StatusCode   int
+	ResponseTime time.Duration
 }
 
 type MySQLGreeting struct {
@@ -147,7 +144,6 @@ type EventError struct {
 type PerfEvent struct {
 	HTTPResponse  *HTTPResponse
 	MySQLGreeting *MySQLGreeting
-	HTTPRequest   *HTTPRequest
 	Timestamp     time.Time
 	Error         *EventError
 }

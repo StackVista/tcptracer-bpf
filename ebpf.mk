@@ -11,7 +11,6 @@ build:
 	@sudo mkdir -p "$(DEST_DIR)"
 	clang -D__KERNEL__ -D__ASM_SYSREG_H -D__BPF_TRACING__ \
 		-DCIRCLE_BUILD_URL=\"$(CIRCLE_BUILD_URL)\" \
-		-DDEBUG=1 \
 		-Wno-unused-value \
 		-DKBUILD_MODNAME='"bpftrace"' \
 		-Wno-pointer-sign \

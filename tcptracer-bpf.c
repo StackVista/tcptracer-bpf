@@ -822,7 +822,6 @@ __attribute__((always_inline))
 bool parse_http_response(char *buffer, int size, int *status_code_result) {
     const char http_marker[4] = "HTTP";
     if (size > 11) {
-
         int status_code = 100 * (buffer[9] - '0') + 10 * (buffer[10] - '0') + (buffer[11] - '0');
         if (status_code > 99 && status_code < 1000) {
             if (memcmp(buffer, http_marker, sizeof(http_marker)) == 0) {
@@ -850,117 +849,6 @@ bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) 
     return false;
 }
 
-/*
- * Based on: https://github.com/weaveworks-plugins/scope-http-statistics/blob/master/ebpf-http-statistics.c
- */
-SEC("kprobe/skb_copy_datagram_iter")
-int kprobe__skb_copy_datagram_iter(struct pt_regs *ctx) {
-    struct sk_buff *skb = (struct sk_buff *) PT_REGS_PARM1(ctx);
-    int offset = PT_REGS_PARM2(ctx);
-    u64 zero = 0;
-
-
-    struct sk_buff skbuff = {};
-    bpf_probe_read(&skbuff, sizeof(skbuff), skb);
-
-    // TODO create macro
-    struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-    if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
-        bpf_debug("not initialized\n");
-        return 0;
-    }
-
-    unsigned int head_len = skbuff.len - skbuff.data_len;
-    unsigned int available_data = head_len - offset;
-    if (available_data < HTTP_REQUEST_MIN_LEN) {
-        return 0;
-    } else {
-        bpf_debug("offset = %d\n", offset);
-        bpf_debug("available_data = %d\n", available_data);
-    }
-
-    u8 data[8] = {};
-    if (available_data > HTTP_REQUEST_MIN_LEN) {
-        /* We have confirmed having access to 7 bytes, but need 8 bytes to check the
-         * space after OPTIONS. bpf_probe_read() requires its second argument to be
-         * an immediate, so we obtain the data in this unsexy way.
-         */
-        bpf_debug(">>> HTTP_REQUEST_MIN_LEN\n");
-//        bpf_debug("skbuff.data[0] = %d\n", skbuff.data[0]);
-        bpf_probe_read(data, 8, skbuff.head);
-    } else {
-        bpf_debug("=== HTTP_REQUEST_MIN_LEN\n");
-        bpf_probe_read(data, 7, skbuff.head);
-    }
-    bpf_debug("data = %d\n", *((unsigned int *)&data));
-    bpf_debug("data[0] = %d\n", data[0]);
-    bpf_debug("data[1] = %d\n", data[1]);
-    bpf_debug("data[2] = %d\n", data[2]);
-
-    switch (data[0]) {
-        /* DELETE */
-        case 'D':
-            if ((data[1] != 'E') || (data[2] != 'L') || (data[3] != 'E') || (data[4] != 'T') || (data[5] != 'E') || (data[6] != ' ')) {
-                bpf_debug("DELETE\n");
-            }
-            break;
-
-            /* GET */
-        case 'G':
-            if ((data[1] != 'E') || (data[2] != 'T') || (data[3] != ' ')) {
-                bpf_debug("GET\n");
-            }
-            break;
-
-            /* HEAD */
-        case 'H':
-            if ((data[1] != 'E') || (data[2] != 'A') || (data[3] != 'D') || (data[4] != ' ')) {
-
-                bpf_debug("HEAD\n");
-            }
-            break;
-
-            /* OPTIONS */
-        case 'O':
-            if (available_data < 8 || (data[1] != 'P') || (data[2] != 'T') || (data[3] != 'I') || (data[4] != 'O') || (data[5] != 'N') || (data[6] != 'S') || (data[7] != ' ')) {
-
-                bpf_debug("OPTIONS\n");
-            }
-            break;
-
-            /* PATCH/POST/PUT */
-        case 'P':
-            switch (data[1]) {
-                case 'A':
-                    if ((data[2] != 'T') || (data[3] != 'C') || (data[4] != 'H') || (data[5] != ' ')) {
-
-                        bpf_debug("PATCH\n");
-                    }
-                    break;
-                case 'O':
-                    if ((data[2] != 'S') || (data[3] != 'T') || (data[4] != ' ')) {
-
-                        bpf_debug("POST\n");
-                    }
-                    break;
-                case 'U':
-                    if ((data[2] != 'T') || (data[3] != ' ')) {
-
-                        bpf_debug("PUT\n");
-                    }
-                    break;
-            }
-            break;
-
-        default:
-            return 0;
-    }
-
-
-    bpf_debug("kprobe/skb_copy_datagram_iter\n");
-	return 0;
-}
-
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
 
@@ -980,14 +868,13 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
         return 0;
     }
 
-
     struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
     if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
         bpf_debug("not initialized\n");
         return 0;
     }
 
-//    u64 ttfb = bpf_ktime_get_ns() - res->start_time_ns;
+    u64 ttfb = bpf_ktime_get_ns() - res->start_time_ns;
     u64 cpu = bpf_get_smp_processor_id();
 
     struct msghdr msg = {};
@@ -1008,39 +895,11 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
         int http_status_code = 0;
         u16 mysql_greeting_protocol_version = 0;
         if (parse_http_response(data, iov.iov_len, &http_status_code)) {
-
-            struct event_error http_error;
-            __builtin_memset(&http_error, 0, sizeof(http_error));
-            http_error.code = http_status_code;
-            union event_payload error_payload;
-            __builtin_memset(&error_payload, 0, sizeof(error_payload));
-            error_payload.error = http_error;
-            struct perf_event error_event;
-            __builtin_memset(&error_event, 0, sizeof(error_event));
-            error_event.event_type = EVENT_ERROR;
-            error_event.timestamp = res->start_time_ns;
-            error_event.payload = error_payload;
-            bpf_perf_event_output(ctx, &perf_events, cpu, &error_event, sizeof(error_event));
-
-//TODO          struct event_http_request request_event = create_event_http_request(&t, res->start_time_ns);
-            struct event_http_request http_request;
-            __builtin_memset(&http_request, 0, sizeof(http_request));
-            http_request.connection = t;
-            union event_payload request_payload;
-            __builtin_memset(&request_payload, 0, sizeof(request_payload));
-            request_payload.http_request = http_request;
-            struct perf_event request_event;
-            __builtin_memset(&request_event, 0, sizeof(request_event));
-            request_event.event_type = EVENT_HTTP_REQUEST;
-            request_event.timestamp = res->start_time_ns;
-            request_event.payload = request_payload;
-            bpf_perf_event_output(ctx, &perf_events, cpu, &request_event, sizeof(request_event));
-
-
             struct event_http_response http_response;
             __builtin_memset(&http_response, 0, sizeof(http_response));
             http_response.connection = t;
             http_response.status_code = http_status_code;
+            http_response.response_time = ttfb / 1000;
             union event_payload payload;
             __builtin_memset(&payload, 0, sizeof(payload));
             payload.http_response = http_response;

@@ -3,12 +3,12 @@
 
 #include <linux/types.h>
 
-#define GUESS_SADDR 0
-#define GUESS_DADDR 1
-#define GUESS_FAMILY 2
-#define GUESS_SPORT 3
-#define GUESS_DPORT 4
-#define GUESS_NETNS 5
+#define GUESS_SADDR      0
+#define GUESS_DADDR      1
+#define GUESS_FAMILY     2
+#define GUESS_SPORT      3
+#define GUESS_DPORT      4
+#define GUESS_NETNS      5
 #define GUESS_DADDR_IPV6 6
 
 #ifndef TASK_COMM_LEN
@@ -29,13 +29,11 @@
 // It is still reported to be able to close connections coming from /proc
 #define STATE_CLOSED 3
 
-struct proc_t
-{
-	char comm[TASK_COMM_LEN];
+struct proc_t {
+    char comm[TASK_COMM_LEN];
 };
 
-struct conn_stats_t
-{
+struct conn_stats_t {
 	__u64 send_bytes;
 	__u64 recv_bytes;
 	// These are big to have a 64 bit aligned struct
@@ -44,8 +42,7 @@ struct conn_stats_t
 	__u32 state;
 };
 
-struct conn_stats_ts_t
-{
+struct conn_stats_ts_t {
 	__u64 send_bytes;
 	__u64 recv_bytes;
 	__u64 timestamp;
@@ -54,8 +51,7 @@ struct conn_stats_ts_t
 // tcp_set_state doesn't run in the context of the process that initiated the
 // connection so we need to store a map TUPLE -> PID to send the right PID on
 // the event
-struct ipv4_tuple_t
-{
+struct ipv4_tuple_t {
 	__u32 laddr;
 	__u32 raddr;
 	__u16 lport;
@@ -64,8 +60,7 @@ struct ipv4_tuple_t
 	__u32 pid;
 };
 
-struct ipv6_tuple_t
-{
+struct ipv6_tuple_t {
 	/* Using the type unsigned __int128 generates an error in the ebpf verifier */
 	__u64 laddr_h;
 	__u64 laddr_l;
@@ -84,49 +79,34 @@ struct http_stats_t
 	__u64 server_error_count;
 };
 
-struct fd_info
-{
-	__u16 active;
-	__u64 start_time_ns;
+struct fd_info {
+    __u16 active;
+    __u64 start_time_ns;
 };
 
 #define EVENT_ERROR 0
 #define EVENT_HTTP_RESPONSE 1
 #define EVENT_MYSQL_GREETING 2
-#define EVENT_HTTP_REQUEST 3
 
-#define HTTP_REQUEST_MIN_LEN 7
-
-struct event_http_request
-{
-	// __u16 status_code;
-
-	struct ipv4_tuple_t connection;
+struct event_http_response {
+    __u16 status_code;
+    __u16 response_time;
+    struct ipv4_tuple_t connection;
 };
 
-struct event_http_response
-{
-	__u16 status_code;
-	// __u16 response_time;
-	struct ipv4_tuple_t connection;
+struct event_mysql_greeting {
+    __u16 protocol_version;
+    __u16 whatever;
+    struct ipv4_tuple_t connection;
 };
 
-struct event_mysql_greeting
-{
-	__u16 protocol_version;
-	__u16 whatever;
-	struct ipv4_tuple_t connection;
-};
-
-struct event_error
-{
-	__u16 code;
+struct event_error {
+    __u16 code;
 };
 
 union event_payload
 {
 	struct event_http_response http_response;
-	struct event_http_request http_request;
 	struct event_mysql_greeting mysql_greeting;
 	struct event_error error;
 };
@@ -139,12 +119,11 @@ struct perf_event
 };
 
 #define TCPTRACER_STATE_UNINITIALIZED 0
-#define TCPTRACER_STATE_CHECKING 1
-#define TCPTRACER_STATE_CHECKED 2
-#define TCPTRACER_STATE_READY 3
+#define TCPTRACER_STATE_CHECKING      1
+#define TCPTRACER_STATE_CHECKED       2
+#define TCPTRACER_STATE_READY         3
 
-struct tcptracer_status_t
-{
+struct tcptracer_status_t {
 	__u64 state;
 
 	/* checking */
