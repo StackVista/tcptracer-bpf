@@ -5,6 +5,7 @@ package tracer
 import (
 	"bytes"
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"syscall"
 	"unsafe"
 
@@ -54,7 +55,7 @@ type LinuxTracer struct {
 	perfEventsLostLog chan uint64
 	perfMap           *bpflib.PerfMap
 
-	tcpConnInsights map[common.ConnTupleV4]ConnInsight
+	tcpConnInsights map[common.ConnTupleV4]ConnInsight // TODO gonna leak
 	onPerfEvent     func(event common.PerfEvent)
 	stopCh          chan bool
 }
@@ -636,21 +637,17 @@ func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.Co
 				conn.ApplicationProtocol = connInsight.ApplicationProtocol
 			}
 			for statusCode, metric := range connInsight.HttpMetrics {
-				quantiles := []float64{0.5, 0.75, 0.9, 0.95, 0.99, 0.999}
-				values, err := metric.GetValuesAtQuantiles(quantiles)
+				metricSketchBytes, err := proto.Marshal(metric.ToProto())
 				if err != nil {
-					logger.Errorf("can't get quantiles from %v", metric)
+					logger.Errorf("can't encode metric sketch for %v http_code=%d: %v", conn, statusCode, err)
+					continue
 				}
 				conn.Metrics = append(conn.Metrics, common.Metric{
-					Labels: map[string]string{"code": statusCode},
-					Histogram: common.Histogram{
-						Quantiles: quantiles,
-						Values:    values,
-					},
+					Labels:   map[string]string{"type": "http_response_time", "code": statusCode},
+					DDSketch: metricSketchBytes,
 				})
 			}
 		}
-		//logger.Infof("updated", conn)
 		conns[i] = conn
 	}
 	return conns

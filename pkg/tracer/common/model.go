@@ -99,14 +99,8 @@ type ConnectionStats struct {
 
 //easyjson:json
 type Metric struct {
-	Labels    map[string]string `json:"labels"`
-	Histogram Histogram         `json:"histogram"`
-}
-
-//easyjson:json
-type Histogram struct {
-	Quantiles []float64 `json:"quantiles"`
-	Values    []float64 `json:"values"`
+	Labels   map[string]string `json:"labels"`
+	DDSketch []byte            `json:"ddsketch"`
 }
 
 type ConnTupleV4 struct {
