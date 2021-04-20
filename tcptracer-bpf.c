@@ -803,6 +803,41 @@ bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) 
     return false;
 }
 
+#define send_mysql_greeting(_ctx, _t, _protocol_version, _timestamp, _cpu)                                        \
+    ({                                                             \
+        struct event_mysql_greeting greeting; \
+        __builtin_memset(&greeting, 0, sizeof(greeting)); \
+        greeting.connection = _t; \
+        greeting.protocol_version = _protocol_version; \
+        union event_payload payload; \
+        __builtin_memset(&payload, 0, sizeof(payload)); \
+        payload.mysql_greeting = greeting; \
+        struct perf_event event; \
+        __builtin_memset(&event, 0, sizeof(event)); \
+        event.event_type = EVENT_MYSQL_GREETING; \
+        event.timestamp = _timestamp; \
+        event.payload = payload; \
+        bpf_perf_event_output(ctx, &perf_events, cpu, &event, sizeof(event)); \
+    })
+
+#define send_http_response(_ctx, _t, _http_status_code, _response_time, _timestamp, _cpu)                                        \
+    ({                                                             \
+        struct event_http_response http_response; \
+        __builtin_memset(&http_response, 0, sizeof(http_response)); \
+        http_response.connection = _t; \
+        http_response.status_code = _http_status_code; \
+        http_response.response_time = _response_time; \
+        union event_payload payload; \
+        __builtin_memset(&payload, 0, sizeof(payload)); \
+        payload.http_response = http_response; \
+        struct perf_event response_event; \
+        __builtin_memset(&response_event, 0, sizeof(response_event)); \
+        response_event.event_type = EVENT_HTTP_RESPONSE; \
+        response_event.timestamp = _timestamp; \
+        response_event.payload = payload; \
+        bpf_perf_event_output(_ctx,&perf_events, _cpu, &response_event, sizeof(response_event)); \
+    })
+
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
 
@@ -824,7 +859,6 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
 
     struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
     if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
-        bpf_debug("not initialized\n");
         return 0;
     }
 
@@ -852,37 +886,10 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
         int http_status_code = 0;
         u16 mysql_greeting_protocol_version = 0;
         if (parse_http_response(data, iov.iov_len, &http_status_code)) {
-            struct event_http_response http_response;
-            __builtin_memset(&http_response, 0, sizeof(http_response));
-            http_response.connection = t;
-            http_response.status_code = http_status_code;
-            http_response.response_time = ttfb / 1000;
-            union event_payload payload;
-            __builtin_memset(&payload, 0, sizeof(payload));
-            payload.http_response = http_response;
-            struct perf_event response_event;
-            __builtin_memset(&response_event, 0, sizeof(response_event));
-            response_event.event_type = EVENT_HTTP_RESPONSE;
-            response_event.timestamp = res->start_time_ns;
-            response_event.payload = payload;
-            bpf_perf_event_output(ctx, &perf_events, cpu, &response_event, sizeof(response_event));
+            send_http_response(ctx, t, http_status_code, ttfb / 1000, res->start_time_ns, cpu);
         } else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
-            struct event_mysql_greeting greeting;
-            __builtin_memset(&greeting, 0, sizeof(greeting));
-            greeting.connection = t;
-            greeting.protocol_version = mysql_greeting_protocol_version;
-            union event_payload payload;
-            __builtin_memset(&payload, 0, sizeof(payload));
-            payload.mysql_greeting = greeting;
-            struct perf_event event;
-            __builtin_memset(&event, 0, sizeof(event));
-            event.event_type = EVENT_MYSQL_GREETING;
-            event.timestamp = res->start_time_ns;
-            event.payload = payload;
-            bpf_perf_event_output(ctx, &perf_events, cpu, &event, sizeof(event));
+            send_mysql_greeting(ctx, t, mysql_greeting_protocol_version, res->start_time_ns, cpu);
         }
-    } else {
-        bpf_debug("not supported\n");
     }
 
 	return increment_tcp_stats(sk, status, size, 0);
@@ -929,7 +936,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 	int fd = PT_REGS_PARM1(ctx);
 
 	bpf_map_delete_elem(&active_fds, &fd);
-	
+
 	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
 	if (status == NULL || status->state != TCPTRACER_STATE_READY) {
 		return 0;
