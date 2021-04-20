@@ -48,6 +48,8 @@ type LinuxTracer struct {
 	// metric stats
 	inFlightTCP map[string]*common.ConnectionStats
 
+	// Contains events that is used get an insight about the connections
+	// See `maps/perf_events` in `tcptracer-maps.h`
 	perfEventsBytes   chan []byte
 	perfEventsLostLog chan uint64
 	perfMap           *bpflib.PerfMap

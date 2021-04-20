@@ -70,6 +70,8 @@ struct bpf_map_def SEC("maps/udp_stats_ipv6") udp_stats_ipv6 = {
         .namespace = "",
 };
 
+/* This is a queue for events related to connections. Values are of struct perf_event.
+ */
 struct bpf_map_def SEC("maps/perf_events") perf_events = {
         .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
         .key_size = sizeof(int),
