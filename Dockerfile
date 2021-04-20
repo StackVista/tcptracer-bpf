@@ -7,7 +7,7 @@ ENV GOPATH /go
 RUN dnf update -y vim-minimal && \
 	dnf install -y -b llvm clang rpm findutils perl-interpreter
 
-RUN rpm -i https://rpmfind.net/linux/fedora/linux/releases/28/Everything/x86_64/os/Packages/k/kernel-devel-4.16.3-301.fc28.x86_64.rpm
+RUN dnf install -y -b kernel-devel-4.16.3-301.fc28
 
 RUN dnf update -y vim-minimal && \
     	dnf install -y make binutils vim-common golang go-bindata ShellCheck git file sudo
@@ -16,6 +16,5 @@ RUN curl -fsSLo shfmt https://github.com/mvdan/sh/releases/download/v1.3.0/shfmt
 	echo "b1925c2c405458811f0c227266402cf1868b4de529f114722c2e3a5af4ac7bb2  shfmt" | sha256sum -c && \
 	chmod +x shfmt && \
 	mv shfmt /usr/bin
-RUN go get -u github.com/fatih/hclfmt
 
 RUN mkdir -p /src /go
