@@ -269,7 +269,7 @@ func checkAndUpdateCurrentOffset(module *elf.Module, mp *elf.Map, status *tcpTra
 
 	switch status.what {
 	case guessSaddr:
-		//logger.Tracef("finding saddr: %v, at offset %d, actual: %v ...", expected.saddr, status.offset_saddr, status.saddr)
+		logger.Tracef("finding saddr: %v, at offset %d, actual: %v ...", expected.saddr, status.offset_saddr, status.saddr)
 		if status.saddr == C.__u32(expected.saddr) {
 			logger.Debugf("saddr found")
 			status.what = guessDaddr

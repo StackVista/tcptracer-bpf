@@ -72,13 +72,6 @@ struct ipv6_tuple_t {
 	__u32 pid;
 };
 
-struct http_stats_t
-{
-	__u64 success_count;
-	__u64 bad_request_count;
-	__u64 server_error_count;
-};
-
 struct fd_info {
     __u16 active;
     __u64 start_time_ns;
