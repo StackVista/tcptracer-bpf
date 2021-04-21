@@ -1,5 +1,5 @@
 
-required = ["github.com/mailru/easyjson"]
+required = ["github.com/mailru/easyjson", "github.com/iovisor/gobpf"]
 
 [[constraint]]
   name = "github.com/cihub/seelog"
@@ -11,7 +11,8 @@ required = ["github.com/mailru/easyjson"]
 
 [[constraint]]
   name = "github.com/iovisor/gobpf"
-  revision = "3b07770c6d5e2bd37e582ecd49460e6ef094f257"
+  source = "github.com/StackVista/gobpf"
+  version = "=v0.1.2"
 
 [[constraint]]
   name = "github.com/stretchr/testify"
