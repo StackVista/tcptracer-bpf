@@ -161,7 +161,9 @@ func easyjsonC80ae7adDecodeGithubComStackVistaTcptracerBpfPkgTracerCommon1(in *j
 				}
 				for !in.IsDelim(']') {
 					var v6 ConnectionStats
-					(v6).UnmarshalEasyJSON(in)
+					if data := in.Raw(); in.Ok() {
+						in.AddError((v6).UnmarshalJSON(data))
+					}
 					out.Conns = append(out.Conns, v6)
 					in.WantComma()
 				}
@@ -192,7 +194,7 @@ func easyjsonC80ae7adEncodeGithubComStackVistaTcptracerBpfPkgTracerCommon1(out *
 				if v7 > 0 {
 					out.RawByte(',')
 				}
-				(v8).MarshalEasyJSON(out)
+				out.Raw((v8).MarshalJSON())
 			}
 			out.RawByte(']')
 		}
@@ -285,7 +287,9 @@ func easyjsonC80ae7adDecodeGithubComStackVistaTcptracerBpfPkgTracerCommon2(in *j
 				}
 				for !in.IsDelim(']') {
 					var v9 Metric
-					(v9).UnmarshalEasyJSON(in)
+					if data := in.Raw(); in.Ok() {
+						in.AddError((v9).UnmarshalJSON(data))
+					}
 					out.Metrics = append(out.Metrics, v9)
 					in.WantComma()
 				}
@@ -381,7 +385,7 @@ func easyjsonC80ae7adEncodeGithubComStackVistaTcptracerBpfPkgTracerCommon2(out *
 				if v10 > 0 {
 					out.RawByte(',')
 				}
-				(v11).MarshalEasyJSON(out)
+				out.Raw((v11).MarshalJSON())
 			}
 			out.RawByte(']')
 		}

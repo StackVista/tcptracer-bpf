@@ -18,10 +18,6 @@ required = ["github.com/mailru/easyjson", "github.com/iovisor/gobpf"]
   name = "github.com/stretchr/testify"
   version = "=v1.2.2"
 
-[[constraint]]
-  name = "github.com/mailru/easyjson"
-  revision = "60711f1a8329503b04e1c88535f419d0bb440bff"
-
 [prune]
   go-tests = true
   unused-packages = true

@@ -57,7 +57,15 @@
   version = "v0.1.2"
 
 [[projects]]
-  digest = "1:aa3d8d42865c42626b5c1add193692d045b3188b1479f0a0a88690d21fe20083"
+  digest = "1:e0b019ee3a64ce51eeb7e0097a372305ac8caf338e50adf8e4bf3b7ce928e132"
+  name = "github.com/josharian/intern"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "8e6ff32b3e7c0b018c43953085fe2ac330fe9acd"
+  version = "v1.0.0"
+
+[[projects]]
+  digest = "1:51317c8286236abf3283b2215fa135f57a22b0f3437578086c989a03f5b7375c"
   name = "github.com/mailru/easyjson"
   packages = [
     ".",
@@ -66,7 +74,8 @@
     "jwriter",
   ]
   pruneopts = "UT"
-  revision = "60711f1a8329503b04e1c88535f419d0bb440bff"
+  revision = "c120ca7ced6051261161ce15e8f1542a4b2567fc"
+  version = "v0.7.7"
 
 [[projects]]
   digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"

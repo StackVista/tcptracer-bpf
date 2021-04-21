@@ -42,6 +42,14 @@ make
 ```
 
 The object file can be found in `ebpf/tcptracer-ebpf.o`.
+It will be also embedded to `ebpf/tcptracer-ebpf.go` - this is how the file will end up in run-time.
+
+## Run locally
+
+```
+make install-generated-go build-network-tracer
+sudo reset-trace-bpfcc -F && sudo ./network-tracer
+```
 
 ## Test
 

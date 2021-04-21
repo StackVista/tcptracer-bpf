@@ -217,6 +217,7 @@ func (t *LinuxTracer) Start() error {
 func (t *LinuxTracer) Stop() {
 	logger.Info("Stopping linux network tracer")
 	t.stopCh <- true
+	t.perfMap.PollStop()
 	err := t.m.Close()
 	if err != nil {
 		logger.Error(err.Error())

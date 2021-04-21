@@ -15,6 +15,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -34,6 +36,7 @@ func TestTCPSendAndReceiveWithNamespaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := network.NewTCPServer(func(c net.Conn) {
@@ -98,7 +101,6 @@ func TestTCPSendAndReceiveWithNamespaces(t *testing.T) {
 	}
 
 	doneChan <- struct{}{}
-	tr.Stop()
 }
 
 func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
@@ -126,6 +128,7 @@ func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+	defer tr.Stop()
 
 	// Write clientMessageSize to server, and read response
 	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
@@ -170,7 +173,6 @@ func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
 	}
 
 	doneChan <- struct{}{}
-	tr.Stop()
 }
 
 func TestCloseInFlightTCPConnectionWithEBPFWithData(t *testing.T) {
@@ -196,6 +198,7 @@ func TestCloseInFlightTCPConnectionWithEBPFWithData(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+	defer tr.Stop()
 
 	// Write clientMessageSize to server, and read response
 	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
@@ -232,7 +235,6 @@ func TestCloseInFlightTCPConnectionWithEBPFWithData(t *testing.T) {
 	assert.False(t, ok)
 
 	doneChan <- struct{}{}
-	tr.Stop()
 }
 
 func TestInFlightDirectionListenAllInterfaces(t *testing.T) {
@@ -266,6 +268,7 @@ func TestInFlightDirectionListenAllInterfaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+	defer tr.Stop()
 
 	closeChan <- struct{}{}
 	<-closedChan
@@ -298,7 +301,6 @@ func TestInFlightDirectionListenAllInterfaces(t *testing.T) {
 	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
 
 	doneChan <- struct{}{}
-	tr.Stop()
 }
 
 func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
@@ -332,6 +334,7 @@ func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+	defer tr.Stop()
 
 	closeChan <- struct{}{}
 	<-closedChan
@@ -364,7 +367,6 @@ func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
 	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
 
 	doneChan <- struct{}{}
-	tr.Stop()
 }
 
 func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
@@ -374,6 +376,7 @@ func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := network.NewTCPServer(func(c net.Conn) {
@@ -426,7 +429,6 @@ func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
 	assert.False(t, ok)
 
 	doneChan <- struct{}{}
-	tr.Stop()
 }
 
 func TestUDPSendAndReceive(t *testing.T) {
@@ -436,6 +438,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+	defer tr.Stop()
 
 	// Create UDP Server which sends back serverMessageSize bytes
 	server := network.NewUDPServer(func(b []byte, n int) []byte {
@@ -475,13 +478,13 @@ func TestUDPSendAndReceive(t *testing.T) {
 	assert.Equal(t, common.ACTIVE, conn.State)
 
 	doneChan <- struct{}{}
-	tr.Stop()
 }
 
 func TestHTTPRequestLog(t *testing.T) {
 	tr, err := NewTracer(MakeTestConfig())
 	assert.NoError(t, err)
 	assert.NoError(t, tr.Start())
+	defer tr.Stop()
 
 	testServer := createTestHTTPServer()
 	time.Sleep(500 * time.Millisecond)
@@ -511,7 +514,7 @@ func TestHTTPRequestLog(t *testing.T) {
 	stats, err := getServerStats()
 	assert.NoError(t, err)
 	assert.Equal(t, []map[string]string{
-		{"code": "2xx"},
+		{"code": "2xx", "type": "http_response_time"},
 	}, stats)
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
@@ -521,10 +524,13 @@ func TestHTTPRequestLog(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	stats, err = getServerStats()
+	sort.Slice(stats, func(i, j int) bool {
+		return strings.Compare(stats[i]["code"], stats[j]["code"]) < 0
+	})
 	assert.NoError(t, err)
 	assert.Equal(t, []map[string]string{
-		{"code": "2xx"},
-		{"code": "4xx"},
+		{"code": "2xx", "type": "http_response_time"},
+		{"code": "4xx", "type": "http_response_time"},
 	}, stats)
 }
 
@@ -562,8 +568,7 @@ func TestTCPSendPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
-
-	RunTracepipe()
+	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := network.NewTCPServer(func(c net.Conn) {
@@ -630,5 +635,4 @@ func TestTCPSendPage(t *testing.T) {
 	}
 
 	doneChan <- struct{}{}
-	tr.Stop()
 }
