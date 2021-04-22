@@ -7,6 +7,7 @@ test-linux-bpf-http:
   image: stackstate/tcptracer-bpf-builder:latest
   script:
     # Proc root is set by the gitlab ci runner
+    - uname -a
     - export TEST_PROC_ROOT=/host/proc
     - mkdir -p /go/src/github.com/StackVista
     - cp -a $CI_PROJECT_DIR /go/src/github.com/StackVista/tcptracer-bpf
