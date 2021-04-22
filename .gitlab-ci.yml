@@ -19,6 +19,25 @@ test-linux-bpf:
     # Run on sts hardware to be able to test ebpf
     - sts-aws-no-agent
 
+test-linux-bpf-http:
+  stage: test
+  image: stackstate/tcptracer-bpf-builder:latest
+  script:
+    # Proc root is set by the gitlab ci runner
+    - export TEST_PROC_ROOT=/host/proc
+    - mkdir -p /go/src/github.com/StackVista
+    - cp -a $CI_PROJECT_DIR /go/src/github.com/StackVista/tcptracer-bpf
+    - export GOPATH=/go
+    - cd /go/src/github.com/StackVista/tcptracer-bpf
+    - go get -u github.com/golang/dep/cmd/dep
+    - go get -u github.com/jteeuwen/go-bindata/...
+    - $GOPATH/bin/dep ensure
+    - sudo go test -count=1 -tags linux_bpf github.com/StackVista/tcptracer-bpf/pkg/tracer -v -run TestHTTPRequestLog
+  tags:
+    # Run on sts hardware to be able to test ebpf
+    - sts-aws-no-agent
+
+
 test-windows:
   stage: test
   before_script:

@@ -502,8 +502,6 @@ func TestHTTPRequestLog(t *testing.T) {
 	defer tr.Stop()
 
 	testServer := createTestHTTPServer()
-	time.Sleep(500 * time.Millisecond)
-	println("ok\n")
 
 	getServerStats := func() ([]map[string]string, error) {
 		conns, err := tr.GetConnections()
@@ -527,7 +525,7 @@ func TestHTTPRequestLog(t *testing.T) {
 				return strings.Compare(stats[i]["code"], stats[j]["code"]) < 0
 			})
 			return assert.Equal(t, expected, stats)
-		}, 5*time.Second, 100*time.Millisecond)
+		}, 6*time.Second, 300*time.Millisecond)
 	}
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
