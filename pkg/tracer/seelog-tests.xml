@@ -1,4 +1,4 @@
-<seelog minlevel="debug">
+<seelog minlevel="trace">
     <outputs formatid="all">
         <filter levels="trace,debug,info,warn" formatid="fmtinfo">
             <console/>
