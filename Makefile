@@ -91,7 +91,7 @@ codegen:
 	easyjson pkg/tracer/common/model.go
 
 test:
-	go list ./... | grep -v vendor | sudo -E PATH=${PATH} xargs go test -tags 'linux_bpf'
+	go list ./... | grep -v vendor | sudo -E PATH=${PATH} xargs go test -count=1 -tags 'linux_bpf'
 
 linux-ci-test: build-ebpf-object-ci
-	go list ./... | grep -v vendor | sudo -E PATH=${PATH} xargs go test -tags 'linux_bpf'
+	go list ./... | grep -v vendor | sudo -E PATH=${PATH} xargs go test -count=1 -tags 'linux_bpf'

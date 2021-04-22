@@ -8,6 +8,7 @@ import (
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
+	logger "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -23,6 +24,19 @@ import (
 )
 
 const CheckMessageSize = true
+
+func TestMain(m *testing.M) {
+	testLogger, err := logger.LoggerFromConfigAsFile("seelog-tests.xml")
+	if err != nil {
+		panic(err)
+	}
+	err = logger.ReplaceLogger(testLogger)
+	if err != nil {
+		panic(err)
+	}
+	defer logger.Flush()
+	os.Exit(m.Run())
+}
 
 func MakeTestConfig() *config.Config {
 	c := config.MakeDefaultConfig()
