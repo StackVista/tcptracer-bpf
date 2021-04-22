@@ -16,7 +16,7 @@ required = ["github.com/mailru/easyjson", "github.com/iovisor/gobpf"]
 
 [[constraint]]
   name = "github.com/stretchr/testify"
-  version = "=v1.2.2"
+  version = "=v1.7.0"
 
 [prune]
   go-tests = true

@@ -9,6 +9,7 @@ import (
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io"
 	"io/ioutil"
 	"net"
@@ -504,34 +505,33 @@ func TestHTTPRequestLog(t *testing.T) {
 		return labels, nil
 	}
 
+	assertHttpStats := func(expected []map[string]string) {
+		require.Eventually(t, func() bool {
+			stats, err := getServerStats()
+			assert.NoError(t, err)
+			sort.Slice(stats, func(i, j int) bool {
+				return strings.Compare(stats[i]["code"], stats[j]["code"]) < 0
+			})
+			return assert.Equal(t, expected, stats)
+		}, 2*time.Second, 100*time.Millisecond)
+	}
+
 	// perform test calls to HTTP server that should be caught by BPF the tracer
 	statusCode, respText := runGETRequest(t, testServer, "/")
 	assert.Equal(t, 200, statusCode)
 	assert.Equal(t, "OK", respText)
-	// give it a little time to settle in buffers
-	time.Sleep(200 * time.Millisecond)
-
-	stats, err := getServerStats()
-	assert.NoError(t, err)
-	assert.Equal(t, []map[string]string{
+	assertHttpStats([]map[string]string{
 		{"code": "2xx", "type": "http_response_time"},
-	}, stats)
+	})
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
 	statusCode, respText = runGETRequest(t, testServer, "/notfound")
 	assert.Equal(t, 404, statusCode)
 	assert.Equal(t, "Not found", respText)
-	time.Sleep(200 * time.Millisecond)
-
-	stats, err = getServerStats()
-	sort.Slice(stats, func(i, j int) bool {
-		return strings.Compare(stats[i]["code"], stats[j]["code"]) < 0
-	})
-	assert.NoError(t, err)
-	assert.Equal(t, []map[string]string{
+	assertHttpStats([]map[string]string{
 		{"code": "2xx", "type": "http_response_time"},
 		{"code": "4xx", "type": "http_response_time"},
-	}, stats)
+	})
 }
 
 func runGETRequest(t *testing.T, srv *httptest.Server, path string) (int, string) {
