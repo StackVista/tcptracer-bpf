@@ -501,6 +501,8 @@ func TestHTTPRequestLog(t *testing.T) {
 	assert.NoError(t, tr.Start())
 	defer tr.Stop()
 
+	time.Sleep(2 * time.Second)
+
 	testServer := createTestHTTPServer()
 
 	getServerStats := func() ([]map[string]string, error) {
