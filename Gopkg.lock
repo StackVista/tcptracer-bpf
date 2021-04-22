@@ -93,12 +93,12 @@
   revision = "efa1aff6aafc7b37ca3ffb136b6b27a11178ffd6"
 
 [[projects]]
-  digest = "1:ac83cf90d08b63ad5f7e020ef480d319ae890c208f8524622a2f3136e2686b02"
+  digest = "1:86ff4af7b6bb3d27c2e89b5ef8c139678acff1cad74a3c5235fc5af6b94fcc9e"
   name = "github.com/stretchr/objx"
   packages = ["."]
   pruneopts = "UT"
-  revision = "477a77ecc69700c7cdeb1fa9e129548e1c1c393c"
-  version = "v0.1.1"
+  revision = "35313a95ee26395aa17d366c71a2ccf788fa69b6"
+  version = "v0.3.0"
 
 [[projects]]
   digest = "1:83ebccd3e7d2cf489da62888cd39c4c9765144d4036350fb2fba671fba4af395"
@@ -121,7 +121,7 @@
     "windows",
   ]
   pruneopts = "UT"
-  revision = "ac73e9fd8988dfd87a86849835564a3eeebf96f0"
+  revision = "33663a62ff0820461192226283cafe57a83ac6b7"
 
 [[projects]]
   digest = "1:bc8a58ba53d55c6c60aba097ba2981a37cf074c8c19e852763529dbc0ae0eb05"
