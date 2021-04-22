@@ -527,7 +527,7 @@ func TestHTTPRequestLog(t *testing.T) {
 				return strings.Compare(stats[i]["code"], stats[j]["code"]) < 0
 			})
 			return assert.Equal(t, expected, stats)
-		}, 2*time.Second, 100*time.Millisecond)
+		}, 5*time.Second, 100*time.Millisecond)
 	}
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
