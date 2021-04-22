@@ -865,11 +865,13 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
                 if (read_ipv4_tuple(&t, status, sk)) {
                     t.lport = ntohs(t.lport); // Making ports human-readable
                     t.rport = ntohs(t.rport);
+                    u64 cpu = bpf_get_smp_processor_id();
+                    send_http_response(ctx, t, 200, 0, 0, cpu);
 
                     struct fd_info *res = bpf_map_lookup_elem(&active_fds, &sk);
                     if (res != NULL) {
                         u64 ttfb = bpf_ktime_get_ns() - res->start_time_ns;
-                        u64 cpu = bpf_get_smp_processor_id();
+//                        u64 cpu = bpf_get_smp_processor_id();
                         int http_status_code = 0;
                         u16 mysql_greeting_protocol_version = 0;
                         if (parse_http_response(data, iov.iov_len, &http_status_code)) {
