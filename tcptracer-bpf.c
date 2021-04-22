@@ -846,49 +846,40 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
 	const size_t size = (size_t) PT_REGS_PARM3(ctx);
 	u64 zero = 0;
 
-    struct fd_info *res = bpf_map_lookup_elem(&active_fds, &sk);
-    if (res == NULL) {
-//		 This file descriptor is not for a socket we're tracking
-        return 0;
-    }
-
-    char *data = bpf_map_lookup_elem(&write_buffer_heap, &zero);
-    if (data == NULL) {
-        return 0;
-    }
-
     struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
     if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
         return 0;
     }
 
-    u64 ttfb = bpf_ktime_get_ns() - res->start_time_ns;
-    u64 cpu = bpf_get_smp_processor_id();
-
     struct msghdr msg = {};
     bpf_probe_read(&msg, sizeof(msg), k_msg);
     if ((msg.msg_iter.type & 4) == 4) {
-        struct iovec iov = {};
-        bpf_probe_read(&iov, sizeof(iov), (void *) msg.msg_iter.iov);
-        bpf_probe_read(data, MAX_MSG_SIZE, iov.iov_base);
+        char *data = bpf_map_lookup_elem(&write_buffer_heap, &zero);
+        if (data != NULL) {
+            struct iovec iov = {};
+            bpf_probe_read(&iov, sizeof(iov), (void *) msg.msg_iter.iov);
+            bpf_probe_read(data, MAX_MSG_SIZE, iov.iov_base);
 
-        struct ipv4_tuple_t t = {};
-        if (check_family(sk, status, AF_INET)) {
-            if (!read_ipv4_tuple(&t, status, sk)) {
-                return 0;
+            struct ipv4_tuple_t t = {};
+            if (check_family(sk, status, AF_INET)) {
+                if (read_ipv4_tuple(&t, status, sk)) {
+                    t.lport = ntohs(t.lport); // Making ports human-readable
+                    t.rport = ntohs(t.rport);
+
+                    struct fd_info *res = bpf_map_lookup_elem(&active_fds, &sk);
+                    if (res != NULL) {
+                        u64 ttfb = bpf_ktime_get_ns() - res->start_time_ns;
+                        u64 cpu = bpf_get_smp_processor_id();
+                        int http_status_code = 0;
+                        u16 mysql_greeting_protocol_version = 0;
+                        if (parse_http_response(data, iov.iov_len, &http_status_code)) {
+                            send_http_response(ctx, t, http_status_code, ttfb / 1000, res->start_time_ns, cpu);
+                        } else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
+                            send_mysql_greeting(ctx, t, mysql_greeting_protocol_version, res->start_time_ns, cpu);
+                        }
+                    }
+                }
             }
-        } else {
-            return 0;
-        }
-        t.lport = ntohs(t.lport); // Making ports human-readable
-        t.rport = ntohs(t.rport);
-
-        int http_status_code = 0;
-        u16 mysql_greeting_protocol_version = 0;
-        if (parse_http_response(data, iov.iov_len, &http_status_code)) {
-            send_http_response(ctx, t, http_status_code, ttfb / 1000, res->start_time_ns, cpu);
-        } else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
-            send_mysql_greeting(ctx, t, mysql_greeting_protocol_version, res->start_time_ns, cpu);
         }
     }
 
