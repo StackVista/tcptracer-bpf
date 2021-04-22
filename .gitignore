@@ -6,6 +6,6 @@ nettracer
 network-tracer
 .vagrant/
 *.log
-nettop
+/nettop
 .idea/
 vendor/

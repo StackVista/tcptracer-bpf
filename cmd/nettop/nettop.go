@@ -1,6 +1,6 @@
 // +build linux_bpf
 
-package netstat
+package main
 
 import (
 	"fmt"

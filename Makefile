@@ -73,13 +73,27 @@ lint:
 # Build & run dockerized `nettop` command for testing 
 # $ make all run-nettop
 run-nettop:
-	$(SUDO) docker build -t "tcptracer-bpf-dd-nettop" . -f tests/Dockerfile-nettop
+	$(SUDO) docker build -t "tcptracer-bpf-dd-nettop" . -f Dockerfile
 	$(SUDO) docker run \
 		--net=host \
 		--cap-add=SYS_ADMIN \
 		--privileged \
 		-v /sys/kernel/debug:/sys/kernel/debug \
 		tcptracer-bpf-dd-nettop
+
+# Build nettop - utility for testing
+build-nettop:
+	go build -a -tags 'linux_bpf' -o nettop github.com/StackVista/tcptracer-bpf/cmd/nettop
+	chmod +x nettop
+
+build-nettop-in-docker:
+	$(SUDO) docker build -t "stackvista/tcptracer-bpf-ci" . -f ../Dockerfile
+	$(SUDO) docker run \
+		-v $(GOPATH)/src/github.com/StackVista/tcptracer-bpf:/go/src/github.com/StackVista/tcptracer-bpf \
+		--env GOPATH=/go \
+		stackvista/tcptracer-bpf-ci \
+		sh -c 'cd /go/src/github.com/StackVista/tcptracer-bpf/tests && make'
+
 
 # Build network-tracer agent: runs eBPF program and exposes connections via /connections over UDS
 build-network-tracer:

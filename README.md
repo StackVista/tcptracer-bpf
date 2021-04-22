@@ -44,6 +44,8 @@ make
 The object file can be found in `ebpf/tcptracer-ebpf.o`.
 It will be also embedded to `ebpf/tcptracer-ebpf.go` - this is how the file will end up in run-time.
 
+So if you change `/tcptracer-bpf.c` you should build the `ebpf/tcptracer-ebpf.go` and commit it.
+
 ## Run locally
 
 ```
@@ -51,12 +53,17 @@ make install-generated-go build-network-tracer
 sudo reset-trace-bpfcc -F && sudo ./network-tracer
 ```
 
-## Test
+## Testing using nettop
 
 ```
-cd tests
-make
-sudo ./run
+make build-nettop
+sudo ./nettop
+```
+
+## Testing
+
+```
+make test
 ```
 
 ### Using Vagrant VM
