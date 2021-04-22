@@ -32,7 +32,7 @@ test-linux-bpf-http:
     - go get -u github.com/golang/dep/cmd/dep
     - go get -u github.com/jteeuwen/go-bindata/...
     - $GOPATH/bin/dep ensure
-    - sudo -E PATH=${PATH} go test -count=1 -tags linux_bpf github.com/StackVista/tcptracer-bpf/pkg/tracer -v -run TestHTTPRequestLog
+    - sudo -E PATH=${PATH} GOROOT=${GOROOT} GOPATH=${GOPATH} /usr/local/go/bin/go test -count=1 -tags linux_bpf github.com/StackVista/tcptracer-bpf/pkg/tracer -v -run TestHTTPRequestLog
   tags:
     # Run on sts hardware to be able to test ebpf
     - sts-aws-no-agent
