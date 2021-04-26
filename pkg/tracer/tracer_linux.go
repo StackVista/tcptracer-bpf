@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/golang/protobuf/proto"
+	"sync"
 	"syscall"
 	"unsafe"
 
@@ -55,9 +56,10 @@ type LinuxTracer struct {
 	perfEventsLostLog chan uint64
 	perfMap           *bpflib.PerfMap
 
-	tcpConnInsights map[common.ConnTupleV4]ConnInsight // TODO gonna leak
-	onPerfEvent     func(event common.PerfEvent)
-	stopCh          chan bool
+	tcpConnInsights     map[common.ConnTupleV4]ConnInsight // TODO gonna leak
+	tcpConnInsightsLock sync.RWMutex
+	onPerfEvent         func(event common.PerfEvent)
+	stopCh              chan bool
 }
 
 var (
@@ -110,14 +112,15 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 
 	// TODO: Improve performance by detaching unnecessary kprobes, once offsets have been figured out in initialize()
 	tracer := &LinuxTracer{
-		m:                 m,
-		config:            config,
-		inFlightTCP:       inFlightTCP,
-		perfMap:           perfMap,
-		perfEventsBytes:   perfEventsBytes,
-		perfEventsLostLog: perfEventsLostLog,
-		tcpConnInsights:   make(map[common.ConnTupleV4]ConnInsight),
-		stopCh:            make(chan bool),
+		m:                   m,
+		config:              config,
+		inFlightTCP:         inFlightTCP,
+		perfMap:             perfMap,
+		perfEventsBytes:     perfEventsBytes,
+		perfEventsLostLog:   perfEventsLostLog,
+		tcpConnInsights:     make(map[common.ConnTupleV4]ConnInsight),
+		tcpConnInsightsLock: sync.RWMutex{},
+		stopCh:              make(chan bool),
 	}
 
 	// Get data from /proc AFTER ebpf has been initialized. This makes sure that we do not miss any
@@ -569,6 +572,8 @@ func (t *LinuxTracer) dispatchPerfEvent(event common.PerfEvent) {
 		logger.Tracef("http response: %v", event.HTTPResponse)
 		httpRes := event.HTTPResponse
 
+		t.tcpConnInsightsLock.Lock()
+		defer t.tcpConnInsightsLock.Unlock()
 		conn, ok := t.tcpConnInsights[httpRes.Connection]
 		if !ok {
 			conn = ConnInsight{
@@ -631,7 +636,9 @@ func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.Co
 	logger.Infof("enrich tcp connections")
 	for i := range conns {
 		conn := conns[i]
+		t.tcpConnInsightsLock.RLock()
 		connInsight, ok := t.tcpConnInsights[conn.GetConnection()]
+		t.tcpConnInsightsLock.RUnlock()
 		if ok {
 			logger.Infof("enriched %v with %v", conn.GetConnection(), connInsight)
 			if connInsight.ApplicationProtocol != "" {
