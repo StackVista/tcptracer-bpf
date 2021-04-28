@@ -142,6 +142,7 @@ struct tcptracer_status_t {
 	__u16 padding;
 
 	__u64 calling_probes[10];
+	__u16 iter_type;
 };
 
 #endif

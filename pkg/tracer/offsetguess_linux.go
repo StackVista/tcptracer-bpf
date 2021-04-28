@@ -391,13 +391,19 @@ func setupGuess(b *elf.Module, netns uint64) (*guessBench, error) {
 		cProcName[i] = C.char(processName[i])
 	}
 
+	iterType, err := getIterType()
+	if err != nil {
+		return nil, err
+	}
+
 	status := &tcpTracerStatus{
-		state: stateChecking,
-		proc:  C.struct_proc_t{comm: cProcName},
+		state:     stateChecking,
+		proc:      C.struct_proc_t{comm: cProcName},
+		iter_type: C.__u16(iterType),
 	}
 
 	// if we already have the offsets, just return
-	err := b.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status))
+	err = b.LookupElement(mp, unsafe.Pointer(&zero), unsafe.Pointer(status))
 	if err == nil && status.state == stateReady {
 		return nil, nil
 	}
@@ -486,4 +492,39 @@ func guess(module *elf.Module) error {
 		status.offset_daddr_ipv6, status.offset_netns, status.offset_saddr, status.offset_daddr, status.offset_sport, status.offset_dport, status.offset_family)
 
 	return nil
+}
+
+func int8ToStr(arr []int8) string {
+	b := make([]byte, 0, len(arr))
+	for _, v := range arr {
+		if v == 0x00 {
+			break
+		}
+		b = append(b, byte(v))
+	}
+	return string(b)
+}
+
+func getIterType() (uint16, error) {
+	var uname syscall.Utsname
+	var iter_type uint16 = 4
+	if err := syscall.Uname(&uname); err == nil {
+		logger.Infof("Linux version = %s", int8ToStr(uname.Release[:]))
+		linuxVersion := strings.Split(int8ToStr(uname.Release[:]), ".")
+
+		majorVersion, err := strconv.Atoi(linuxVersion[0])
+		if err != nil {
+			return 0, fmt.Errorf("error reading linux version: %v", err)
+		}
+		minorVersion, err := strconv.Atoi(linuxVersion[1])
+		if err != nil {
+			return 0, fmt.Errorf("error reading linux version: %v", err)
+		}
+		if majorVersion <= 4 || (majorVersion == 5 && minorVersion == 0) {
+			iter_type = 0
+		}
+	}
+
+	logger.Debugf("Go iter_type = %d", iter_type)
+	return iter_type, nil
 }
