@@ -91,6 +91,3 @@ func (t *WindowsTracer) GetConnections() (*common.Connections, error) {
 
 	return &common.Connections{Conns: connectionStats}, nil
 }
-
-func (t *LinuxTracer) OnPerfEvent(callback func(eventError common.PerfEvent)) {
-}

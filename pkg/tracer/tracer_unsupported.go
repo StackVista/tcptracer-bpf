@@ -26,6 +26,3 @@ func (t *UnsupportedTracer) Stop() {}
 func (t *UnsupportedTracer) GetConnections() (*common.Connections, error) {
 	return nil, common.ErrNotImplemented
 }
-
-func (t *LinuxTracer) OnPerfEvent(callback func(eventError common.PerfEvent)) {
-}
