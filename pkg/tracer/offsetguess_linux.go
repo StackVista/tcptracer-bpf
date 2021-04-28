@@ -484,6 +484,7 @@ func guess(module *elf.Module) error {
 
 	logger.Debugf("Actual offsets: daddrV6=%d, netns=%d, saddr=%d, daddr=%d, sport=%d, dport=%d, family=%d",
 		status.offset_daddr_ipv6, status.offset_netns, status.offset_saddr, status.offset_daddr, status.offset_sport, status.offset_dport, status.offset_family)
+	logger.Info("Offset guessing was completed successfully")
 
 	return nil
 }
