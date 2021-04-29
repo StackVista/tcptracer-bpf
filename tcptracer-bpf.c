@@ -841,11 +841,11 @@ bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) 
     })
 
 __attribute__((always_inline))
-int kprobe__tcp_send(struct pt_regs *ctx) {
+static int kprobe__tcp_send(struct pt_regs *ctx,
+                            const size_t size) {
 
     struct sock *sk = (struct sock *) PT_REGS_PARM1(ctx);
     struct msghdr *k_msg = (void *) PT_REGS_PARM2(ctx);
-    const size_t size = (size_t) PT_REGS_PARM3(ctx);
     u64 zero = 0;
 
     struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
@@ -890,12 +890,16 @@ int kprobe__tcp_send(struct pt_regs *ctx) {
 
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
-	return kprobe__tcp_send(ctx);
+    const size_t size = (size_t) PT_REGS_PARM3(ctx);
+
+	return kprobe__tcp_send(ctx, size);
 }
 
 SEC("kprobe/tcp_sendpage")
 int kprobe__tcp_sendpage(struct pt_regs *ctx) {
-    return kprobe__tcp_send(ctx);
+	size_t size = (size_t) PT_REGS_PARM4(ctx);
+
+    return kprobe__tcp_send(ctx, size);
 }
 
 SEC("kprobe/tcp_cleanup_rbuf")
