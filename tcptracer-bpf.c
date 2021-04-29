@@ -766,140 +766,141 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 		return 0;
 	}
 
-    struct fd_info t = { .active = 1 };
-    t.start_time_ns = bpf_ktime_get_ns();
+	struct fd_info t = {.active = 1};
+	t.start_time_ns = bpf_ktime_get_ns();
 
-    bpf_map_update_elem(&active_fds, &newsk, &t, BPF_ANY);
+	bpf_map_update_elem(&active_fds, &newsk, &t, BPF_ANY);
 
 	return assert_tcp_record(newsk, status, DIRECTION_INCOMING, STATE_INITIALIZING);
 }
 
 __attribute__((always_inline))
 bool parse_http_response(char *buffer, int size, int *status_code_result) {
-    const char http_marker[4] = "HTTP";
-    if (size > 11) {
-        int status_code = 100 * (buffer[9] - '0') + 10 * (buffer[10] - '0') + (buffer[11] - '0');
-        if (status_code > 99 && status_code < 1000) {
-            if (memcmp(buffer, http_marker, sizeof(http_marker)) == 0) {
-                *status_code_result = status_code;
-                return true;
-            }
-        }
-    }
-    return false;
+	const char http_marker[4] = "HTTP";
+	if (size > 11) {
+		int status_code = 100 * (buffer[9] - '0') + 10 * (buffer[10] - '0') + (buffer[11] - '0');
+		if (status_code > 99 && status_code < 1000) {
+			if (memcmp(buffer, http_marker, sizeof(http_marker)) == 0) {
+				*status_code_result = status_code;
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 __attribute__((always_inline))
 bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) {
-    if (size > 4) {
-        int packet_length = buffer[0] + buffer[1]*0x100 + buffer[2]*0x100;
-        int packet_number = (int) buffer[3];
+	if (size > 4) {
+		int packet_length = buffer[0] + buffer[1] * 0x100 + buffer[2] * 0x100;
+		int packet_number = (int)buffer[3];
 
-        bool is_greeting_packet = (size - 4) == packet_length && 0 == packet_number;
-        if (is_greeting_packet) {
-            u16 protocol_version = (u16) buffer[4];
-            *protocol_version_result = protocol_version;
-            return true;
-        }
-    }
-    return false;
+		bool is_greeting_packet = (size - 4) == packet_length && 0 == packet_number;
+		if (is_greeting_packet) {
+			u16 protocol_version = (u16)buffer[4];
+			*protocol_version_result = protocol_version;
+			return true;
+		}
+	}
+	return false;
 }
 
-#define send_mysql_greeting(_ctx, _t, _protocol_version, _timestamp, _cpu)                                        \
-    ({                                                             \
-        struct event_mysql_greeting greeting; \
-        __builtin_memset(&greeting, 0, sizeof(greeting)); \
-        greeting.connection = _t; \
-        greeting.protocol_version = _protocol_version; \
-        union event_payload payload; \
-        __builtin_memset(&payload, 0, sizeof(payload)); \
-        payload.mysql_greeting = greeting; \
-        struct perf_event event; \
-        __builtin_memset(&event, 0, sizeof(event)); \
-        event.event_type = EVENT_MYSQL_GREETING; \
-        event.timestamp = _timestamp; \
-        event.payload = payload; \
-        bpf_perf_event_output(ctx, &perf_events, cpu, &event, sizeof(event)); \
-    })
+#define send_mysql_greeting(_ctx, _t, _protocol_version, _timestamp, _cpu) \
+	({                                                                       \
+		struct event_mysql_greeting greeting;                                  \
+		__builtin_memset(&greeting, 0, sizeof(greeting));                      \
+		greeting.connection = _t;                                              \
+		greeting.protocol_version = _protocol_version;                         \
+		union event_payload payload;                                           \
+		__builtin_memset(&payload, 0, sizeof(payload));                        \
+		payload.mysql_greeting = greeting;                                     \
+		struct perf_event event;                                               \
+		__builtin_memset(&event, 0, sizeof(event));                            \
+		event.event_type = EVENT_MYSQL_GREETING;                               \
+		event.timestamp = _timestamp;                                          \
+		event.payload = payload;                                               \
+		bpf_perf_event_output(ctx, &perf_events, cpu, &event, sizeof(event));  \
+	})
 
-#define send_http_response(_ctx, _t, _http_status_code, _response_time, _timestamp, _cpu)                                        \
-    ({                                                             \
-        struct event_http_response http_response; \
-        __builtin_memset(&http_response, 0, sizeof(http_response)); \
-        http_response.connection = _t; \
-        http_response.status_code = _http_status_code; \
-        http_response.response_time = _response_time; \
-        union event_payload payload; \
-        __builtin_memset(&payload, 0, sizeof(payload)); \
-        payload.http_response = http_response; \
-        struct perf_event response_event; \
-        __builtin_memset(&response_event, 0, sizeof(response_event)); \
-        response_event.event_type = EVENT_HTTP_RESPONSE; \
-        response_event.timestamp = _timestamp; \
-        response_event.payload = payload; \
-        bpf_perf_event_output(_ctx,&perf_events, _cpu, &response_event, sizeof(response_event)); \
-    })
+#define send_http_response(_ctx, _t, _http_status_code, _response_time, _timestamp, _cpu)     \
+	({                                                                                          \
+		struct event_http_response http_response;                                                 \
+		__builtin_memset(&http_response, 0, sizeof(http_response));                               \
+		http_response.connection = _t;                                                            \
+		http_response.status_code = _http_status_code;                                            \
+		http_response.response_time = _response_time;                                             \
+		union event_payload payload;                                                              \
+		__builtin_memset(&payload, 0, sizeof(payload));                                           \
+		payload.http_response = http_response;                                                    \
+		struct perf_event response_event;                                                         \
+		__builtin_memset(&response_event, 0, sizeof(response_event));                             \
+		response_event.event_type = EVENT_HTTP_RESPONSE;                                          \
+		response_event.timestamp = _timestamp;                                                    \
+		response_event.payload = payload;                                                         \
+		bpf_perf_event_output(_ctx, &perf_events, _cpu, &response_event, sizeof(response_event)); \
+	})
 
 __attribute__((always_inline))
-static int kprobe__tcp_send(struct pt_regs *ctx,
-                            const size_t size) {
+static int tcp_send(struct pt_regs *ctx,
+										const size_t size) {
+	struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+	struct msghdr *k_msg = (void *)PT_REGS_PARM2(ctx);
+	u64 zero = 0;
 
-    struct sock *sk = (struct sock *) PT_REGS_PARM1(ctx);
-    struct msghdr *k_msg = (void *) PT_REGS_PARM2(ctx);
-    u64 zero = 0;
+	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
+	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
+		return 0;
+	}
 
-    struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-    if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
-        return 0;
-    }
+	struct msghdr msg = {};
+	bpf_probe_read(&msg, sizeof(msg), k_msg);
+	if ((msg.msg_iter.type & ~(READ | WRITE)) == status->iter_type) {
+		char *data = bpf_map_lookup_elem(&write_buffer_heap, &zero);
+		if (data != NULL) {
+			struct iovec iov = {};
+			bpf_probe_read(&iov, sizeof(iov), (void *)msg.msg_iter.iov);
+			bpf_probe_read(data, MAX_MSG_SIZE, iov.iov_base);
 
-    struct msghdr msg = {};
-    bpf_probe_read(&msg, sizeof(msg), k_msg);
-    if ((msg.msg_iter.type & ~(READ | WRITE)) == status->iter_type) {
-        char *data = bpf_map_lookup_elem(&write_buffer_heap, &zero);
-        if (data != NULL) {
-            struct iovec iov = {};
-            bpf_probe_read(&iov, sizeof(iov), (void *) msg.msg_iter.iov);
-            bpf_probe_read(data, MAX_MSG_SIZE, iov.iov_base);
+			struct ipv4_tuple_t t = {};
+			if (check_family(sk, status, AF_INET)) {
+				if (read_ipv4_tuple(&t, status, sk)) {
+					t.lport = ntohs(t.lport); // Making ports human-readable
+					t.rport = ntohs(t.rport);
 
-            struct ipv4_tuple_t t = {};
-            if (check_family(sk, status, AF_INET)) {
-                if (read_ipv4_tuple(&t, status, sk)) {
-                    t.lport = ntohs(t.lport); // Making ports human-readable
-                    t.rport = ntohs(t.rport);
+					struct fd_info *res = bpf_map_lookup_elem(&active_fds, &sk);
+					if (res != NULL) {
+						u64 ttfb = bpf_ktime_get_ns() - res->start_time_ns;
+						u64 cpu = bpf_get_smp_processor_id();
+						int http_status_code = 0;
+						u16 mysql_greeting_protocol_version = 0;
+						if (parse_http_response(data, iov.iov_len, &http_status_code)) {
+							send_http_response(ctx, t, http_status_code, ttfb / 1000, res->start_time_ns, cpu);
+						} else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
+							send_mysql_greeting(ctx, t, mysql_greeting_protocol_version, res->start_time_ns, cpu);
+						}
+					}
+				}
+			}
+		}
+	}
 
-                    struct fd_info *res = bpf_map_lookup_elem(&active_fds, &sk);
-                    if (res != NULL) {
-                        u64 ttfb = bpf_ktime_get_ns() - res->start_time_ns;
-                        u64 cpu = bpf_get_smp_processor_id();
-                        int http_status_code = 0;
-                        u16 mysql_greeting_protocol_version = 0;
-                        if (parse_http_response(data, iov.iov_len, &http_status_code)) {
-                            send_http_response(ctx, t, http_status_code, ttfb / 1000, res->start_time_ns, cpu);
-                        } else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
-                            send_mysql_greeting(ctx, t, mysql_greeting_protocol_version, res->start_time_ns, cpu);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    return increment_tcp_stats(sk, status, size, 0);
+	return increment_tcp_stats(sk, status, size, 0);
 }
 
 SEC("kprobe/tcp_sendmsg")
-int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
-    const size_t size = (size_t) PT_REGS_PARM3(ctx);
+int kprobe__tcp_sendmsg(struct pt_regs *ctx)
+{
+	const size_t size = (size_t)PT_REGS_PARM3(ctx);
 
-	return kprobe__tcp_send(ctx, size);
+	return tcp_send(ctx, size);
 }
 
 SEC("kprobe/tcp_sendpage")
-int kprobe__tcp_sendpage(struct pt_regs *ctx) {
-	size_t size = (size_t) PT_REGS_PARM4(ctx);
+int kprobe__tcp_sendpage(struct pt_regs *ctx)
+{
+	size_t size = (size_t)PT_REGS_PARM4(ctx);
 
-    return kprobe__tcp_send(ctx, size);
+	return tcp_send(ctx, size);
 }
 
 SEC("kprobe/tcp_cleanup_rbuf")
