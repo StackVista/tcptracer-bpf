@@ -50,7 +50,7 @@ type LinuxTracer struct {
 	// metric stats
 	inFlightTCP map[string]*common.ConnectionStats
 
-	// Contains events that is used get an insight about the connections
+	// Contains events used to get an insight about the connections
 	// See `maps/perf_events` in `tcptracer-maps.h`
 	perfEventsBytes   chan []byte
 	perfEventsLostLog chan uint64
@@ -575,13 +575,14 @@ func (t *LinuxTracer) dispatchPerfEvent(event common.PerfEvent) {
 		t.tcpConnInsightsLock.Lock()
 		defer t.tcpConnInsightsLock.Unlock()
 		conn, ok := t.tcpConnInsights[httpRes.Connection]
+		httpProtocol := "http"
 		if !ok {
 			conn = ConnInsight{
-				ApplicationProtocol: "http",
+				ApplicationProtocol: httpProtocol,
 				HttpMetrics:         make(map[HttpStatusCodeGroup]*ddsketch.DDSketch),
 			}
 		}
-		conn.ApplicationProtocol = "http"
+		conn.ApplicationProtocol = httpProtocol
 
 		var httpStatusGroup HttpStatusCodeGroup
 		if httpRes.StatusCode >= 100 && httpRes.StatusCode < 200 {
