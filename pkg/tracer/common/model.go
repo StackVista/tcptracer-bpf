@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
 	"strings"
 )
 
@@ -162,6 +161,9 @@ func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 	if _, err := buffer.WriteString(c.Local); err != nil {
 		return nil, err
 	}
+	if _, err := buffer.WriteString(c.NetworkNamespace); err != nil {
+		return nil, err
+	}
 	// Family (8 bits) + Type (8 bits) + Direction (8 bits) = 32 bits
 	p1 := uint32(c.Direction)<<16 | uint32(c.Family)<<8 | uint32(c.Type)
 	if err := binary.Write(buffer, binary.LittleEndian, p1); err != nil {
@@ -171,15 +173,4 @@ func (c ConnectionStats) ByteKey(buffer *bytes.Buffer) ([]byte, error) {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
-}
-
-// enriches the connection stats with namespace if it's a localhost connection
-func (c ConnectionStats) WithNamespace(namespace string) ConnectionStats {
-	// check for local connections, add namespace for connection
-	networkScanner := network.MakeLocalNetworkScanner()
-	if networkScanner.ContainsIP(c.Local) && networkScanner.ContainsIP(c.Remote) {
-		c.NetworkNamespace = namespace
-	}
-
-	return c
 }

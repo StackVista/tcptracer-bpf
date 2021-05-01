@@ -92,9 +92,10 @@ func connStatsFromTCPv4(t *ConnTupleV4, s *ConnStats) common.ConnectionStats {
 		RemotePort: uint16(t.rport),
 		Direction:  common.Direction(s.direction),
 		State:      common.State(s.state),
+		NetworkNamespace: fmt.Sprint(t.netns),
 		SendBytes:  uint64(s.send_bytes),
 		RecvBytes:  uint64(s.recv_bytes),
-	}.WithNamespace(fmt.Sprint(t.netns))
+	}
 }
 
 func connStatsFromTCPv6(t *ConnTupleV6, s *ConnStats) common.ConnectionStats {
@@ -108,9 +109,10 @@ func connStatsFromTCPv6(t *ConnTupleV6, s *ConnStats) common.ConnectionStats {
 		RemotePort: uint16(t.rport),
 		Direction:  common.Direction(s.direction),
 		State:      common.State(s.state),
+		NetworkNamespace: fmt.Sprint(t.netns),
 		SendBytes:  uint64(s.send_bytes),
 		RecvBytes:  uint64(s.recv_bytes),
-	}.WithNamespace(fmt.Sprint(t.netns))
+	}
 }
 
 func connStatsFromUDPv4(t *ConnTupleV4, s *ConnStatsWithTimestamp) common.ConnectionStats {
@@ -124,9 +126,10 @@ func connStatsFromUDPv4(t *ConnTupleV4, s *ConnStatsWithTimestamp) common.Connec
 		RemotePort: uint16(t.rport),
 		Direction:  common.UNKNOWN,
 		State:      common.ACTIVE,
+		NetworkNamespace: fmt.Sprint(t.netns),
 		SendBytes:  uint64(s.send_bytes),
 		RecvBytes:  uint64(s.recv_bytes),
-	}.WithNamespace(fmt.Sprint(t.netns))
+	}
 }
 
 func connStatsFromUDPv6(t *ConnTupleV6, s *ConnStatsWithTimestamp) common.ConnectionStats {
@@ -140,9 +143,10 @@ func connStatsFromUDPv6(t *ConnTupleV6, s *ConnStatsWithTimestamp) common.Connec
 		RemotePort: uint16(t.rport),
 		Direction:  common.UNKNOWN,
 		State:      common.ACTIVE,
+		NetworkNamespace: fmt.Sprint(t.netns),
 		SendBytes:  uint64(s.send_bytes),
 		RecvBytes:  uint64(s.recv_bytes),
-	}.WithNamespace(fmt.Sprint(t.netns))
+	}
 }
 
 func connStatsFromProcSpy(t *procspy.Connection) common.ConnectionStats {
@@ -161,9 +165,10 @@ func connStatsFromProcSpy(t *procspy.Connection) common.ConnectionStats {
 		RemotePort: t.RemotePort,
 		Direction:  common.UNKNOWN,
 		State:      common.ACTIVE,
+		NetworkNamespace: strconv.FormatUint(t.Proc.NetNamespaceID, 10),
 		SendBytes:  0,
 		RecvBytes:  0,
-	}.WithNamespace(strconv.FormatUint(t.Proc.NetNamespaceID, 10))
+	}
 }
 
 func v4IPString(addr uint32) string {

@@ -29,10 +29,7 @@ func TestEnsureGuessingFromConnectingSide(t *testing.T) {
 	// TODO: Only enable kprobes for traffic collection defined in config
 	err = module.EnableKprobes(common.MaxActive)
 	if err != nil {
-		err = module.Close()
-		if err != nil {
-			t.Fatal(err)
-		}
+		t.Fatal(err)
 	}
 
 	currentNetns, err := ownNetNS()

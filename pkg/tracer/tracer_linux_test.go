@@ -87,6 +87,8 @@ func TestTCPSendAndReceiveWithNamespaces(t *testing.T) {
 	// assert that localhost connections both have the same namespace
 	assert.NotNil(t, conn1.NetworkNamespace)
 	assert.NotNil(t, conn2.NetworkNamespace)
+	assert.NotEqual(t, "", conn1.NetworkNamespace)
+	assert.NotEqual(t, "", conn2.NetworkNamespace)
 	assert.Equal(t, conn1.NetworkNamespace, conn2.NetworkNamespace)
 
 	// Write clientMessageSize to server, to shut down the connection
@@ -158,6 +160,8 @@ func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
 
 	// assert that localhost connections both have the same namespace and that it's not nil
 	assert.Equal(t, conn1.NetworkNamespace, conn2.NetworkNamespace)
+	assert.NotEqual(t, "", conn1.NetworkNamespace)
+	assert.NotEqual(t, "", conn2.NetworkNamespace)
 	assert.NotNil(t, conn1.NetworkNamespace)
 	assert.NotNil(t, conn2.NetworkNamespace)
 
