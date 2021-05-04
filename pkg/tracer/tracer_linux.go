@@ -638,10 +638,11 @@ func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.Co
 	for i := range conns {
 		conn := conns[i]
 		t.tcpConnInsightsLock.RLock()
-		connInsight, ok := t.tcpConnInsights[conn.GetConnection()]
+		connection := conn.GetConnection()
+		connInsight, ok := t.tcpConnInsights[connection]
 		t.tcpConnInsightsLock.RUnlock()
 		if ok {
-			logger.Infof("enriched %v with %v", conn.GetConnection(), connInsight)
+			logger.Infof("enriched %v with %v", connection, connInsight)
 			if connInsight.ApplicationProtocol != "" {
 				conn.ApplicationProtocol = connInsight.ApplicationProtocol
 			}
@@ -656,6 +657,10 @@ func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.Co
 					DDSketch: metricSketchBytes,
 				})
 			}
+			connInsight.HttpMetrics = make(map[HttpStatusCodeGroup]*ddsketch.DDSketch)
+			t.tcpConnInsightsLock.Lock()
+			t.tcpConnInsights[connection] = connInsight
+			t.tcpConnInsightsLock.Unlock()
 		}
 		conns[i] = conn
 	}

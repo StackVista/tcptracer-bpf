@@ -539,6 +539,7 @@ func TestHTTPRequestLog(t *testing.T) {
 	})
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
+	runGETRequest(t, testServer, "/")
 	statusCode, respText = runGETRequest(t, testServer, "/notfound")
 	assert.Equal(t, 404, statusCode)
 	assert.Equal(t, "Not found", respText)

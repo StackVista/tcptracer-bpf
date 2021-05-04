@@ -888,16 +888,14 @@ static int tcp_send(struct pt_regs *ctx,
 }
 
 SEC("kprobe/tcp_sendmsg")
-int kprobe__tcp_sendmsg(struct pt_regs *ctx)
-{
+int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
 	const size_t size = (size_t)PT_REGS_PARM3(ctx);
 
 	return tcp_send(ctx, size);
 }
 
 SEC("kprobe/tcp_sendpage")
-int kprobe__tcp_sendpage(struct pt_regs *ctx)
-{
+int kprobe__tcp_sendpage(struct pt_regs *ctx) {
 	size_t size = (size_t)PT_REGS_PARM4(ctx);
 
 	return tcp_send(ctx, size);
