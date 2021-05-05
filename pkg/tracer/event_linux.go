@@ -96,9 +96,10 @@ func httpResponseEvent(eventC *EventHTTPResponse, timestamp time.Time) common.Pe
 				Lport: uint16(eventC.connection.lport),
 				Raddr: common.V4IPString(uint32(eventC.connection.raddr)),
 				Rport: uint16(eventC.connection.rport),
-				Pid: uint16(eventC.connection.pid),
+				Pid:   uint16(eventC.connection.pid),
 			},
-			StatusCode: int(uint16(eventC.status_code)),
+			StatusCode:   int(uint16(eventC.status_code)),
+			ResponseTime: time.Duration(int(uint32(eventC.response_time))) * time.Microsecond,
 		},
 	}
 }
@@ -112,7 +113,7 @@ func mysqlGreetingEvent(eventC *EventMYSQLGreeting, timestamp time.Time) common.
 				Lport: uint16(eventC.connection.lport),
 				Raddr: common.V4IPString(uint32(eventC.connection.raddr)),
 				Rport: uint16(eventC.connection.rport),
-				Pid: uint16(eventC.connection.pid),
+				Pid:   uint16(eventC.connection.pid),
 			},
 			ProtocolVersion: int(uint16(eventC.protocol_version)),
 		},

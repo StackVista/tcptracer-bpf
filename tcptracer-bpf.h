@@ -83,7 +83,7 @@ struct fd_info {
 
 struct event_http_response {
     __u16 status_code;
-    __u16 response_time;
+    __u32 response_time;
     struct ipv4_tuple_t connection;
 };
 
