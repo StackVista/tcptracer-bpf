@@ -868,16 +868,22 @@ static int tcp_send(struct pt_regs *ctx,
 					t.rport = ntohs(t.rport);
 
 					struct fd_info *res = bpf_map_lookup_elem(&active_fds, &sk);
-					if (res != NULL) {
-						u64 ttfb = bpf_ktime_get_ns() - res->start_time_ns;
-						u64 cpu = bpf_get_smp_processor_id();
-						int http_status_code = 0;
-						u16 mysql_greeting_protocol_version = 0;
-						if (parse_http_response(data, iov.iov_len, &http_status_code)) {
-							send_http_response(ctx, t, http_status_code, ttfb / 1000, res->start_time_ns, cpu);
-						} else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
-							send_mysql_greeting(ctx, t, mysql_greeting_protocol_version, res->start_time_ns, cpu);
-						}
+					u64 ttfb = 0;
+					if (res == NULL) {
+						struct fd_info t = {.active = 1};
+						t.start_time_ns = bpf_ktime_get_ns();
+						bpf_map_update_elem(&active_fds, &sk, &t, BPF_ANY);
+						res = &t;
+					} else {
+						ttfb = bpf_ktime_get_ns() - res->start_time_ns;
+					}
+					u64 cpu = bpf_get_smp_processor_id();
+					int http_status_code = 0;
+					u16 mysql_greeting_protocol_version = 0;
+					if (parse_http_response(data, iov.iov_len, &http_status_code)) {
+						send_http_response(ctx, t, http_status_code, ttfb / 1000, res->start_time_ns, cpu);
+					} else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
+						send_mysql_greeting(ctx, t, mysql_greeting_protocol_version, res->start_time_ns, cpu);
 					}
 				}
 			}
