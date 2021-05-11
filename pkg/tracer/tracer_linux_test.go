@@ -501,61 +501,115 @@ func TestHTTPRequestLog(t *testing.T) {
 	assert.NoError(t, tr.Start())
 	defer tr.Stop()
 
-	time.Sleep(2 * time.Second)
-
 	testServer := createTestHTTPServer()
 
-	getServerStats := func() ([]map[string]string, error) {
-		conns, err := tr.GetConnections()
-		if err != nil {
-			return nil, err
-		}
-		labels := make([]map[string]string, 0)
-		for i := range conns.Conns {
-			for mi := range conns.Conns[i].Metrics {
-				labels = append(labels, conns.Conns[i].Metrics[mi].Labels)
-			}
-		}
-		return labels, nil
-	}
-
-	assertHttpStats := func(expected []map[string]string) {
-		require.Eventually(t, func() bool {
-			stats, err := getServerStats()
-			assert.NoError(t, err)
-			sort.Slice(stats, func(i, j int) bool {
-				return strings.Compare(stats[i]["code"], stats[j]["code"]) < 0
-			})
-			return assert.Equal(t, expected, stats)
-		}, 6*time.Second, 300*time.Millisecond)
+	httpT := httpLogTest{
+		test:   t,
+		tracer: tr,
+		server: testServer,
+		client: testServer.Client(),
 	}
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
-	statusCode, respText := runGETRequest(t, testServer, "/")
+	statusCode, respText := httpT.runGETRequest("/")
 	assert.Equal(t, 200, statusCode)
 	assert.Equal(t, "OK", respText)
-	assertHttpStats([]map[string]string{
+	httpT.testHttpStats([]map[string]string{
 		{"code": "2xx", "type": "http_response_time"},
 	})
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
-	runGETRequest(t, testServer, "/")
-	statusCode, respText = runGETRequest(t, testServer, "/notfound")
+	httpT.runGETRequest("/")
+	statusCode, respText = httpT.runGETRequest("/notfound")
 	assert.Equal(t, 404, statusCode)
 	assert.Equal(t, "Not found", respText)
-	assertHttpStats([]map[string]string{
+	httpT.testHttpStats([]map[string]string{
 		{"code": "2xx", "type": "http_response_time"},
 		{"code": "4xx", "type": "http_response_time"},
 	})
 }
 
-func runGETRequest(t *testing.T, srv *httptest.Server, path string) (int, string) {
-	fmt.Printf("Address: %s\n", srv.Listener.Addr().String())
-	resp, err := srv.Client().Get("http://" + srv.Listener.Addr().String() + path)
+func TestHTTPRequestLogForExistingConnection(t *testing.T) {
+
+	testServer := createTestHTTPServer()
+
+	client := &http.Client{Transport: &http.Transport{
+		MaxConnsPerHost:     1,
+		MaxIdleConns:        1,
+		MaxIdleConnsPerHost: 1,
+	}}
+
+	httpT := httpLogTest{
+		test:   t,
+		server: testServer,
+		client: client,
+	}
+	httpT.runGETRequest("/")
+
+	tr, err := NewTracer(MakeTestConfig())
 	assert.NoError(t, err)
+	assert.NoError(t, tr.Start())
+	defer tr.Stop()
+	httpT.tracer = tr
+
+	// perform test calls to HTTP server that should be caught by BPF the tracer
+	statusCode, respText := httpT.runGETRequest("/")
+	assert.Equal(t, 200, statusCode)
+	assert.Equal(t, "OK", respText)
+	httpT.testHttpStats([]map[string]string{
+		{"code": "2xx", "type": "http_response_time"},
+	})
+
+	// perform test calls to HTTP server that should be caught by BPF the tracer
+	httpT.runGETRequest("/")
+	statusCode, respText = httpT.runGETRequest("/notfound")
+	assert.Equal(t, 404, statusCode)
+	assert.Equal(t, "Not found", respText)
+	httpT.testHttpStats([]map[string]string{
+		{"code": "2xx", "type": "http_response_time"},
+		{"code": "4xx", "type": "http_response_time"},
+	})
+}
+
+type httpLogTest struct {
+	test   *testing.T
+	server *httptest.Server
+	client *http.Client
+	tracer Tracer
+}
+
+func (ht httpLogTest) getServerStats() ([]map[string]string, error) {
+	conns, err := ht.tracer.GetConnections()
+	if err != nil {
+		return nil, err
+	}
+	labels := make([]map[string]string, 0)
+	for i := range conns.Conns {
+		for mi := range conns.Conns[i].Metrics {
+			labels = append(labels, conns.Conns[i].Metrics[mi].Labels)
+		}
+	}
+	return labels, nil
+}
+
+func (ht httpLogTest) testHttpStats(expected []map[string]string) {
+	require.Eventually(ht.test, func() bool {
+		stats, err := ht.getServerStats()
+		assert.NoError(ht.test, err)
+		sort.Slice(stats, func(i, j int) bool {
+			return strings.Compare(stats[i]["code"], stats[j]["code"]) < 0
+		})
+		return assert.Equal(ht.test, expected, stats)
+	}, 6*time.Second, 300*time.Millisecond)
+}
+
+func (ht httpLogTest) runGETRequest(path string) (int, string) {
+	fmt.Printf("Address: %s\n", ht.server.Listener.Addr().String())
+	resp, err := ht.client.Get("http://" + ht.server.Listener.Addr().String() + path)
+	assert.NoError(ht.test, err)
 	respBytes, err := ioutil.ReadAll(resp.Body)
-	assert.NoError(t, resp.Body.Close())
-	assert.NoError(t, err)
+	assert.NoError(ht.test, resp.Body.Close())
+	assert.NoError(ht.test, err)
 	return resp.StatusCode, string(respBytes)
 }
 
