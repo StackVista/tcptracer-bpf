@@ -92,8 +92,10 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 		return nil, logger.Errorf("failed to init module: %s", err)
 	}
 
-	logger.Info("Starting tracepipe")
-	RunTracepipe()
+	if config.EnableTracepipeLogging {
+		logger.Info("Starting tracepipe")
+		RunTracepipe()
+	}
 
 	perfEventsBytes := make(chan []byte, PerfEventsBuffer)
 	perfEventsLostLog := make(chan uint64, PerfEventsBuffer)

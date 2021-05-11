@@ -19,6 +19,8 @@ type CommonConfig struct {
 	// Specifies targeted percentile's precision, the more precision - the more measurements we should keep
 	// hence more memory is needed and more data will be transferred
 	HttpMetricPrecision float64
+	// Enable reading and logging bpf_trace_printk from a running eBPF program
+	EnableTracepipeLogging bool
 }
 
 var DefaultCommonConfig = &CommonConfig{
@@ -28,6 +30,7 @@ var DefaultCommonConfig = &CommonConfig{
 	UDPConnTimeout:            30 * time.Second,
 	FilterInactiveConnections: true,
 	HttpMetricPrecision:       0.01,
+	EnableTracepipeLogging:    false,
 }
 
 func MakeCommonConfig() *CommonConfig {
@@ -38,5 +41,6 @@ func MakeCommonConfig() *CommonConfig {
 		UDPConnTimeout:            30 * time.Second,
 		FilterInactiveConnections: true,
 		HttpMetricPrecision:       0.01,
+		EnableTracepipeLogging:    false,
 	}
 }
