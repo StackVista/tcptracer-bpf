@@ -99,7 +99,8 @@ type ConnectionStats struct {
 
 //easyjson:json
 type Metric struct {
-	Labels   map[string]string `json:"labels"`
+	Name     string            `json:"name"`
+	Tags     map[string]string `json:"tags"`
 	DDSketch []byte            `json:"ddsketch"`
 }
 

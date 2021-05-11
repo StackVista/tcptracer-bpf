@@ -16,6 +16,9 @@ type CommonConfig struct {
 	UDPConnTimeout time.Duration
 	// Boolean flag to set whether connections should be dropped if no data is transferred.
 	FilterInactiveConnections bool
+	// Specifies targeted percentile's precision, the more precision - the more measurements we should keep
+	// hence more memory is needed and more data will be transferred
+	HttpMetricPrecision float64
 }
 
 var DefaultCommonConfig = &CommonConfig{
@@ -24,6 +27,7 @@ var DefaultCommonConfig = &CommonConfig{
 	MaxConnections:            10000,
 	UDPConnTimeout:            30 * time.Second,
 	FilterInactiveConnections: true,
+	HttpMetricPrecision:       0.01,
 }
 
 func MakeCommonConfig() *CommonConfig {
@@ -33,5 +37,6 @@ func MakeCommonConfig() *CommonConfig {
 		MaxConnections:            10000,
 		UDPConnTimeout:            30 * time.Second,
 		FilterInactiveConnections: true,
+		HttpMetricPrecision:       0.01,
 	}
 }

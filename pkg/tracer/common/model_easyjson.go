@@ -36,18 +36,20 @@ func easyjsonC80ae7adDecodeGithubComStackVistaTcptracerBpfPkgTracerCommon(in *jl
 			continue
 		}
 		switch key {
-		case "labels":
+		case "name":
+			out.Name = string(in.String())
+		case "tags":
 			if in.IsNull() {
 				in.Skip()
 			} else {
 				in.Delim('{')
-				out.Labels = make(map[string]string)
+				out.Tags = make(map[string]string)
 				for !in.IsDelim('}') {
 					key := string(in.String())
 					in.WantColon()
 					var v1 string
 					v1 = string(in.String())
-					(out.Labels)[key] = v1
+					(out.Tags)[key] = v1
 					in.WantComma()
 				}
 				in.Delim('}')
@@ -74,14 +76,19 @@ func easyjsonC80ae7adEncodeGithubComStackVistaTcptracerBpfPkgTracerCommon(out *j
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"labels\":"
+		const prefix string = ",\"name\":"
 		out.RawString(prefix[1:])
-		if in.Labels == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
+		out.String(string(in.Name))
+	}
+	{
+		const prefix string = ",\"tags\":"
+		out.RawString(prefix)
+		if in.Tags == nil && (out.Flags&jwriter.NilMapAsEmpty) == 0 {
 			out.RawString(`null`)
 		} else {
 			out.RawByte('{')
 			v3First := true
-			for v3Name, v3Value := range in.Labels {
+			for v3Name, v3Value := range in.Tags {
 				if v3First {
 					v3First = false
 				} else {
@@ -278,7 +285,7 @@ func easyjsonC80ae7adDecodeGithubComStackVistaTcptracerBpfPkgTracerCommon2(in *j
 				in.Delim('[')
 				if out.Metrics == nil {
 					if !in.IsDelim(']') {
-						out.Metrics = make([]Metric, 0, 2)
+						out.Metrics = make([]Metric, 0, 1)
 					} else {
 						out.Metrics = []Metric{}
 					}

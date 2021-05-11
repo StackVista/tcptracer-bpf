@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/golang/protobuf/proto"
+	"strconv"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -27,19 +28,9 @@ import "C"
 
 type HttpCode = int
 
-type HttpStatusCodeGroup = string
-
-const (
-	Http_1xx HttpStatusCodeGroup = "1xx"
-	Http_2xx HttpStatusCodeGroup = "2xx"
-	Http_3xx HttpStatusCodeGroup = "3xx"
-	Http_4xx HttpStatusCodeGroup = "4xx"
-	Http_5xx HttpStatusCodeGroup = "5xx"
-)
-
 type ConnInsight struct {
 	ApplicationProtocol string
-	HttpMetrics         map[HttpStatusCodeGroup]*ddsketch.DDSketch
+	HttpMetrics         map[HttpCode]*ddsketch.DDSketch
 }
 
 type LinuxTracer struct {
@@ -56,7 +47,7 @@ type LinuxTracer struct {
 	perfEventsLostLog chan uint64
 	perfMap           *bpflib.PerfMap
 
-	tcpConnInsights     map[common.ConnTupleV4]ConnInsight // TODO gonna leak
+	tcpConnInsights     map[common.ConnTupleV4]ConnInsight
 	tcpConnInsightsLock sync.RWMutex
 	onPerfEvent         func(event common.PerfEvent)
 	stopCh              chan bool
@@ -568,46 +559,31 @@ func (t *LinuxTracer) getMap(mapName string) (*bpflib.Map, error) {
 }
 
 func (t *LinuxTracer) dispatchPerfEvent(event common.PerfEvent) {
+	t.tcpConnInsightsLock.Lock()
+	defer t.tcpConnInsightsLock.Unlock()
+
 	if event.HTTPResponse != nil {
 		logger.Tracef("http response: %v", event.HTTPResponse)
 		httpRes := event.HTTPResponse
 
-		t.tcpConnInsightsLock.Lock()
-		defer t.tcpConnInsightsLock.Unlock()
 		conn, ok := t.tcpConnInsights[httpRes.Connection]
 		httpProtocol := "http"
 		if !ok {
 			conn = ConnInsight{
 				ApplicationProtocol: httpProtocol,
-				HttpMetrics:         make(map[HttpStatusCodeGroup]*ddsketch.DDSketch),
+				HttpMetrics:         make(map[HttpCode]*ddsketch.DDSketch),
 			}
 		}
 		conn.ApplicationProtocol = httpProtocol
 
-		var httpStatusGroup HttpStatusCodeGroup
-		if httpRes.StatusCode >= 100 && httpRes.StatusCode < 200 {
-			httpStatusGroup = Http_1xx
-		} else if httpRes.StatusCode >= 200 && httpRes.StatusCode < 300 {
-			httpStatusGroup = Http_2xx
-		} else if httpRes.StatusCode >= 300 && httpRes.StatusCode < 400 {
-			httpStatusGroup = Http_3xx
-		} else if httpRes.StatusCode >= 400 && httpRes.StatusCode < 500 {
-			httpStatusGroup = Http_4xx
-		} else if httpRes.StatusCode >= 500 && httpRes.StatusCode < 600 {
-			httpStatusGroup = Http_5xx
-		} else {
-			logger.Tracef("incorrect status code")
-			return
-		}
-
-		latencyCounter, ok := conn.HttpMetrics[httpStatusGroup]
+		latencyCounter, ok := conn.HttpMetrics[httpRes.StatusCode]
 		if !ok {
 			var err error
-			latencyCounter, err = ddsketch.NewDefaultDDSketch(0.001)
+			latencyCounter, err = ddsketch.NewDefaultDDSketch(t.config.HttpMetricPrecision)
 			if err != nil {
 				logger.Errorf("can't create dd sketch")
 			}
-			conn.HttpMetrics[httpStatusGroup] = latencyCounter
+			conn.HttpMetrics[httpRes.StatusCode] = latencyCounter
 		}
 		err := latencyCounter.Add(httpRes.ResponseTime.Seconds())
 		if err != nil {
@@ -623,7 +599,7 @@ func (t *LinuxTracer) dispatchPerfEvent(event common.PerfEvent) {
 		if !ok {
 			conn = ConnInsight{
 				ApplicationProtocol: "mysql",
-				HttpMetrics:         make(map[HttpStatusCodeGroup]*ddsketch.DDSketch),
+				HttpMetrics:         make(map[HttpCode]*ddsketch.DDSketch),
 			}
 		}
 		conn.ApplicationProtocol = "mysql"
@@ -634,34 +610,32 @@ func (t *LinuxTracer) dispatchPerfEvent(event common.PerfEvent) {
 }
 
 func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.ConnectionStats {
-	logger.Infof("enrich tcp connections")
+	logger.Debug("enrich tcp connections")
 	for i := range conns {
 		conn := conns[i]
-		t.tcpConnInsightsLock.RLock()
+		t.tcpConnInsightsLock.Lock()
 		connection := conn.GetConnection()
 		connInsight, ok := t.tcpConnInsights[connection]
-		t.tcpConnInsightsLock.RUnlock()
 		if ok {
-			logger.Infof("enriched %v with %v", connection, connInsight)
+			delete(t.tcpConnInsights, connection)
+			logger.Debugf("enriched %v with %v", connection, connInsight)
 			if connInsight.ApplicationProtocol != "" {
 				conn.ApplicationProtocol = connInsight.ApplicationProtocol
 			}
 			for statusCode, metric := range connInsight.HttpMetrics {
 				metricSketchBytes, err := proto.Marshal(metric.ToProto())
 				if err != nil {
-					logger.Errorf("can't encode metric sketch for %v http_code=%d: %v", conn, statusCode, err)
+					_ = logger.Errorf("can't encode metric sketch for %v http_code=%d: %v", conn, statusCode, err)
 					continue
 				}
 				conn.Metrics = append(conn.Metrics, common.Metric{
-					Labels:   map[string]string{"type": "http_response_time", "code": statusCode},
+					Name:     "http response time",
+					Tags:     map[string]string{"code": strconv.Itoa(statusCode)},
 					DDSketch: metricSketchBytes,
 				})
 			}
-			connInsight.HttpMetrics = make(map[HttpStatusCodeGroup]*ddsketch.DDSketch)
-			t.tcpConnInsightsLock.Lock()
-			t.tcpConnInsights[connection] = connInsight
-			t.tcpConnInsightsLock.Unlock()
 		}
+		t.tcpConnInsightsLock.Unlock()
 		conns[i] = conn
 	}
 	return conns
