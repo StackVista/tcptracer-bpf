@@ -47,10 +47,14 @@ type LinuxTracer struct {
 	perfEventsLostLog chan uint64
 	perfMap           *bpflib.PerfMap
 
+	// This map is used to aggregate additional information (insight) about
+	// connections, currently data from perfEventsBytes finds it way into tcpConnInsights
+	// See dispatchPerfEvent & enrichTcpConns methods below
 	tcpConnInsights     map[common.ConnTupleV4]ConnInsight
 	tcpConnInsightsLock sync.RWMutex
-	onPerfEvent         func(event common.PerfEvent)
-	stopCh              chan bool
+
+	onPerfEvent func(event common.PerfEvent)
+	stopCh      chan bool
 }
 
 var (
