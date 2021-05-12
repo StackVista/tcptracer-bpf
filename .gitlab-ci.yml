@@ -14,7 +14,7 @@ test-linux-bpf:
     - go get -u github.com/golang/dep/cmd/dep
     - go get -u github.com/jteeuwen/go-bindata/...
     - $GOPATH/bin/dep ensure
-    - make linux-ci-test
+    - make test
   tags:
     # Run on sts hardware to be able to test ebpf
     - sts-aws-no-agent
