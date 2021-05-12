@@ -778,10 +778,10 @@ __attribute__((always_inline))
 bool parse_http_response(char *buffer, int size, int *status_code_result) {
 	const char http_marker[4] = "HTTP";
 	if (size > 11) {
-		int status_code = 100 * (buffer[9] - '0') + 10 * (buffer[10] - '0') + (buffer[11] - '0');
-		if (status_code > 99 && status_code < 1000) {
-			if (memcmp(buffer, http_marker, sizeof(http_marker)) == 0) {
-				*status_code_result = status_code;
+        if (memcmp(buffer, http_marker, sizeof(http_marker)) == 0) {
+            int status_code = 100 * (buffer[9] - '0') + 10 * (buffer[10] - '0') + (buffer[11] - '0');
+            if (status_code > 99 && status_code < 1000) {
+                *status_code_result = status_code;
 				return true;
 			}
 		}
