@@ -870,15 +870,11 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
 					struct tracked_socket *res = bpf_map_lookup_elem(&tracked_sockets, &sk);
 					u64 current_time = bpf_ktime_get_ns();
 					u64 ttfb = 0;
-					if (res == NULL) {
-						struct tracked_socket t = {.active = 1};
-						t.prev_send_time_ns = current_time;
-						bpf_map_update_elem(&tracked_sockets, &sk, &t, BPF_ANY);
-						res = &t;
-					} else {
+                    struct tracked_socket tsocket = {.active = 1};
+                    tsocket.prev_send_time_ns = current_time;
+                    bpf_map_update_elem(&tracked_sockets, &sk, &tsocket, BPF_ANY);
+					if (res != NULL) {
 						ttfb = current_time - res->prev_send_time_ns;
-						res->prev_send_time_ns = current_time;
-						bpf_map_update_elem(&tracked_sockets, &sk, res, BPF_ANY);
 					}
 					u64 cpu = bpf_get_smp_processor_id();
 					int http_status_code = 0;
