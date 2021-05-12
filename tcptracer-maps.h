@@ -18,10 +18,10 @@ struct bpf_map_def SEC("maps/write_buffer_heap") write_buffer_heap = {
 };
 
 // The set of file descriptors we are tracking.
-struct bpf_map_def SEC("maps/active_fds") active_fds = {
+struct bpf_map_def SEC("maps/tracked_sockets") tracked_sockets = {
         .type = BPF_MAP_TYPE_HASH,
         .key_size = sizeof(int),
-        .value_size = sizeof(struct fd_info),
+        .value_size = sizeof(struct tracked_socket),
         .max_entries = 10240,
         .pinning = 0,
         .namespace = "",

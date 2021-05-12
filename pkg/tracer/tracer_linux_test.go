@@ -5,10 +5,13 @@ package tracer
 import (
 	"bufio"
 	"fmt"
+	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
 	logger "github.com/cihub/seelog"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -18,7 +21,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 )
@@ -495,7 +497,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 	doneChan <- struct{}{}
 }
 
-func TestHTTPRequestLog(t *testing.T) {
+func TestHTTPRequestLog1(t *testing.T) {
 	tr, err := NewTracer(MakeTestConfig())
 	assert.NoError(t, err)
 	assert.NoError(t, tr.Start())
@@ -514,22 +516,18 @@ func TestHTTPRequestLog(t *testing.T) {
 	statusCode, respText := httpT.runGETRequest("/")
 	assert.Equal(t, 200, statusCode)
 	assert.Equal(t, "OK", respText)
-	httpT.testHttpStats(map[string][]map[string]string{
-		"http response time": {
-			{"code": "200"},
-		},
+	httpT.testHttpStats([]httpStat{
+		{StatusCode: 200, MaxResponseTimeMillis: TestHttpServerRootLatency.Milliseconds()},
 	})
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
-	httpT.runGETRequest("/")
+	httpT.runGETRequest("/error")
 	statusCode, respText = httpT.runGETRequest("/notfound")
 	assert.Equal(t, 404, statusCode)
 	assert.Equal(t, "Not found", respText)
-	httpT.testHttpStats(map[string][]map[string]string{
-		"http response time": {
-			{"code": "200"},
-			{"code": "404"},
-		},
+	httpT.testHttpStats([]httpStat{
+		{StatusCode: 404, MaxResponseTimeMillis: TestHttpServerNotfoundLatency.Milliseconds()},
+		{StatusCode: 500, MaxResponseTimeMillis: TestHttpServerErrorLatency.Milliseconds()},
 	})
 }
 
@@ -560,10 +558,12 @@ func TestHTTPRequestLogForExistingConnection(t *testing.T) {
 	statusCode, respText := httpT.runGETRequest("/error")
 	assert.Equal(t, 500, statusCode)
 	assert.Equal(t, "Internal error", respText)
-	httpT.testHttpStats(map[string][]map[string]string{
-		"http response time": {
-			{"code": "500"},
-		},
+	// we expect 0 here, because the connection was not tracked from the start
+	// and we don't track requests (only response), hence for the first response
+	// latency is undefined
+	// to be fixed in STAC-12225
+	httpT.testHttpStats([]httpStat{
+		{StatusCode: 500, MaxResponseTimeMillis: 0},
 	})
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
@@ -571,11 +571,9 @@ func TestHTTPRequestLogForExistingConnection(t *testing.T) {
 	statusCode, respText = httpT.runGETRequest("/notfound")
 	assert.Equal(t, 404, statusCode)
 	assert.Equal(t, "Not found", respText)
-	httpT.testHttpStats(map[string][]map[string]string{
-		"http response time": {
-			{"code": "200"},
-			{"code": "404"},
-		},
+	httpT.testHttpStats([]httpStat{
+		{StatusCode: 200, MaxResponseTimeMillis: TestHttpServerRootLatency.Milliseconds()},
+		{StatusCode: 404, MaxResponseTimeMillis: TestHttpServerNotfoundLatency.Milliseconds()},
 	})
 }
 
@@ -586,35 +584,48 @@ type httpLogTest struct {
 	tracer Tracer
 }
 
-func (ht httpLogTest) getServerStats() (map[string][]map[string]string, error) {
+type httpStat struct {
+	StatusCode            int
+	MaxResponseTimeMillis int64
+}
+
+func (ht httpLogTest) getHttpStats() ([]httpStat, error) {
 	conns, err := ht.tracer.GetConnections()
 	if err != nil {
 		return nil, err
 	}
-	metricGroups := make(map[string][]map[string]string, 0)
+	stats := make([]httpStat, 0)
 	for i := range conns.Conns {
-		for mi := range conns.Conns[i].Metrics {
-			metric := conns.Conns[i].Metrics[mi]
-			metricGroup, ok := metricGroups[metric.Name]
-			if !ok {
-				metricGroup = []map[string]string{conns.Conns[i].Metrics[mi].Tags}
-			} else {
-				metricGroup = append(metricGroup, conns.Conns[i].Metrics[mi].Tags)
-				sort.Slice(metricGroup, func(i, j int) bool {
-					return strings.Compare(metricGroup[i]["code"], metricGroup[j]["code"]) < 0
-				})
-			}
-			metricGroups[metric.Name] = metricGroup
+		for mi := range conns.Conns[i].HttpMetrics {
+			metric := conns.Conns[i].HttpMetrics[mi]
+			maxRespTime, err := calculateMaxMillisFromSketch(metric.DDSketch)
+			assert.NoError(ht.test, err)
+			stats = append(stats, httpStat{StatusCode: metric.StatusCode, MaxResponseTimeMillis: int64(maxRespTime)})
 		}
 	}
-	return metricGroups, nil
+	sort.Slice(stats, func(i, j int) bool {
+		return stats[i].StatusCode < stats[j].StatusCode
+	})
+	return stats, nil
 }
 
-func (ht httpLogTest) testHttpStats(expected map[string][]map[string]string) {
+const ToleranceMillis = 500
+
+func (ht httpLogTest) testHttpStats(expected []httpStat) {
 	require.Eventually(ht.test, func() bool {
-		stats, err := ht.getServerStats()
+		stats, err := ht.getHttpStats()
 		assert.NoError(ht.test, err)
-		return assert.Equal(ht.test, expected, stats)
+		assert.Equal(ht.test, len(expected), len(stats), "Returned different set stats")
+		if len(expected) == len(stats) {
+			success := true
+			for i := range expected {
+				success = success && assert.Equal(ht.test, expected[i].StatusCode, stats[i].StatusCode)
+				success = success && assert.InDelta(ht.test, expected[i].MaxResponseTimeMillis, stats[i].MaxResponseTimeMillis, ToleranceMillis)
+			}
+			return success
+		} else {
+			return assert.Equal(ht.test, expected, stats, "Returned different set stats")
+		}
 	}, 6*time.Second, 300*time.Millisecond)
 }
 
@@ -628,17 +639,41 @@ func (ht httpLogTest) runGETRequest(path string) (int, string) {
 	return resp.StatusCode, string(respBytes)
 }
 
+func calculateMaxMillisFromSketch(sketch []byte) (int, error) {
+	var sketchPb sketchpb.DDSketch
+	err := proto.Unmarshal(sketch, &sketchPb)
+	if err != nil {
+		return 0, err
+	}
+	ddSketch, err := ddsketch.FromProto(&sketchPb)
+	if err != nil {
+		return 0, err
+	}
+	seconds, err := ddSketch.GetMaxValue()
+	if err != nil {
+		return 0, err
+	}
+	return int(seconds * 1000), nil
+}
+
+const TestHttpServerRootLatency = 1 * time.Second
+const TestHttpServerNotfoundLatency = 1 * time.Second
+const TestHttpServerErrorLatency = 1 * time.Second
+
 func createTestHTTPServer() *httptest.Server {
 	handler := http.NewServeMux()
 	handler.Handle("/", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		<-time.After(TestHttpServerRootLatency)
 		writer.WriteHeader(200)
 		_, _ = writer.Write([]byte("OK"))
 	}))
 	handler.Handle("/notfound", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		<-time.After(TestHttpServerNotfoundLatency)
 		writer.WriteHeader(404)
 		_, _ = writer.Write([]byte("Not found"))
 	}))
 	handler.Handle("/error", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		<-time.After(TestHttpServerErrorLatency)
 		writer.WriteHeader(500)
 		_, _ = writer.Write([]byte("Internal error"))
 	}))

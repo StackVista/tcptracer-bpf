@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/golang/protobuf/proto"
-	"strconv"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -634,10 +633,9 @@ func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.Co
 					_ = logger.Errorf("can't encode metric sketch for %v http_code=%d: %v", conn, statusCode, err)
 					continue
 				}
-				conn.Metrics = append(conn.Metrics, common.Metric{
-					Name:     "http response time",
-					Tags:     map[string]string{"code": strconv.Itoa(statusCode)},
-					DDSketch: metricSketchBytes,
+				conn.HttpMetrics = append(conn.HttpMetrics, common.HttpMetric{
+					StatusCode: statusCode,
+					DDSketch:   metricSketchBytes,
 				})
 			}
 		}

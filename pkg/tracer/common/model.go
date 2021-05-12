@@ -94,14 +94,13 @@ type ConnectionStats struct {
 	SendBytes uint64 `json:"send_bytes"`
 	RecvBytes uint64 `json:"recv_bytes"`
 
-	Metrics []Metric `json:"metrics"`
+	HttpMetrics []HttpMetric `json:"http_metrics"`
 }
 
 //easyjson:json
-type Metric struct {
-	Name     string            `json:"name"`
-	Tags     map[string]string `json:"tags"`
-	DDSketch []byte            `json:"ddsketch"`
+type HttpMetric struct {
+	StatusCode int    `json:"status_code"`
+	DDSketch   []byte `json:"ddsketch"`
 }
 
 type ConnTupleV4 struct {

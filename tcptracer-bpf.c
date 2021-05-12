@@ -766,10 +766,10 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 		return 0;
 	}
 
-	struct fd_info t = {.active = 1};
-	t.start_time_ns = bpf_ktime_get_ns();
+	struct tracked_socket t = {.active = 1};
+	t.prev_send_time_ns = bpf_ktime_get_ns();
 
-	bpf_map_update_elem(&active_fds, &newsk, &t, BPF_ANY);
+	bpf_map_update_elem(&tracked_sockets, &newsk, &t, BPF_ANY);
 
 	return assert_tcp_record(newsk, status, DIRECTION_INCOMING, STATE_INITIALIZING);
 }
@@ -841,8 +841,8 @@ bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) 
 	})
 
 __attribute__((always_inline))
-static int tcp_send(struct pt_regs *ctx,
-										const size_t size) {
+static int tcp_send(struct pt_regs *ctx, const size_t size) {
+
 	struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
 	struct msghdr *k_msg = (void *)PT_REGS_PARM2(ctx);
 	u64 zero = 0;
@@ -867,23 +867,26 @@ static int tcp_send(struct pt_regs *ctx,
 					t.lport = ntohs(t.lport); // Making ports human-readable
 					t.rport = ntohs(t.rport);
 
-					struct fd_info *res = bpf_map_lookup_elem(&active_fds, &sk);
+					struct tracked_socket *res = bpf_map_lookup_elem(&tracked_sockets, &sk);
+					u64 current_time = bpf_ktime_get_ns();
 					u64 ttfb = 0;
 					if (res == NULL) {
-						struct fd_info t = {.active = 1};
-						t.start_time_ns = bpf_ktime_get_ns();
-						bpf_map_update_elem(&active_fds, &sk, &t, BPF_ANY);
+						struct tracked_socket t = {.active = 1};
+						t.prev_send_time_ns = current_time;
+						bpf_map_update_elem(&tracked_sockets, &sk, &t, BPF_ANY);
 						res = &t;
 					} else {
-						ttfb = bpf_ktime_get_ns() - res->start_time_ns;
+						ttfb = current_time - res->prev_send_time_ns;
+						res->prev_send_time_ns = current_time;
+						bpf_map_update_elem(&tracked_sockets, &sk, res, BPF_ANY);
 					}
 					u64 cpu = bpf_get_smp_processor_id();
 					int http_status_code = 0;
 					u16 mysql_greeting_protocol_version = 0;
 					if (parse_http_response(data, iov.iov_len, &http_status_code)) {
-						send_http_response(ctx, t, http_status_code, ttfb / 1000, res->start_time_ns, cpu);
+						send_http_response(ctx, t, http_status_code, ttfb / 1000, current_time, cpu);
 					} else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
-						send_mysql_greeting(ctx, t, mysql_greeting_protocol_version, res->start_time_ns, cpu);
+						send_mysql_greeting(ctx, t, mysql_greeting_protocol_version, current_time, cpu);
 					}
 				}
 			}
@@ -933,7 +936,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 
 	int fd = PT_REGS_PARM1(ctx);
 
-	bpf_map_delete_elem(&active_fds, &fd);
+	bpf_map_delete_elem(&tracked_sockets, &fd);
 
 	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
 	if (status == NULL || status->state != TCPTRACER_STATE_READY) {

@@ -72,9 +72,9 @@ struct ipv6_tuple_t {
 	__u32 pid;
 };
 
-struct fd_info {
+struct tracked_socket {
     __u16 active;
-    __u64 start_time_ns;
+    __u64 prev_send_time_ns;
 };
 
 #define EVENT_ERROR 0
