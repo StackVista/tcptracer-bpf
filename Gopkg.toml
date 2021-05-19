@@ -6,6 +6,10 @@ required = ["github.com/mailru/easyjson", "github.com/iovisor/gobpf"]
   version = "=v2.6"
 
 [[constraint]]
+  name = "github.com/mailru/easyjson"
+  version = "=v0.7.7"
+
+[[constraint]]
   name = "github.com/pytimer/win-netstat"
   revision = "efa1aff6aafc7b37ca3ffb136b6b27a11178ffd6"
 
