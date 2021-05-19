@@ -77,7 +77,6 @@ struct tracked_socket {
     __u64 prev_send_time_ns;
 };
 
-#define EVENT_ERROR 0
 #define EVENT_HTTP_RESPONSE 1
 #define EVENT_MYSQL_GREETING 2
 
@@ -92,15 +91,10 @@ struct event_mysql_greeting {
     struct ipv4_tuple_t connection;
 };
 
-struct event_error {
-    __u16 code;
-};
-
 union event_payload
 {
 	struct event_http_response http_response;
 	struct event_mysql_greeting mysql_greeting;
-	struct event_error error;
 };
 
 struct perf_event

@@ -195,9 +195,13 @@ func (t *LinuxTracer) Start() error {
 		for {
 			select {
 			case payload := <-t.perfEventsBytes:
-				perfEvent := perfEvent(payload)
-				logger.Tracef("received perf event: %v (bytes [%d]%v)", perfEvent, len(payload), payload)
-				t.dispatchPerfEvent(perfEvent)
+				tracingEvent, err := perfEvent(payload)
+				if err != nil {
+					logger.Warnf("cannot parse event for eBPF: %v, event bytes: %v", err, payload)
+				} else {
+					logger.Tracef("received tracing event: %v (bytes [%d]%v)", tracingEvent, len(payload), payload)
+					t.dispatchPerfEvent(tracingEvent)
+				}
 				break
 			case lost := <-t.perfEventsLostLog:
 				logger.Infof("Lost %d", lost)
@@ -563,7 +567,7 @@ func (t *LinuxTracer) getMap(mapName string) (*bpflib.Map, error) {
 	return mp, nil
 }
 
-func (t *LinuxTracer) dispatchPerfEvent(event common.PerfEvent) {
+func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 	t.tcpConnInsightsLock.Lock()
 	defer t.tcpConnInsightsLock.Unlock()
 
@@ -609,8 +613,6 @@ func (t *LinuxTracer) dispatchPerfEvent(event common.PerfEvent) {
 		}
 		conn.ApplicationProtocol = "mysql"
 		t.tcpConnInsights[mysqlGreeting.Connection] = conn
-	} else if event.Error != nil {
-		logger.Infof("perf events error: %v", event.Error)
 	}
 }
 

@@ -131,15 +131,10 @@ type MySQLGreeting struct {
 	ProtocolVersion int
 }
 
-type EventError struct {
-	Code int
-}
-
 type PerfEvent struct {
 	HTTPResponse  *HTTPResponse
 	MySQLGreeting *MySQLGreeting
 	Timestamp     time.Time
-	Error         *EventError
 }
 
 func (c ConnectionStats) GetConnection() ConnTupleV4 {

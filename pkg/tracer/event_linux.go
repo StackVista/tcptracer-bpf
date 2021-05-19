@@ -3,6 +3,7 @@
 package tracer
 
 import (
+	"errors"
 	"fmt"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
@@ -81,14 +82,13 @@ type PerfEvent C.struct_perf_event
 type PerfEventPayload C.union_event_payload
 type EventHTTPResponse C.struct_event_http_response
 type EventMYSQLGreeting C.struct_event_mysql_greeting
-type EventError C.struct_event_error
 
 func (cs *ConnStatsWithTimestamp) isExpired(latestTime int64, timeout int64) bool {
 	return latestTime-int64(cs.timestamp) > timeout
 }
 
-func httpResponseEvent(eventC *EventHTTPResponse, timestamp time.Time) common.PerfEvent {
-	return common.PerfEvent{
+func httpResponseEvent(eventC *EventHTTPResponse, timestamp time.Time) *common.PerfEvent {
+	return &common.PerfEvent{
 		Timestamp: timestamp,
 		HTTPResponse: &common.HTTPResponse{
 			Connection: common.ConnTupleV4{
@@ -104,8 +104,8 @@ func httpResponseEvent(eventC *EventHTTPResponse, timestamp time.Time) common.Pe
 	}
 }
 
-func mysqlGreetingEvent(eventC *EventMYSQLGreeting, timestamp time.Time) common.PerfEvent {
-	return common.PerfEvent{
+func mysqlGreetingEvent(eventC *EventMYSQLGreeting, timestamp time.Time) *common.PerfEvent {
+	return &common.PerfEvent{
 		Timestamp: timestamp,
 		MySQLGreeting: &common.MySQLGreeting{
 			Connection: common.ConnTupleV4{
@@ -120,28 +120,18 @@ func mysqlGreetingEvent(eventC *EventMYSQLGreeting, timestamp time.Time) common.
 	}
 }
 
-func errorEvent(eventC *EventError, timestamp time.Time) common.PerfEvent {
-	return common.PerfEvent{
-		Timestamp: timestamp,
-		Error:     &common.EventError{Code: int(uint16(eventC.code))},
-	}
-}
-
-func perfEvent(data []byte) common.PerfEvent {
+func perfEvent(data []byte) (*common.PerfEvent, error) {
 	eventC := (*PerfEvent)(unsafe.Pointer(&data[0]))
 	timestamp := time.Now()
 	eventPayload := eventC.payload
-	switch int(uint16(eventC.event_type)) {
-	case 0:
-		return errorEvent((*EventError)(unsafe.Pointer(&eventPayload)), timestamp)
+	eventType := int(uint16(eventC.event_type))
+	switch eventType {
 	case 1:
-		return httpResponseEvent((*EventHTTPResponse)(unsafe.Pointer(&eventPayload)), timestamp)
+		return httpResponseEvent((*EventHTTPResponse)(unsafe.Pointer(&eventPayload)), timestamp), nil
 	case 2:
-		return mysqlGreetingEvent((*EventMYSQLGreeting)(unsafe.Pointer(&eventPayload)), timestamp)
+		return mysqlGreetingEvent((*EventMYSQLGreeting)(unsafe.Pointer(&eventPayload)), timestamp), nil
 	default:
-		return common.PerfEvent{
-			Error: &common.EventError{Code: 0},
-		}
+		return nil, errors.New(fmt.Sprintf("Unknown event type %v", eventType))
 	}
 }
 
