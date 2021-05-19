@@ -743,8 +743,8 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
 	update_tracer_offset_status_v6(status, skp, pid, __LINE__);
 
 	if (ret != 0) {
-        // failed to send SYNC packet, may not have populated
-        // socket __sk_common.{skc_rcv_saddr, ...}
+		// failed to send SYNC packet, may not have populated
+		// socket __sk_common.{skc_rcv_saddr, ...}
 		return 0;
 	}
 
@@ -778,10 +778,10 @@ __attribute__((always_inline))
 bool parse_http_response(char *buffer, int size, int *status_code_result) {
 	const char http_marker[4] = "HTTP";
 	if (size > 11) {
-        if (memcmp(buffer, http_marker, sizeof(http_marker)) == 0) {
-            int status_code = 100 * (buffer[9] - '0') + 10 * (buffer[10] - '0') + (buffer[11] - '0');
-            if (status_code > 99 && status_code < 1000) {
-                *status_code_result = status_code;
+		if (memcmp(buffer, http_marker, sizeof(http_marker)) == 0) {
+			int status_code = 100 * (buffer[9] - '0') + 10 * (buffer[10] - '0') + (buffer[11] - '0');
+			if (status_code > 99 && status_code < 1000) {
+				*status_code_result = status_code;
 				return true;
 			}
 		}
@@ -870,9 +870,9 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
 					struct tracked_socket *res = bpf_map_lookup_elem(&tracked_sockets, &sk);
 					u64 current_time = bpf_ktime_get_ns();
 					u64 ttfb = 0;
-                    struct tracked_socket tsocket = {.active = 1};
-                    tsocket.prev_send_time_ns = current_time;
-                    bpf_map_update_elem(&tracked_sockets, &sk, &tsocket, BPF_ANY);
+					struct tracked_socket tsocket = {.active = 1};
+					tsocket.prev_send_time_ns = current_time;
+					bpf_map_update_elem(&tracked_sockets, &sk, &tsocket, BPF_ANY);
 					if (res != NULL) {
 						ttfb = current_time - res->prev_send_time_ns;
 					}
