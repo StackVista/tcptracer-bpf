@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
 	"net"
 	"strings"
 	"time"
+
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
 )
 
 type ConnectionType uint8
@@ -112,12 +113,9 @@ type ConnTupleV4 struct {
 }
 
 func (ct *ConnTupleV4) Matches(stats *ConnectionStats) bool {
-	if stats.Pid == uint32(ct.Pid) &&
+	return stats.Pid == uint32(ct.Pid) &&
 		stats.Local == ct.Laddr && stats.Remote == ct.Raddr &&
-		stats.LocalPort == ct.Lport && stats.RemotePort == ct.Rport {
-		return true
-	}
-	return false
+		stats.LocalPort == ct.Lport && stats.RemotePort == ct.Rport
 }
 
 type HTTPResponse struct {
@@ -200,10 +198,10 @@ func (c ConnectionStats) Copy() ConnectionStats {
 
 func (c ConnectionStats) String() string {
 	if len(strings.TrimSpace(c.NetworkNamespace)) != 0 {
-		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s netns=%s protocol=%v [%d bytes sent ↑ %d bytes received ↓]",
+		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s netns=%s protocol=%s [%d bytes sent ↑ %d bytes received ↓]",
 			c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.NetworkNamespace, c.ApplicationProtocol, c.SendBytes, c.RecvBytes)
 	} else {
-		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s protocol=%v  [%d bytes sent ↑ %d bytes received ↓]",
+		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s protocol=%s  [%d bytes sent ↑ %d bytes received ↓]",
 			c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.ApplicationProtocol, c.SendBytes, c.RecvBytes)
 	}
 }
@@ -243,13 +241,13 @@ func (c ConnectionStats) WithNamespace(namespace string) ConnectionStats {
 
 func V4IPString(addr uint32) string {
 	addrbuf := make([]byte, 4)
-	binary.LittleEndian.PutUint32(addrbuf, uint32(addr))
+	binary.LittleEndian.PutUint32(addrbuf, addr)
 	return net.IPv4(addrbuf[0], addrbuf[1], addrbuf[2], addrbuf[3]).String()
 }
 
 func V6IPString(addr_h, addr_l uint64) string {
 	addrbuf := make([]byte, 16)
-	binary.LittleEndian.PutUint64(addrbuf, uint64(addr_h))
-	binary.LittleEndian.PutUint64(addrbuf[8:], uint64(addr_l))
+	binary.LittleEndian.PutUint64(addrbuf, addr_h)
+	binary.LittleEndian.PutUint64(addrbuf[8:], addr_l)
 	return net.IP(addrbuf).String()
 }

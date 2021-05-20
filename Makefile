@@ -82,11 +82,11 @@ run-nettop:
 		tcptracer-bpf-dd-nettop
 
 # Build nettop - utility for testing
-build-nettop:
+build-nettop-local:
 	go build -a -tags 'linux_bpf' -o nettop github.com/StackVista/tcptracer-bpf/cmd/nettop
 	chmod +x nettop
 
-build-nettop-in-docker:
+build-nettop:
 	$(SUDO) docker build -t "stackvista/tcptracer-bpf-ci" . -f ../Dockerfile
 	$(SUDO) docker run \
 		-v $(GOPATH)/src/github.com/StackVista/tcptracer-bpf:/go/src/github.com/StackVista/tcptracer-bpf \

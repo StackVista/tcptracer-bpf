@@ -590,13 +590,14 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 			var err error
 			latencyCounter, err = ddsketch.NewDefaultDDSketch(t.config.HttpMetricPrecision)
 			if err != nil {
-				logger.Errorf("can't create dd sketch")
+				logger.Errorf("can't create dd sketch. Error: %v", err)
+			} else {
+				conn.HttpMetrics[httpRes.StatusCode] = latencyCounter
+				err := latencyCounter.Add(httpRes.ResponseTime.Seconds())
+				if err != nil {
+					logger.Errorf("can't add response time to DDSketch. Error: %v", err)
+				}
 			}
-			conn.HttpMetrics[httpRes.StatusCode] = latencyCounter
-		}
-		err := latencyCounter.Add(httpRes.ResponseTime.Seconds())
-		if err != nil {
-			logger.Errorf("can't count")
 		}
 		t.tcpConnInsights[httpRes.Connection] = conn
 
@@ -618,9 +619,10 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 
 func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.ConnectionStats {
 	logger.Debug("enrich tcp connections")
+	t.tcpConnInsightsLock.Lock()
+	defer t.tcpConnInsightsLock.Unlock()
 	for i := range conns {
-		conn := conns[i]
-		t.tcpConnInsightsLock.Lock()
+		conn := &conns[i]
 		connection := conn.GetConnection()
 		connInsight, ok := t.tcpConnInsights[connection]
 		if ok {
@@ -641,8 +643,6 @@ func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.Co
 				})
 			}
 		}
-		t.tcpConnInsightsLock.Unlock()
-		conns[i] = conn
 	}
 	return conns
 }

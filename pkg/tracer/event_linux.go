@@ -98,8 +98,8 @@ func httpResponseEvent(eventC *EventHTTPResponse, timestamp time.Time) *common.P
 				Rport: uint16(eventC.connection.rport),
 				Pid:   uint16(eventC.connection.pid),
 			},
-			StatusCode:   int(uint16(eventC.status_code)),
-			ResponseTime: time.Duration(int(uint32(eventC.response_time))) * time.Microsecond,
+			StatusCode:   int(eventC.status_code),
+			ResponseTime: time.Duration(int(eventC.response_time)) * time.Microsecond,
 		},
 	}
 }
