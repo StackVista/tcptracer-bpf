@@ -43,7 +43,12 @@ func easyjsonC80ae7adDecodeGithubComStackVistaTcptracerBpfPkgTracerCommon(in *jl
 				in.Skip()
 				out.DDSketch = nil
 			} else {
-				out.DDSketch = in.Bytes()
+				if out.DDSketch == nil {
+					out.DDSketch = new(DDSketchWrap)
+				}
+				if data := in.Raw(); in.Ok() {
+					in.AddError((*out.DDSketch).UnmarshalJSON(data))
+				}
 			}
 		default:
 			in.SkipRecursive()
@@ -67,7 +72,11 @@ func easyjsonC80ae7adEncodeGithubComStackVistaTcptracerBpfPkgTracerCommon(out *j
 	{
 		const prefix string = ",\"ddsketch\":"
 		out.RawString(prefix)
-		out.Base64Bytes(in.DDSketch)
+		if in.DDSketch == nil {
+			out.RawString("null")
+		} else {
+			out.Raw((*in.DDSketch).MarshalJSON())
+		}
 	}
 	out.RawByte('}')
 }
@@ -130,11 +139,11 @@ func easyjsonC80ae7adDecodeGithubComStackVistaTcptracerBpfPkgTracerCommon1(in *j
 					out.Conns = (out.Conns)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v4 ConnectionStats
+					var v1 ConnectionStats
 					if data := in.Raw(); in.Ok() {
-						in.AddError((v4).UnmarshalJSON(data))
+						in.AddError((v1).UnmarshalJSON(data))
 					}
-					out.Conns = append(out.Conns, v4)
+					out.Conns = append(out.Conns, v1)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -160,11 +169,11 @@ func easyjsonC80ae7adEncodeGithubComStackVistaTcptracerBpfPkgTracerCommon1(out *
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v5, v6 := range in.Conns {
-				if v5 > 0 {
+			for v2, v3 := range in.Conns {
+				if v2 > 0 {
 					out.RawByte(',')
 				}
-				out.Raw((v6).MarshalJSON())
+				out.Raw((v3).MarshalJSON())
 			}
 			out.RawByte(']')
 		}
@@ -248,7 +257,7 @@ func easyjsonC80ae7adDecodeGithubComStackVistaTcptracerBpfPkgTracerCommon2(in *j
 				in.Delim('[')
 				if out.HttpMetrics == nil {
 					if !in.IsDelim(']') {
-						out.HttpMetrics = make([]HttpMetric, 0, 2)
+						out.HttpMetrics = make([]HttpMetric, 0, 4)
 					} else {
 						out.HttpMetrics = []HttpMetric{}
 					}
@@ -256,11 +265,11 @@ func easyjsonC80ae7adDecodeGithubComStackVistaTcptracerBpfPkgTracerCommon2(in *j
 					out.HttpMetrics = (out.HttpMetrics)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v7 HttpMetric
+					var v4 HttpMetric
 					if data := in.Raw(); in.Ok() {
-						in.AddError((v7).UnmarshalJSON(data))
+						in.AddError((v4).UnmarshalJSON(data))
 					}
-					out.HttpMetrics = append(out.HttpMetrics, v7)
+					out.HttpMetrics = append(out.HttpMetrics, v4)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -351,11 +360,11 @@ func easyjsonC80ae7adEncodeGithubComStackVistaTcptracerBpfPkgTracerCommon2(out *
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v8, v9 := range in.HttpMetrics {
-				if v8 > 0 {
+			for v5, v6 := range in.HttpMetrics {
+				if v5 > 0 {
 					out.RawByte(',')
 				}
-				out.Raw((v9).MarshalJSON())
+				out.Raw((v6).MarshalJSON())
 			}
 			out.RawByte(']')
 		}

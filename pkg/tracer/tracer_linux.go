@@ -5,7 +5,6 @@ package tracer
 import (
 	"bytes"
 	"fmt"
-	"github.com/golang/protobuf/proto"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -632,14 +631,9 @@ func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.Co
 				conn.ApplicationProtocol = connInsight.ApplicationProtocol
 			}
 			for statusCode, metric := range connInsight.HttpMetrics {
-				metricSketchBytes, err := proto.Marshal(metric.ToProto())
-				if err != nil {
-					_ = logger.Errorf("can't encode metric sketch for %v http_code=%d: %v", conn, statusCode, err)
-					continue
-				}
 				conn.HttpMetrics = append(conn.HttpMetrics, common.HttpMetric{
 					StatusCode: statusCode,
-					DDSketch:   metricSketchBytes,
+					DDSketch:   &common.DDSketchWrap{metric},
 				})
 			}
 		}

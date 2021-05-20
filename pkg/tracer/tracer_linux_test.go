@@ -5,13 +5,10 @@ package tracer
 import (
 	"bufio"
 	"fmt"
-	"github.com/DataDog/sketches-go/ddsketch"
-	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
 	logger "github.com/cihub/seelog"
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -598,9 +595,9 @@ func (ht httpLogTest) getHttpStats() ([]httpStat, error) {
 	for i := range conns.Conns {
 		for mi := range conns.Conns[i].HttpMetrics {
 			metric := conns.Conns[i].HttpMetrics[mi]
-			maxRespTime, err := calculateMaxMillisFromSketch(metric.DDSketch)
+			maxRespTime, err := metric.DDSketch.DDSketch.GetMaxValue()
 			assert.NoError(ht.test, err)
-			stats = append(stats, httpStat{StatusCode: metric.StatusCode, MaxResponseTimeMillis: int64(maxRespTime)})
+			stats = append(stats, httpStat{StatusCode: metric.StatusCode, MaxResponseTimeMillis: int64(maxRespTime * 1000)})
 		}
 	}
 	sort.Slice(stats, func(i, j int) bool {
@@ -637,23 +634,6 @@ func (ht httpLogTest) runGETRequest(path string) (int, string) {
 	assert.NoError(ht.test, resp.Body.Close())
 	assert.NoError(ht.test, err)
 	return resp.StatusCode, string(respBytes)
-}
-
-func calculateMaxMillisFromSketch(sketch []byte) (int, error) {
-	var sketchPb sketchpb.DDSketch
-	err := proto.Unmarshal(sketch, &sketchPb)
-	if err != nil {
-		return 0, err
-	}
-	ddSketch, err := ddsketch.FromProto(&sketchPb)
-	if err != nil {
-		return 0, err
-	}
-	seconds, err := ddSketch.GetMaxValue()
-	if err != nil {
-		return 0, err
-	}
-	return int(seconds * 1000), nil
 }
 
 const TestHttpServerRootLatency = 1 * time.Second

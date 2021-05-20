@@ -3,12 +3,16 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
 	"time"
 
+	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
+	"github.com/golang/protobuf/proto"
 )
 
 type ConnectionType uint8
@@ -100,8 +104,39 @@ type ConnectionStats struct {
 
 //easyjson:json
 type HttpMetric struct {
-	StatusCode int    `json:"status_code"`
-	DDSketch   []byte `json:"ddsketch"`
+	StatusCode int           `json:"status_code"`
+	DDSketch   *DDSketchWrap `json:"ddsketch"`
+}
+
+type DDSketchWrap struct {
+	DDSketch *ddsketch.DDSketch
+}
+
+func (m *DDSketchWrap) UnmarshalJSON(data []byte) error {
+	var ddbytes []byte
+	err := json.Unmarshal(data, &ddbytes)
+	if err != nil {
+		return err
+	}
+	var sketchPb sketchpb.DDSketch
+	err = proto.Unmarshal(ddbytes, &sketchPb)
+	if err != nil {
+		return err
+	}
+	ddSketch, err := ddsketch.FromProto(&sketchPb)
+	if err != nil {
+		return err
+	}
+	m.DDSketch = ddSketch
+	return nil
+}
+
+func (m *DDSketchWrap) MarshalJSON() ([]byte, error) {
+	encoded, err := proto.Marshal(m.DDSketch.ToProto())
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(encoded)
 }
 
 type ConnTupleV4 struct {
