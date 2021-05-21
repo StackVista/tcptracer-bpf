@@ -328,15 +328,15 @@ func easyjsonC80ae7adDecodeGithubComStackVistaTcptracerBpfPkgTracerCommon2(in *j
 		}
 		switch key {
 		case "name":
-			out.Name = string(in.String())
+			out.Name = MetricName(in.String())
 		case "tags":
 			if in.IsNull() {
 				in.Skip()
 			} else {
 				in.Delim('{')
-				out.Tags = make(map[string]string)
+				out.Tags = make(map[TagName]string)
 				for !in.IsDelim('}') {
-					key := string(in.String())
+					key := TagName(in.String())
 					in.WantColon()
 					var v7 string
 					v7 = string(in.String())
@@ -440,13 +440,13 @@ func easyjsonC80ae7adDecodeGithubComStackVistaTcptracerBpfPkgTracerCommon3(in *j
 		case "ddsketch":
 			if in.IsNull() {
 				in.Skip()
-				out.DDSketch = nil
+				out.Histogram = nil
 			} else {
-				if out.DDSketch == nil {
-					out.DDSketch = new(DDSketchWrap)
+				if out.Histogram == nil {
+					out.Histogram = new(Histogram)
 				}
 				if data := in.Raw(); in.Ok() {
-					in.AddError((*out.DDSketch).UnmarshalJSON(data))
+					in.AddError((*out.Histogram).UnmarshalJSON(data))
 				}
 			}
 		default:
@@ -466,10 +466,10 @@ func easyjsonC80ae7adEncodeGithubComStackVistaTcptracerBpfPkgTracerCommon3(out *
 	{
 		const prefix string = ",\"ddsketch\":"
 		out.RawString(prefix[1:])
-		if in.DDSketch == nil {
+		if in.Histogram == nil {
 			out.RawString("null")
 		} else {
-			out.Raw((*in.DDSketch).MarshalJSON())
+			out.Raw((*in.Histogram).MarshalJSON())
 		}
 	}
 	out.RawByte('}')

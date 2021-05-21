@@ -101,30 +101,36 @@ type ConnectionStats struct {
 	Metrics             []ConnectionMetric `json:"metrics"`
 }
 
-const (
-	// HTTPResponseTimeMetricName is for the metric that is sent with a connection
-	HTTPResponseTimeMetricName = "http_response_time_seconds"
+type MetricName string
+type TagName string
 
-	// HTTPRequestsPerSecondMetricName is for the metric that is sent with a connection
-	HTTPRequestsPerSecondMetricName = "http_requests_per_second"
+const (
+	// HTTPResponseTime is for the metric that is sent with a connection
+	HTTPResponseTime MetricName = "http_response_time_seconds"
+
+	// HTTPRequestsPerSecond is for the metric that is sent with a connection
+	HTTPRequestsPerSecond MetricName = "http_requests_per_second"
+
+	// HTTPStatusCode Status Code tag name
+	HTTPStatusCode TagName = "code"
 )
 
 //easyjson:json
 type ConnectionMetric struct {
-	Name  string                `json:"name"`
-	Tags  map[string]string     `json:"tags"`
+	Name  MetricName            `json:"name"`
+	Tags  map[TagName]string    `json:"tags"`
 	Value ConnectionMetricValue `json:"value"`
 }
 
 type ConnectionMetricValue struct {
-	DDSketch *DDSketchWrap `json:"ddsketch"`
+	Histogram *Histogram `json:"ddsketch"`
 }
 
-type DDSketchWrap struct {
+type Histogram struct {
 	DDSketch *ddsketch.DDSketch
 }
 
-func (m *DDSketchWrap) UnmarshalJSON(data []byte) error {
+func (m *Histogram) UnmarshalJSON(data []byte) error {
 	var ddbytes []byte
 	err := json.Unmarshal(data, &ddbytes)
 	if err != nil {
@@ -143,7 +149,7 @@ func (m *DDSketchWrap) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (m *DDSketchWrap) MarshalJSON() ([]byte, error) {
+func (m *Histogram) MarshalJSON() ([]byte, error) {
 	encoded, err := proto.Marshal(m.DDSketch.ToProto())
 	if err != nil {
 		return nil, err

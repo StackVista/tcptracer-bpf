@@ -596,9 +596,9 @@ func (ht httpLogTest) getHttpStats() ([]httpStat, error) {
 	for i := range conns.Conns {
 		for mi := range conns.Conns[i].Metrics {
 			metric := conns.Conns[i].Metrics[mi]
-			maxRespTime, err := metric.Value.DDSketch.DDSketch.GetMaxValue()
+			maxRespTime, err := metric.Value.Histogram.DDSketch.GetMaxValue()
 			assert.NoError(ht.test, err)
-			statusCode, _ := strconv.Atoi(metric.Tags["code"])
+			statusCode, _ := strconv.Atoi(metric.Tags[common.HTTPStatusCode])
 			stats = append(stats, httpStat{StatusCode: statusCode, MaxResponseTimeMillis: int64(maxRespTime * 1000)})
 		}
 	}

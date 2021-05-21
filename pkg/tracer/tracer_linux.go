@@ -633,12 +633,12 @@ func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.Co
 			}
 			for statusCode, metric := range connInsight.HttpMetrics {
 				conn.Metrics = append(conn.Metrics, common.ConnectionMetric{
-					Name: common.HTTPResponseTimeMetricName,
-					Tags: map[string]string{
-						"code": strconv.Itoa(statusCode),
+					Name: common.HTTPResponseTime,
+					Tags: map[common.TagName]string{
+						common.HTTPStatusCode: strconv.Itoa(statusCode),
 					},
 					Value: common.ConnectionMetricValue{
-						DDSketch: &common.DDSketchWrap{metric},
+						Histogram: &common.Histogram{metric},
 					},
 				})
 			}

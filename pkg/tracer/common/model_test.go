@@ -28,11 +28,11 @@ func TestConnectionsStatsJsonMarshalling(t *testing.T) {
 		Metrics: []ConnectionMetric{
 			{
 				Name: "http_response_time_seconds",
-				Tags: map[string]string{
-					"code": "200",
+				Tags: map[TagName]string{
+					HTTPStatusCode: "200",
 				},
 				Value: ConnectionMetricValue{
-					&DDSketchWrap{sketch1},
+					&Histogram{sketch1},
 				},
 			},
 		},
@@ -45,7 +45,7 @@ func TestConnectionsStatsJsonMarshalling(t *testing.T) {
 	assert.NoError(t, err)
 
 	assertWithoutMetrics(t, connStat, *decoded)
-	assert.Equal(t, 1.0, decoded.Metrics[0].Value.DDSketch.DDSketch.GetCount())
+	assert.Equal(t, 1.0, decoded.Metrics[0].Value.Histogram.DDSketch.GetCount())
 }
 
 func assertWithoutMetrics(t *testing.T, expected ConnectionStats, actual ConnectionStats) {
