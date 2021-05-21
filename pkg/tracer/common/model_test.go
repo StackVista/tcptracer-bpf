@@ -25,9 +25,16 @@ func TestConnectionsStatsJsonMarshalling(t *testing.T) {
 		NetworkNamespace: "namespace",
 		SendBytes:        100,
 		RecvBytes:        200,
-		HttpMetrics: []HttpMetric{
-			{StatusCode: 200, DDSketch: &DDSketchWrap{sketch1}},
-			{StatusCode: 300, DDSketch: &DDSketchWrap{sketch1}},
+		Metrics: []ConnectionMetric{
+			{
+				Name: "http_response_time_seconds",
+				Tags: map[string]string{
+					"code": "200",
+				},
+				Value: ConnectionMetricValue{
+					&DDSketchWrap{sketch1},
+				},
+			},
 		},
 	}
 
@@ -37,13 +44,12 @@ func TestConnectionsStatsJsonMarshalling(t *testing.T) {
 	err = decoded.UnmarshalJSON(encoded)
 	assert.NoError(t, err)
 
-	assertWithoutHttpMetrics(t, connStat, *decoded)
-	assert.Equal(t, 1.0, decoded.HttpMetrics[0].DDSketch.DDSketch.GetCount())
-	assert.Equal(t, 1.0, decoded.HttpMetrics[1].DDSketch.DDSketch.GetCount())
+	assertWithoutMetrics(t, connStat, *decoded)
+	assert.Equal(t, 1.0, decoded.Metrics[0].Value.DDSketch.DDSketch.GetCount())
 }
 
-func assertWithoutHttpMetrics(t *testing.T, expected ConnectionStats, actual ConnectionStats) {
-	expected.HttpMetrics = nil
-	actual.HttpMetrics = nil
+func assertWithoutMetrics(t *testing.T, expected ConnectionStats, actual ConnectionStats) {
+	expected.Metrics = nil
+	actual.Metrics = nil
 	assert.Equal(t, expected, actual)
 }

@@ -18,6 +18,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -593,11 +594,12 @@ func (ht httpLogTest) getHttpStats() ([]httpStat, error) {
 	}
 	stats := make([]httpStat, 0)
 	for i := range conns.Conns {
-		for mi := range conns.Conns[i].HttpMetrics {
-			metric := conns.Conns[i].HttpMetrics[mi]
-			maxRespTime, err := metric.DDSketch.DDSketch.GetMaxValue()
+		for mi := range conns.Conns[i].Metrics {
+			metric := conns.Conns[i].Metrics[mi]
+			maxRespTime, err := metric.Value.DDSketch.DDSketch.GetMaxValue()
 			assert.NoError(ht.test, err)
-			stats = append(stats, httpStat{StatusCode: metric.StatusCode, MaxResponseTimeMillis: int64(maxRespTime * 1000)})
+			statusCode, _ := strconv.Atoi(metric.Tags["code"])
+			stats = append(stats, httpStat{StatusCode: statusCode, MaxResponseTimeMillis: int64(maxRespTime * 1000)})
 		}
 	}
 	sort.Slice(stats, func(i, j int) bool {

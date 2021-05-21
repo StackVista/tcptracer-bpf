@@ -85,8 +85,6 @@ type ConnectionStats struct {
 	Type   ConnectionType   `json:"type"`
 	Family ConnectionFamily `json:"family"`
 
-	ApplicationProtocol string `json:"app_proto"`
-
 	// Local & Remote represented as a string to handle both IPv4 & IPv6
 	Local            string    `json:"local"`
 	Remote           string    `json:"remote"`
@@ -99,13 +97,27 @@ type ConnectionStats struct {
 	SendBytes uint64 `json:"send_bytes"`
 	RecvBytes uint64 `json:"recv_bytes"`
 
-	HttpMetrics []HttpMetric `json:"http_metrics"`
+	ApplicationProtocol string             `json:"app_proto"`
+	Metrics             []ConnectionMetric `json:"metrics"`
 }
 
+const (
+	// HTTPResponseTimeMetricName is for the metric that is sent with a connection
+	HTTPResponseTimeMetricName = "http_response_time_seconds"
+
+	// HTTPRequestsPerSecondMetricName is for the metric that is sent with a connection
+	HTTPRequestsPerSecondMetricName = "http_requests_per_second"
+)
+
 //easyjson:json
-type HttpMetric struct {
-	StatusCode int           `json:"status_code"`
-	DDSketch   *DDSketchWrap `json:"ddsketch"`
+type ConnectionMetric struct {
+	Name  string                `json:"name"`
+	Tags  map[string]string     `json:"tags"`
+	Value ConnectionMetricValue `json:"value"`
+}
+
+type ConnectionMetricValue struct {
+	DDSketch *DDSketchWrap `json:"ddsketch"`
 }
 
 type DDSketchWrap struct {

@@ -5,6 +5,7 @@ package tracer
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -631,9 +632,14 @@ func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.Co
 				conn.ApplicationProtocol = connInsight.ApplicationProtocol
 			}
 			for statusCode, metric := range connInsight.HttpMetrics {
-				conn.HttpMetrics = append(conn.HttpMetrics, common.HttpMetric{
-					StatusCode: statusCode,
-					DDSketch:   &common.DDSketchWrap{metric},
+				conn.Metrics = append(conn.Metrics, common.ConnectionMetric{
+					Name: common.HTTPResponseTimeMetricName,
+					Tags: map[string]string{
+						"code": strconv.Itoa(statusCode),
+					},
+					Value: common.ConnectionMetricValue{
+						DDSketch: &common.DDSketchWrap{metric},
+					},
 				})
 			}
 		}
