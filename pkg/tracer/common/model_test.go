@@ -28,8 +28,8 @@ func TestConnectionsStatsJsonMarshalling(t *testing.T) {
 		Metrics: []ConnectionMetric{
 			{
 				Name: "http_response_time_seconds",
-				Tags: map[TagName]string{
-					HTTPStatusCode: "200",
+				Tags: map[string]string{
+					HTTPStatusCodeTagName: "200",
 				},
 				Value: ConnectionMetricValue{
 					&Histogram{sketch1},

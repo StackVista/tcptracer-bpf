@@ -334,9 +334,9 @@ func easyjsonC80ae7adDecodeGithubComStackVistaTcptracerBpfPkgTracerCommon2(in *j
 				in.Skip()
 			} else {
 				in.Delim('{')
-				out.Tags = make(map[TagName]string)
+				out.Tags = make(map[string]string)
 				for !in.IsDelim('}') {
-					key := TagName(in.String())
+					key := string(in.String())
 					in.WantColon()
 					var v7 string
 					v7 = string(in.String())

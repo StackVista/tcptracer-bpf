@@ -102,7 +102,6 @@ type ConnectionStats struct {
 }
 
 type MetricName string
-type TagName string
 
 const (
 	// HTTPResponseTime is for the metric that is sent with a connection
@@ -111,14 +110,14 @@ const (
 	// HTTPRequestsPerSecond is for the metric that is sent with a connection
 	HTTPRequestsPerSecond MetricName = "http_requests_per_second"
 
-	// HTTPStatusCode Status Code tag name
-	HTTPStatusCode TagName = "code"
+	// HTTPStatusCodeTagName Status Code tag name
+	HTTPStatusCodeTagName = "code"
 )
 
 //easyjson:json
 type ConnectionMetric struct {
 	Name  MetricName            `json:"name"`
-	Tags  map[TagName]string    `json:"tags"`
+	Tags  map[string]string     `json:"tags"`
 	Value ConnectionMetricValue `json:"value"`
 }
 
