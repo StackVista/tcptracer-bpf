@@ -37,4 +37,4 @@ test-windows:
     - go test -v -race ./...
   tags:
     # Run on sts windows hardware to be able to test windows connection tracing
-    - sts_windows
+    - agent_windows_6
