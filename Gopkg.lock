@@ -2,7 +2,7 @@
 
 
 [[projects]]
-  digest = "1:2108354285c2f1cd729f2c444ab7b273ba17505562bdde77dfc06b6bcd147c2b"
+  digest = "1:152434c8951e8f8267e7464cf7dae104ee7ddb8578356e150c8b318b99eba27f"
   name = "github.com/DataDog/sketches-go"
   packages = [
     "ddsketch",
@@ -11,7 +11,9 @@
     "ddsketch/store",
   ]
   pruneopts = "UT"
-  revision = "7cc3185834272feeb600277f733d146d2f9e94e9"
+  revision = "ba0ca7b0dab22fe45f5a76fea3c416de41f74edc"
+  source = "github.com/StackVista/sketches-go"
+  version = "v1.1.0"
 
 [[projects]]
   digest = "1:50e893a85575fa48dc4982a279e50e2fd8b74e4f7c587860c1e25c77083b8125"
@@ -28,6 +30,14 @@
   pruneopts = "UT"
   revision = "8991bc29aa16c548c550c7ff78260e27b9ab7c73"
   version = "v1.1.1"
+
+[[projects]]
+  digest = "1:87d881eeee9764fa514ab56805f22c81e1e3f303fd9b7a5b18928ddc8ddeadd5"
+  name = "github.com/gogo/protobuf"
+  packages = ["proto"]
+  pruneopts = "UT"
+  revision = "b03c65ea87cdc3521ede29f62fe3ce239267c1bc"
+  version = "v1.3.2"
 
 [[projects]]
   digest = "1:9e62e8886ca549ad17aa4db1783e469f10e424652595304fdc2c8ecda5d25476"
@@ -171,7 +181,9 @@
   analyzer-version = 1
   input-imports = [
     "github.com/DataDog/sketches-go/ddsketch",
+    "github.com/DataDog/sketches-go/ddsketch/mapping",
     "github.com/DataDog/sketches-go/ddsketch/pb/sketchpb",
+    "github.com/DataDog/sketches-go/ddsketch/store",
     "github.com/cihub/seelog",
     "github.com/golang/protobuf/proto",
     "github.com/iovisor/gobpf",
