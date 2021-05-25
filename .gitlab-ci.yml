@@ -32,17 +32,7 @@ test-windows:
     # Alters robocopy's response code to something the terminal expects
     - (robocopy %CI_PROJECT_DIR% %GO_STACKVISTA%\tcptracer-bpf /COPYALL /MIR) ^& IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
     - SET GOPATH=%SystemRoot%\go
-    - SET RI_DEVKIT="C:\tools\msys64"
-    - SET MSYSTEM="MINGW64"
-    - SET PKG_CONFIG_PATH="/mingw64/lib/pkgconfig:/mingw64/share/pkgconfig"
-    - SET ACLOCAL_PATH="/mingw64/share/aclocal:/usr/share/aclocal"
-    - SET MANPATH="/mingw64/share/man"
-    - SET MINGW_PACKAGE_PREFIX="mingw-w64-x86_64"
-    - SET LANG="en_US.UTF-8"
-    - echo %PATH%
     - SET PATH=c:\tools\msys64\mingw64\bin;c:\tools\msys64\usr\bin;%PATH%
-    - echo %PATH%
-    - SET VCINSTALLDIR="C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community"
     - cd %GO_STACKVISTA%\tcptracer-bpf
     - dep ensure
     - go test -v -race ./...
