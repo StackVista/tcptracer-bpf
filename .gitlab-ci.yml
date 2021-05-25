@@ -39,7 +39,9 @@ test-windows:
     - SET MANPATH="/mingw64/share/man"
     - SET MINGW_PACKAGE_PREFIX="mingw-w64-x86_64"
     - SET LANG="en_US.UTF-8"
+    - echo %PATH%
     - SET PATH="c:\tools\msys64\mingw64\bin;c:\tools\msys64\usr\bin;%PATH%"
+    - echo %PATH%
     - SET VCINSTALLDIR="C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community"
     - cd %GO_STACKVISTA%\tcptracer-bpf
     - dep ensure
