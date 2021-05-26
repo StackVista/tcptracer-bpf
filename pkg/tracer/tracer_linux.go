@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -88,7 +89,7 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 	}
 
 	if err := initialize(m); err != nil {
-		return nil, logger.Errorf("failed to init module: %s", err)
+		return nil, fmt.Errorf("failed to init module: %s", err)
 	}
 
 	if config.EnableTracepipeLogging {
@@ -236,7 +237,10 @@ func (t *LinuxTracer) GetConnections() (*common.Connections, error) {
 
 	tcpConns := t.getTcpConnectionsFromInFlight()
 
+	start := time.Now()
 	tcpConns = t.enrichTcpConns(tcpConns)
+
+	logger.Infof("enrichTcpConns 2 took %s", time.Since(start))
 
 	udpConns, err := t.getEbpfUDPConnections()
 	if err != nil {
@@ -633,37 +637,40 @@ func makeDDSketch(cfg config.HttpMetricConfig) (*ddsketch.DDSketch, error) {
 
 func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.ConnectionStats {
 	logger.Debug("enrich tcp connections")
-	t.tcpConnInsightsLock.Lock()
-	defer t.tcpConnInsightsLock.Unlock()
 	for i := range conns {
-		conn := &conns[i]
-		connection := conn.GetConnection()
-		connInsight, ok := t.tcpConnInsights[connection]
-		if ok {
-			delete(t.tcpConnInsights, connection)
-			logger.Debugf("enriched %v with %v", connection, connInsight)
-			if connInsight.ApplicationProtocol != "" {
-				conn.ApplicationProtocol = connInsight.ApplicationProtocol
-			}
-			for statusCode, metric := range connInsight.HttpMetrics {
-				conn.Metrics = append(conn.Metrics, common.ConnectionMetric{
-					Name: common.HTTPResponseTime,
-					Tags: map[string]string{
-						common.HTTPStatusCodeTagName: strconv.Itoa(statusCode),
-					},
-					Value: common.ConnectionMetricValue{
-						Histogram: &common.Histogram{metric},
-					},
-				})
-			}
-		}
+		t.enrichTcpConn(&conns[i])
 	}
 	return conns
 }
 
+func (t *LinuxTracer) enrichTcpConn(conn *common.ConnectionStats) {
+	t.tcpConnInsightsLock.Lock()
+	defer t.tcpConnInsightsLock.Unlock()
+	connection := conn.GetConnection()
+	connInsight, ok := t.tcpConnInsights[connection]
+	if ok {
+		delete(t.tcpConnInsights, connection)
+		logger.Debugf("enriched %v with %v", connection, connInsight)
+		if connInsight.ApplicationProtocol != "" {
+			conn.ApplicationProtocol = connInsight.ApplicationProtocol
+		}
+		for statusCode, metric := range connInsight.HttpMetrics {
+			conn.Metrics = append(conn.Metrics, common.ConnectionMetric{
+				Name: common.HTTPResponseTime,
+				Tags: map[string]string{
+					common.HTTPStatusCodeTagName: strconv.Itoa(statusCode),
+				},
+				Value: common.ConnectionMetricValue{
+					Histogram: &common.Histogram{metric},
+				},
+			})
+		}
+	}
+}
+
 func initialize(m *bpflib.Module) error {
 	if err := guess(m); err != nil {
-		return logger.Errorf("error guessing offsets: %v", err)
+		return fmt.Errorf("error guessing offsets: %v", err)
 	}
 	return nil
 }
