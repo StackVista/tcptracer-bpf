@@ -588,7 +588,7 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 		latencyCounter, ok := conn.HttpMetrics[httpRes.StatusCode]
 		if !ok {
 			var err error
-			latencyCounter, err = ddsketch.NewDefaultDDSketch(t.config.HttpMetricPrecision)
+			latencyCounter, err = makeDDSketch(t.config.HttpMetricConfig)
 			if err != nil {
 				logger.Errorf("can't create dd sketch. Error: %v", err)
 			} else {
@@ -614,6 +614,20 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 		}
 		conn.ApplicationProtocol = "mysql"
 		t.tcpConnInsights[mysqlGreeting.Connection] = conn
+	}
+}
+
+func makeDDSketch(cfg config.HttpMetricConfig) (*ddsketch.DDSketch, error) {
+	switch cfg.SketchType {
+	case config.CollapsingLowest:
+		return ddsketch.LogCollapsingLowestDenseDDSketch(cfg.Accuracy, cfg.MaxNumBins)
+	case config.CollapsingHighest:
+		return ddsketch.LogCollapsingHighestDenseDDSketch(cfg.Accuracy, cfg.MaxNumBins)
+	case config.Unbounded:
+		return ddsketch.LogUnboundedDenseDDSketch(cfg.Accuracy)
+	default:
+		logger.Warnf("unknown sketch type is specified: %s, using %s instead", cfg.SketchType, config.CollapsingLowest)
+		return ddsketch.LogCollapsingLowestDenseDDSketch(cfg.Accuracy, cfg.MaxNumBins)
 	}
 }
 
