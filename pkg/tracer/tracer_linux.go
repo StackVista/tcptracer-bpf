@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
-	"time"
 	"unsafe"
 
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -237,10 +236,7 @@ func (t *LinuxTracer) GetConnections() (*common.Connections, error) {
 
 	tcpConns := t.getTcpConnectionsFromInFlight()
 
-	start := time.Now()
 	tcpConns = t.enrichTcpConns(tcpConns)
-
-	logger.Infof("enrichTcpConns 2 took %s", time.Since(start))
 
 	udpConns, err := t.getEbpfUDPConnections()
 	if err != nil {
