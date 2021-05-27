@@ -8,15 +8,35 @@ import (
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/config"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
+	logger "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io"
+	"io/ioutil"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"sort"
+	"strconv"
 	"testing"
 	"time"
 )
 
 const CheckMessageSize = true
+
+func TestMain(m *testing.M) {
+	testLogger, err := logger.LoggerFromConfigAsFile("seelog-tests.xml")
+	if err != nil {
+		panic(err)
+	}
+	err = logger.ReplaceLogger(testLogger)
+	if err != nil {
+		panic(err)
+	}
+	defer logger.Flush()
+	os.Exit(m.Run())
+}
 
 func MakeTestConfig() *config.Config {
 	c := config.MakeDefaultConfig()
@@ -31,6 +51,7 @@ func TestTCPSendAndReceiveWithNamespaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := network.NewTCPServer(func(c net.Conn) {
@@ -95,7 +116,6 @@ func TestTCPSendAndReceiveWithNamespaces(t *testing.T) {
 	}
 
 	doneChan <- struct{}{}
-	tr.Stop()
 }
 
 func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
@@ -123,6 +143,7 @@ func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+	defer tr.Stop()
 
 	// Write clientMessageSize to server, and read response
 	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
@@ -167,7 +188,6 @@ func TestReportInFlightTCPConnectionWithMetrics(t *testing.T) {
 	}
 
 	doneChan <- struct{}{}
-	tr.Stop()
 }
 
 func TestCloseInFlightTCPConnectionWithEBPFWithData(t *testing.T) {
@@ -193,6 +213,7 @@ func TestCloseInFlightTCPConnectionWithEBPFWithData(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+	defer tr.Stop()
 
 	// Write clientMessageSize to server, and read response
 	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
@@ -229,7 +250,6 @@ func TestCloseInFlightTCPConnectionWithEBPFWithData(t *testing.T) {
 	assert.False(t, ok)
 
 	doneChan <- struct{}{}
-	tr.Stop()
 }
 
 func TestInFlightDirectionListenAllInterfaces(t *testing.T) {
@@ -263,6 +283,7 @@ func TestInFlightDirectionListenAllInterfaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+	defer tr.Stop()
 
 	closeChan <- struct{}{}
 	<-closedChan
@@ -295,7 +316,6 @@ func TestInFlightDirectionListenAllInterfaces(t *testing.T) {
 	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
 
 	doneChan <- struct{}{}
-	tr.Stop()
 }
 
 func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
@@ -329,6 +349,7 @@ func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+	defer tr.Stop()
 
 	closeChan <- struct{}{}
 	<-closedChan
@@ -361,7 +382,6 @@ func TestCloseInFlightTCPConnectionNoData(t *testing.T) {
 	assert.Equal(t, conn2.State, common.ACTIVE_CLOSED)
 
 	doneChan <- struct{}{}
-	tr.Stop()
 }
 
 func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
@@ -371,6 +391,7 @@ func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := network.NewTCPServer(func(c net.Conn) {
@@ -423,7 +444,6 @@ func TestTCPClosedConnectionsAreFirstReportedAndThenCleanedUp(t *testing.T) {
 	assert.False(t, ok)
 
 	doneChan <- struct{}{}
-	tr.Stop()
 }
 
 func TestUDPSendAndReceive(t *testing.T) {
@@ -433,6 +453,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+	defer tr.Stop()
 
 	// Create UDP Server which sends back serverMessageSize bytes
 	server := network.NewUDPServer(func(b []byte, n int) []byte {
@@ -472,7 +493,173 @@ func TestUDPSendAndReceive(t *testing.T) {
 	assert.Equal(t, common.ACTIVE, conn.State)
 
 	doneChan <- struct{}{}
-	tr.Stop()
+}
+
+func TestHTTPRequestLog1(t *testing.T) {
+	tr, err := NewTracer(MakeTestConfig())
+	assert.NoError(t, err)
+	assert.NoError(t, tr.Start())
+	defer tr.Stop()
+
+	testServer := createTestHTTPServer()
+
+	httpT := httpLogTest{
+		test:   t,
+		tracer: tr,
+		server: testServer,
+		client: testServer.Client(),
+	}
+
+	// perform test calls to HTTP server that should be caught by BPF the tracer
+	statusCode, respText := httpT.runGETRequest("/")
+	assert.Equal(t, 200, statusCode)
+	assert.Equal(t, "OK", respText)
+	httpT.testHttpStats([]httpStat{
+		{StatusCode: 200, MaxResponseTimeMillis: TestHttpServerRootLatency.Milliseconds()},
+	})
+
+	// perform test calls to HTTP server that should be caught by BPF the tracer
+	httpT.runGETRequest("/error")
+	statusCode, respText = httpT.runGETRequest("/notfound")
+	assert.Equal(t, 404, statusCode)
+	assert.Equal(t, "Not found", respText)
+	httpT.testHttpStats([]httpStat{
+		{StatusCode: 404, MaxResponseTimeMillis: TestHttpServerNotfoundLatency.Milliseconds()},
+		{StatusCode: 500, MaxResponseTimeMillis: TestHttpServerErrorLatency.Milliseconds()},
+	})
+}
+
+func TestHTTPRequestLogForExistingConnection(t *testing.T) {
+
+	testServer := createTestHTTPServer()
+
+	client := &http.Client{Transport: &http.Transport{
+		MaxConnsPerHost:     1,
+		MaxIdleConns:        1,
+		MaxIdleConnsPerHost: 1,
+	}}
+
+	httpT := httpLogTest{
+		test:   t,
+		server: testServer,
+		client: client,
+	}
+	httpT.runGETRequest("/")
+
+	tr, err := NewTracer(MakeTestConfig())
+	assert.NoError(t, err)
+	assert.NoError(t, tr.Start())
+	defer tr.Stop()
+	httpT.tracer = tr
+
+	// perform test calls to HTTP server that should be caught by BPF the tracer
+	statusCode, respText := httpT.runGETRequest("/error")
+	assert.Equal(t, 500, statusCode)
+	assert.Equal(t, "Internal error", respText)
+	// we expect 0 here, because the connection was not tracked from the start
+	// and we don't track requests (only response), hence for the first response
+	// latency is undefined
+	// to be fixed in STAC-12225
+	httpT.testHttpStats([]httpStat{
+		{StatusCode: 500, MaxResponseTimeMillis: 0},
+	})
+
+	// perform test calls to HTTP server that should be caught by BPF the tracer
+	httpT.runGETRequest("/")
+	statusCode, respText = httpT.runGETRequest("/notfound")
+	assert.Equal(t, 404, statusCode)
+	assert.Equal(t, "Not found", respText)
+	httpT.testHttpStats([]httpStat{
+		{StatusCode: 200, MaxResponseTimeMillis: TestHttpServerRootLatency.Milliseconds()},
+		{StatusCode: 404, MaxResponseTimeMillis: TestHttpServerNotfoundLatency.Milliseconds()},
+	})
+}
+
+type httpLogTest struct {
+	test   *testing.T
+	server *httptest.Server
+	client *http.Client
+	tracer Tracer
+}
+
+type httpStat struct {
+	StatusCode            int
+	MaxResponseTimeMillis int64
+}
+
+func (ht httpLogTest) getHttpStats() ([]httpStat, error) {
+	conns, err := ht.tracer.GetConnections()
+	if err != nil {
+		return nil, err
+	}
+	stats := make([]httpStat, 0)
+	for i := range conns.Conns {
+		for mi := range conns.Conns[i].Metrics {
+			metric := conns.Conns[i].Metrics[mi]
+			maxRespTime, err := metric.Value.Histogram.DDSketch.GetMaxValue()
+			assert.NoError(ht.test, err)
+			statusCode, _ := strconv.Atoi(metric.Tags[common.HTTPStatusCodeTagName])
+			stats = append(stats, httpStat{StatusCode: statusCode, MaxResponseTimeMillis: int64(maxRespTime * 1000)})
+		}
+	}
+	sort.Slice(stats, func(i, j int) bool {
+		return stats[i].StatusCode < stats[j].StatusCode
+	})
+	return stats, nil
+}
+
+const ToleranceMillis = 500
+
+func (ht httpLogTest) testHttpStats(expected []httpStat) {
+	require.Eventually(ht.test, func() bool {
+		stats, err := ht.getHttpStats()
+		assert.NoError(ht.test, err)
+		assert.Equal(ht.test, len(expected), len(stats), "Returned different set stats")
+		if len(expected) == len(stats) {
+			success := true
+			for i := range expected {
+				success = success && assert.Equal(ht.test, expected[i].StatusCode, stats[i].StatusCode)
+				success = success && assert.InDelta(ht.test, expected[i].MaxResponseTimeMillis, stats[i].MaxResponseTimeMillis, ToleranceMillis)
+			}
+			return success
+		} else {
+			return assert.Equal(ht.test, expected, stats, "Returned different set stats")
+		}
+	}, 6*time.Second, 300*time.Millisecond)
+}
+
+func (ht httpLogTest) runGETRequest(path string) (int, string) {
+	fmt.Printf("Address: %s\n", ht.server.Listener.Addr().String())
+	resp, err := ht.client.Get("http://" + ht.server.Listener.Addr().String() + path)
+	assert.NoError(ht.test, err)
+	respBytes, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(ht.test, resp.Body.Close())
+	assert.NoError(ht.test, err)
+	return resp.StatusCode, string(respBytes)
+}
+
+const TestHttpServerRootLatency = 1 * time.Second
+const TestHttpServerNotfoundLatency = 1 * time.Second
+const TestHttpServerErrorLatency = 1 * time.Second
+
+func createTestHTTPServer() *httptest.Server {
+	handler := http.NewServeMux()
+	handler.Handle("/", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		<-time.After(TestHttpServerRootLatency)
+		writer.WriteHeader(200)
+		_, _ = writer.Write([]byte("OK"))
+	}))
+	handler.Handle("/notfound", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		<-time.After(TestHttpServerNotfoundLatency)
+		writer.WriteHeader(404)
+		_, _ = writer.Write([]byte("Not found"))
+	}))
+	handler.Handle("/error", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		<-time.After(TestHttpServerErrorLatency)
+		writer.WriteHeader(500)
+		_, _ = writer.Write([]byte("Internal error"))
+	}))
+	return httptest.NewServer(handler)
 }
 
 func TestTCPSendPage(t *testing.T) {
@@ -482,6 +669,7 @@ func TestTCPSendPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	tr.Start()
+	defer tr.Stop()
 
 	// Create TCP Server which sends back serverMessageSize bytes
 	server := network.NewTCPServer(func(c net.Conn) {
@@ -548,5 +736,4 @@ func TestTCPSendPage(t *testing.T) {
 	}
 
 	doneChan <- struct{}{}
-	tr.Stop()
 }

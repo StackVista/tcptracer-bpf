@@ -340,6 +340,7 @@ func findConnection(l, r net.Addr, c *common.Connections) (*common.ConnectionSta
 		//fmt.Printf("local: %s\n", localAddr)
 		//fmt.Printf("remote: %s\n", remoteAddr)
 		if localAddr == l.String() && remoteAddr == r.String() {
+			fmt.Printf("found: %v\n", conn)
 			return &conn, true
 		}
 	}

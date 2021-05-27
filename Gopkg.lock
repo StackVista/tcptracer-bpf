@@ -2,6 +2,20 @@
 
 
 [[projects]]
+  digest = "1:152434c8951e8f8267e7464cf7dae104ee7ddb8578356e150c8b318b99eba27f"
+  name = "github.com/DataDog/sketches-go"
+  packages = [
+    "ddsketch",
+    "ddsketch/mapping",
+    "ddsketch/pb/sketchpb",
+    "ddsketch/store",
+  ]
+  pruneopts = "UT"
+  revision = "ba0ca7b0dab22fe45f5a76fea3c416de41f74edc"
+  source = "github.com/StackVista/sketches-go"
+  version = "v1.1.0"
+
+[[projects]]
   digest = "1:50e893a85575fa48dc4982a279e50e2fd8b74e4f7c587860c1e25c77083b8125"
   name = "github.com/cihub/seelog"
   packages = ["."]
@@ -18,18 +32,49 @@
   version = "v1.1.1"
 
 [[projects]]
-  digest = "1:78fe2f7a522b91b5f6270d9d8d0b7935ce8b186b46bc6259f57cbcc9f7c5ca84"
-  name = "github.com/iovisor/gobpf"
-  packages = [
-    "elf",
-    "pkg/bpffs",
-    "pkg/cpuonline",
-  ]
-  pruneopts = "T"
-  revision = "3b07770c6d5e2bd37e582ecd49460e6ef094f257"
+  digest = "1:87d881eeee9764fa514ab56805f22c81e1e3f303fd9b7a5b18928ddc8ddeadd5"
+  name = "github.com/gogo/protobuf"
+  packages = ["proto"]
+  pruneopts = "UT"
+  revision = "b03c65ea87cdc3521ede29f62fe3ce239267c1bc"
+  version = "v1.3.2"
 
 [[projects]]
-  digest = "1:aa3d8d42865c42626b5c1add193692d045b3188b1479f0a0a88690d21fe20083"
+  digest = "1:9e62e8886ca549ad17aa4db1783e469f10e424652595304fdc2c8ecda5d25476"
+  name = "github.com/golang/protobuf"
+  packages = ["proto"]
+  pruneopts = "UT"
+  revision = "ae97035608a719c7a1c1c41bed0ae0744bdb0c6f"
+  version = "v1.5.2"
+
+[[projects]]
+  digest = "1:a73337c9d45b11b87023c0172896431cd3ad9744fe08b78893b2b360ae5830ab"
+  name = "github.com/iovisor/gobpf"
+  packages = [
+    ".",
+    "elf",
+    "elf/include",
+    "elf/include/uapi/linux",
+    "pkg/bpffs",
+    "pkg/cpuonline",
+    "pkg/cpurange",
+    "pkg/tracepipe",
+  ]
+  pruneopts = "T"
+  revision = "f29a8c9f192810c38d3507fbe1e1ceb56fb6994d"
+  source = "github.com/StackVista/gobpf"
+  version = "v0.1.2"
+
+[[projects]]
+  digest = "1:e0b019ee3a64ce51eeb7e0097a372305ac8caf338e50adf8e4bf3b7ce928e132"
+  name = "github.com/josharian/intern"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "8e6ff32b3e7c0b018c43953085fe2ac330fe9acd"
+  version = "v1.0.0"
+
+[[projects]]
+  digest = "1:51317c8286236abf3283b2215fa135f57a22b0f3437578086c989a03f5b7375c"
   name = "github.com/mailru/easyjson"
   packages = [
     ".",
@@ -38,7 +83,8 @@
     "jwriter",
   ]
   pruneopts = "UT"
-  revision = "60711f1a8329503b04e1c88535f419d0bb440bff"
+  revision = "c120ca7ced6051261161ce15e8f1542a4b2567fc"
+  version = "v0.7.7"
 
 [[projects]]
   digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
@@ -56,15 +102,15 @@
   revision = "efa1aff6aafc7b37ca3ffb136b6b27a11178ffd6"
 
 [[projects]]
-  digest = "1:ac83cf90d08b63ad5f7e020ef480d319ae890c208f8524622a2f3136e2686b02"
+  digest = "1:86ff4af7b6bb3d27c2e89b5ef8c139678acff1cad74a3c5235fc5af6b94fcc9e"
   name = "github.com/stretchr/objx"
   packages = ["."]
   pruneopts = "UT"
-  revision = "477a77ecc69700c7cdeb1fa9e129548e1c1c393c"
-  version = "v0.1.1"
+  revision = "35313a95ee26395aa17d366c71a2ccf788fa69b6"
+  version = "v0.3.0"
 
 [[projects]]
-  digest = "1:cf4fdb98e23a565bd82473027d37512a3d5b186fba3a1895d7e8401d8ce3ffe1"
+  digest = "1:83ebccd3e7d2cf489da62888cd39c4c9765144d4036350fb2fba671fba4af395"
   name = "github.com/stretchr/testify"
   packages = [
     "assert",
@@ -72,23 +118,77 @@
     "require",
   ]
   pruneopts = "UT"
-  revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
-  version = "v1.2.2"
+  revision = "acba37e5db06f0093b465a7d47822bf13644b66c"
+  version = "v1.7.0"
 
 [[projects]]
   branch = "master"
-  digest = "1:68a4638398cf8c864a6aa50c8853ebe7935f939aa3acf7e44cb35b67852e9fef"
+  digest = "1:17db1bf7f0fb8834074541d56629f2057e9b66e9101d9b3c80555ba607efc2e7"
   name = "golang.org/x/sys"
-  packages = ["windows"]
+  packages = [
+    "internal/unsafeheader",
+    "windows",
+  ]
   pruneopts = "UT"
-  revision = "11f53e03133963fb11ae0588e08b5e0b85be8be5"
+  revision = "33663a62ff0820461192226283cafe57a83ac6b7"
+
+[[projects]]
+  digest = "1:bc8a58ba53d55c6c60aba097ba2981a37cf074c8c19e852763529dbc0ae0eb05"
+  name = "google.golang.org/protobuf"
+  packages = [
+    "encoding/prototext",
+    "encoding/protowire",
+    "internal/descfmt",
+    "internal/descopts",
+    "internal/detrand",
+    "internal/encoding/defval",
+    "internal/encoding/messageset",
+    "internal/encoding/tag",
+    "internal/encoding/text",
+    "internal/errors",
+    "internal/filedesc",
+    "internal/filetype",
+    "internal/flags",
+    "internal/genid",
+    "internal/impl",
+    "internal/order",
+    "internal/pragma",
+    "internal/set",
+    "internal/strs",
+    "internal/version",
+    "proto",
+    "reflect/protodesc",
+    "reflect/protoreflect",
+    "reflect/protoregistry",
+    "runtime/protoiface",
+    "runtime/protoimpl",
+    "types/descriptorpb",
+  ]
+  pruneopts = "UT"
+  revision = "f2d1f6cbe10b90d22296ea09a7217081c2798009"
+  version = "v1.26.0"
+
+[[projects]]
+  branch = "v3"
+  digest = "1:107a619d3c3bcca214b2b7db810a5dffcd74b5d0262813cb2986e063fae2722f"
+  name = "gopkg.in/yaml.v3"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "496545a6307b2a7d7a710fd516e5e16e8ab62dbc"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/DataDog/sketches-go/ddsketch",
+    "github.com/DataDog/sketches-go/ddsketch/mapping",
+    "github.com/DataDog/sketches-go/ddsketch/pb/sketchpb",
+    "github.com/DataDog/sketches-go/ddsketch/store",
     "github.com/cihub/seelog",
+    "github.com/golang/protobuf/proto",
+    "github.com/iovisor/gobpf",
     "github.com/iovisor/gobpf/elf",
+    "github.com/iovisor/gobpf/pkg/tracepipe",
     "github.com/mailru/easyjson",
     "github.com/mailru/easyjson/jlexer",
     "github.com/mailru/easyjson/jwriter",

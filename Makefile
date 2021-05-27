@@ -41,7 +41,7 @@ all: install-generated-go test
 build-docker-image:
 	$(SUDO) docker build -t $(DOCKER_IMAGE) -f $(DOCKER_FILE) .
 
-build-ebpf-object: build-docker-image
+build-ebpf-object:
 	$(SUDO) docker run --rm -e DEBUG=$(DEBUG) \
 		-e CIRCLE_BUILD_URL=$(CIRCLE_BUILD_URL) \
 		-v $(PWD):/src:ro \
@@ -73,7 +73,7 @@ lint:
 # Build & run dockerized `nettop` command for testing 
 # $ make all run-nettop
 run-nettop:
-	$(SUDO) docker build -t "tcptracer-bpf-dd-nettop" . -f tests/Dockerfile-nettop
+	$(SUDO) docker build -t "tcptracer-bpf-dd-nettop" . -f Dockerfile
 	$(SUDO) docker run \
 		--net=host \
 		--cap-add=SYS_ADMIN \
@@ -81,9 +81,23 @@ run-nettop:
 		-v /sys/kernel/debug:/sys/kernel/debug \
 		tcptracer-bpf-dd-nettop
 
+# Build nettop - utility for testing
+build-nettop-local:
+	go build -a -tags 'linux_bpf' -o nettop github.com/StackVista/tcptracer-bpf/cmd/nettop
+	chmod +x nettop
+
+build-nettop:
+	$(SUDO) docker build -t "stackvista/tcptracer-bpf-ci" . -f ../Dockerfile
+	$(SUDO) docker run \
+		-v $(GOPATH)/src/github.com/StackVista/tcptracer-bpf:/go/src/github.com/StackVista/tcptracer-bpf \
+		--env GOPATH=/go \
+		stackvista/tcptracer-bpf-ci \
+		sh -c 'cd /go/src/github.com/StackVista/tcptracer-bpf/tests && make'
+
+
 # Build network-tracer agent: runs eBPF program and exposes connections via /connections over UDS
 build-network-tracer:
-	go build -a -o network-tracer -tags '$(GO_TAGS)' -ldflags "$(LDFLAGS)" github.com/StackVista/tcptracer-bpf/cmd
+	go build -a -o network-tracer -tags '$(GO_TAGS)' -ldflags "$(LDFLAGS)" github.com/StackVista/tcptracer-bpf/cmd/agent
 
 # easyjson code generation
 codegen:
@@ -91,7 +105,7 @@ codegen:
 	easyjson pkg/tracer/common/model.go
 
 test:
-	go list ./... | grep -v vendor | sudo -E PATH=${PATH} GOCACHE=off xargs go test -tags 'linux_bpf'
+	go list ./... | grep -v vendor | sudo -E PATH=${PATH} xargs go test -count=1 -tags 'linux_bpf'
 
 linux-ci-test: build-ebpf-object-ci
-	go list ./... | grep -v vendor | sudo -E PATH=${PATH} GOCACHE=off xargs go test -tags 'linux_bpf'
+	go list ./... | grep -v vendor | sudo -E PATH=${PATH} xargs go test -count=1 -tags 'linux_bpf'

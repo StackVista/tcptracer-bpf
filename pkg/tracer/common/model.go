@@ -3,9 +3,16 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
-	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
+	"net"
 	"strings"
+	"time"
+
+	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
+	"github.com/StackVista/tcptracer-bpf/pkg/tracer/network"
+	"github.com/golang/protobuf/proto"
 )
 
 type ConnectionType uint8
@@ -86,8 +93,108 @@ type ConnectionStats struct {
 	Direction        Direction `json:"direction"`
 	State            State     `json:"state"`
 	NetworkNamespace string    `json:"network_namespace"`
-	SendBytes        uint64    `json:"send_bytes"`
-	RecvBytes        uint64    `json:"recv_bytes"`
+
+	SendBytes uint64 `json:"send_bytes"`
+	RecvBytes uint64 `json:"recv_bytes"`
+
+	ApplicationProtocol string             `json:"app_proto"`
+	Metrics             []ConnectionMetric `json:"metrics"`
+}
+
+type MetricName string
+
+const (
+	// HTTPResponseTime is for the metric that is sent with a connection
+	HTTPResponseTime MetricName = "http_response_time_seconds"
+
+	// HTTPRequestsPerSecond is for the metric that is sent with a connection
+	HTTPRequestsPerSecond MetricName = "http_requests_per_second"
+
+	// HTTPStatusCodeTagName Status Code tag name
+	HTTPStatusCodeTagName = "code"
+)
+
+//easyjson:json
+type ConnectionMetric struct {
+	Name  MetricName            `json:"name"`
+	Tags  map[string]string     `json:"tags"`
+	Value ConnectionMetricValue `json:"value"`
+}
+
+type ConnectionMetricValue struct {
+	Histogram *Histogram `json:"ddsketch"`
+}
+
+type Histogram struct {
+	DDSketch *ddsketch.DDSketch
+}
+
+func (m *Histogram) UnmarshalJSON(data []byte) error {
+	var ddbytes []byte
+	err := json.Unmarshal(data, &ddbytes)
+	if err != nil {
+		return err
+	}
+	var sketchPb sketchpb.DDSketch
+	err = proto.Unmarshal(ddbytes, &sketchPb)
+	if err != nil {
+		return err
+	}
+	ddSketch, err := ddsketch.FromProto(&sketchPb)
+	if err != nil {
+		return err
+	}
+	m.DDSketch = ddSketch
+	return nil
+}
+
+func (m *Histogram) MarshalJSON() ([]byte, error) {
+	encoded, err := proto.Marshal(m.DDSketch.ToProto())
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(encoded)
+}
+
+type ConnTupleV4 struct {
+	Laddr string
+	Lport uint16
+	Raddr string
+	Rport uint16
+	Pid   uint16
+}
+
+func (ct *ConnTupleV4) Matches(stats *ConnectionStats) bool {
+	return stats.Pid == uint32(ct.Pid) &&
+		stats.Local == ct.Laddr && stats.Remote == ct.Raddr &&
+		stats.LocalPort == ct.Lport && stats.RemotePort == ct.Rport
+}
+
+type HTTPResponse struct {
+	Connection   ConnTupleV4
+	StatusCode   int
+	ResponseTime time.Duration
+}
+
+type MySQLGreeting struct {
+	Connection      ConnTupleV4
+	ProtocolVersion int
+}
+
+type PerfEvent struct {
+	HTTPResponse  *HTTPResponse
+	MySQLGreeting *MySQLGreeting
+	Timestamp     time.Time
+}
+
+func (c ConnectionStats) GetConnection() ConnTupleV4 {
+	return ConnTupleV4{
+		Laddr: c.Local,
+		Lport: c.LocalPort,
+		Raddr: c.Remote,
+		Rport: c.RemotePort,
+		Pid:   0,
+	}
 }
 
 func (c ConnectionStats) WithOnlyLocal() ConnectionStats {
@@ -143,11 +250,11 @@ func (c ConnectionStats) Copy() ConnectionStats {
 
 func (c ConnectionStats) String() string {
 	if len(strings.TrimSpace(c.NetworkNamespace)) != 0 {
-		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s netns:%s [%d bytes sent ↑ %d bytes received ↓]",
-			c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.NetworkNamespace, c.SendBytes, c.RecvBytes)
+		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s netns=%s protocol=%s [%d bytes sent ↑ %d bytes received ↓]",
+			c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.NetworkNamespace, c.ApplicationProtocol, c.SendBytes, c.RecvBytes)
 	} else {
-		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s [%d bytes sent ↑ %d bytes received ↓]",
-			c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.SendBytes, c.RecvBytes)
+		return fmt.Sprintf("[%s] [PID: %d] [%v:%d ⇄ %v:%d] direction=%s state=%s protocol=%s  [%d bytes sent ↑ %d bytes received ↓]",
+			c.Type, c.Pid, c.Local, c.LocalPort, c.Remote, c.RemotePort, c.Direction, c.State, c.ApplicationProtocol, c.SendBytes, c.RecvBytes)
 	}
 }
 
@@ -182,4 +289,17 @@ func (c ConnectionStats) WithNamespace(namespace string) ConnectionStats {
 	}
 
 	return c
+}
+
+func V4IPString(addr uint32) string {
+	addrbuf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(addrbuf, addr)
+	return net.IPv4(addrbuf[0], addrbuf[1], addrbuf[2], addrbuf[3]).String()
+}
+
+func V6IPString(addr_h, addr_l uint64) string {
+	addrbuf := make([]byte, 16)
+	binary.LittleEndian.PutUint64(addrbuf, addr_h)
+	binary.LittleEndian.PutUint64(addrbuf[8:], addr_l)
+	return net.IP(addrbuf).String()
 }

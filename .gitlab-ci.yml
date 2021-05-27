@@ -12,6 +12,7 @@ test-linux-bpf:
     - export GOPATH=/go
     - cd /go/src/github.com/StackVista/tcptracer-bpf
     - go get -u github.com/golang/dep/cmd/dep
+    - go get -u github.com/jteeuwen/go-bindata/...
     - $GOPATH/bin/dep ensure
     - make linux-ci-test
   tags:
@@ -31,9 +32,10 @@ test-windows:
     # Alters robocopy's response code to something the terminal expects
     - (robocopy %CI_PROJECT_DIR% %GO_STACKVISTA%\tcptracer-bpf /COPYALL /MIR) ^& IF %ERRORLEVEL% LSS 8 SET ERRORLEVEL = 0
     - SET GOPATH=%SystemRoot%\go
+    - SET PATH=c:\tools\msys64\mingw64\bin;c:\tools\msys64\usr\bin;%PATH%
     - cd %GO_STACKVISTA%\tcptracer-bpf
     - dep ensure
     - go test -v -race ./...
   tags:
     # Run on sts windows hardware to be able to test windows connection tracing
-    - sts_windows
+    - agent_windows_6

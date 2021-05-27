@@ -6,9 +6,13 @@
 #include <linux/ptrace.h>
 #pragma clang diagnostic pop
 #include <linux/bpf.h>
+#include <linux/blk_types.h>
 #include <linux/version.h>
 #include "bpf_helpers.h"
 #include "tcptracer-bpf.h"
+#include "tcptracer-maps.h"
+
+#include <uapi/linux/ptrace.h>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wtautological-compare"
@@ -18,6 +22,7 @@
 #pragma clang diagnostic pop
 #include <net/inet_sock.h>
 #include <net/net_namespace.h>
+#include <linux/tcp.h>
 
 #define bpf_debug(fmt, ...)                                        \
 	({                                                             \
@@ -25,92 +30,6 @@
 		bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
 	})
 
-/* This is a key/value store with the keys being an ipv4_tuple_t for send & recv calls
- * and the values being the struct conn_stats_ts_t *.
- */
-struct bpf_map_def SEC("maps/udp_stats_ipv4") udp_stats_ipv4 = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct ipv4_tuple_t),
-	.value_size = sizeof(struct conn_stats_ts_t),
-	.max_entries = 32768,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* This is a key/value store with the keys being an ipv4_tuple_t for send & recv calls
- * and the values being the struct conn_stats_ts_t *.
- */
-struct bpf_map_def SEC("maps/udp_stats_ipv6") udp_stats_ipv6 = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct ipv6_tuple_t),
-	.value_size = sizeof(struct conn_stats_ts_t),
-	.max_entries = 32768,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* This is a key/value store with the keys being an ipv4_tuple_t for send & recv calls
- * and the values being the struct conn_stats_t *.
- */
-struct bpf_map_def SEC("maps/tcp_stats_ipv4") tcp_stats_ipv4 = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct ipv4_tuple_t),
-	.value_size = sizeof(struct conn_stats_t),
-	.max_entries = 32768,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* This is a key/value store with the keys being an ipv6_tuple_t for send & recv calls
- * and the values being the struct conn_stats_t *.
- */
-struct bpf_map_def SEC("maps/tcp_stats_ipv6") tcp_stats_ipv6 = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(struct ipv6_tuple_t),
-	.value_size = sizeof(struct conn_stats_t),
-	.max_entries = 32768,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* These maps are used to match the kprobe & kretprobe of connect for IPv4 */
-/* This is a key/value store with the keys being a pid
- * and the values being a struct sock *.
- */
-struct bpf_map_def SEC("maps/connectsock_ipv4") connectsock_ipv4 = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(__u64),
-	.value_size = sizeof(void *),
-	.max_entries = 1024,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* These maps are used to match the kprobe & kretprobe of connect for IPv6 */
-/* This is a key/value store with the keys being a pid
- * and the values being a struct sock *.
- */
-struct bpf_map_def SEC("maps/connectsock_ipv6") connectsock_ipv6 = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(__u64),
-	.value_size = sizeof(void *),
-	.max_entries = 1024,
-	.pinning = 0,
-	.namespace = "",
-};
-
-/* This map is used to match the kprobe & kretprobe of udp_recvmsg */
-/* This is a key/value store with the keys being a pid
- * and the values being a struct sock *.
- */
-struct bpf_map_def SEC("maps/udp_recv_sock") udp_recv_sock = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(__u64),
-	.value_size = sizeof(void *),
-	.max_entries = 1024,
-	.pinning = 0,
-	.namespace = "",
-};
 
 /* http://stackoverflow.com/questions/1001307/detecting-endianness-programmatically-in-a-c-program */
 __attribute__((always_inline))
@@ -137,25 +56,6 @@ static bool is_ipv4_mapped_ipv6(u64 saddr_h, u64 saddr_l, u64 daddr_h, u64 daddr
 		return ((saddr_h == 0 && ((u32) saddr_l == 0xFFFF0000)) || (daddr_h == 0 && ((u32) daddr_l == 0xFFFF0000)));
 	}
 }
-
-struct bpf_map_def SEC("maps/tcptracer_status") tcptracer_status = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(__u64),
-	.value_size = sizeof(struct tcptracer_status_t),
-	.max_entries = 1,
-	.pinning = 0,
-	.namespace = "",
-};
-
-// Keeping track of latest timestamp of monotonic clock
-struct bpf_map_def SEC("maps/latest_ts") latest_ts = {
-	.type = BPF_MAP_TYPE_HASH,
-	.key_size = sizeof(__u64),
-	.value_size = sizeof(__u64),
-	.max_entries = 1,
-	.pinning = 0,
-	.namespace = "",
-};
 
 __attribute__((always_inline))
 static bool proc_t_comm_equals(struct proc_t a, struct proc_t b) {
@@ -192,7 +92,7 @@ static int update_tracer_offset_status_v4(struct tcptracer_status_t *status, str
 	if (!proc_t_comm_equals(status->proc, proc))
 		return 0;
 
-	//bpf_debug("proc: %s, pid: %d, caller: %lu\n", proc.comm, pid, calling_probe);
+//	bpf_debug("proc: %s, pid: %d, caller: %lu\n", proc.comm, pid, calling_probe);
 
 	// shift existing calling probes by 1
 	int cof;
@@ -233,6 +133,7 @@ static int update_tracer_offset_status_v4(struct tcptracer_status_t *status, str
 	new_status.dport = status->dport;
 	new_status.netns = status->netns;
 	new_status.family = status->family;
+	new_status.iter_type = status->iter_type;
 
 	bpf_probe_read(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
 
@@ -357,6 +258,7 @@ static int update_tracer_offset_status_v6(struct tcptracer_status_t *status, str
 	new_status.dport = status->dport;
 	new_status.netns = status->netns;
 	new_status.family = status->family;
+	new_status.iter_type = status->iter_type;
 
 	bpf_probe_read(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
 
@@ -841,8 +743,8 @@ int kretprobe__tcp_v6_connect(struct pt_regs *ctx) {
 	update_tracer_offset_status_v6(status, skp, pid, __LINE__);
 
 	if (ret != 0) {
-        // failed to send SYNC packet, may not have populated
-        // socket __sk_common.{skc_rcv_saddr, ...}
+		// failed to send SYNC packet, may not have populated
+		// socket __sk_common.{skc_rcv_saddr, ...}
 		return 0;
 	}
 
@@ -864,38 +766,144 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 		return 0;
 	}
 
+	struct tracked_socket t = {.active = 1};
+	t.prev_send_time_ns = bpf_ktime_get_ns();
+
+	bpf_map_update_elem(&tracked_sockets, &newsk, &t, BPF_ANY);
+
 	return assert_tcp_record(newsk, status, DIRECTION_INCOMING, STATE_INITIALIZING);
+}
+
+__attribute__((always_inline))
+bool parse_http_response(char *buffer, int size, int *status_code_result) {
+	const char http_marker[4] = "HTTP";
+	if (size > 11) {
+		if (memcmp(buffer, http_marker, sizeof(http_marker)) == 0) {
+			int status_code = 100 * (buffer[9] - '0') + 10 * (buffer[10] - '0') + (buffer[11] - '0');
+			if (status_code > 99 && status_code < 1000) {
+				*status_code_result = status_code;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+__attribute__((always_inline))
+bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) {
+	if (size > 4) {
+		int packet_length = buffer[0] + buffer[1] * 0x100 + buffer[2] * 0x100;
+		int packet_number = (int)buffer[3];
+
+		bool is_greeting_packet = (size - 4) == packet_length && 0 == packet_number;
+		if (is_greeting_packet) {
+			u16 protocol_version = (u16)buffer[4];
+			*protocol_version_result = protocol_version;
+			return true;
+		}
+	}
+	return false;
+}
+
+#define send_mysql_greeting(_ctx, _t, _protocol_version, _timestamp, _cpu) \
+	({                                                                       \
+		struct event_mysql_greeting greeting;                                  \
+		__builtin_memset(&greeting, 0, sizeof(greeting));                      \
+		greeting.connection = _t;                                              \
+		greeting.protocol_version = _protocol_version;                         \
+		union event_payload payload;                                           \
+		__builtin_memset(&payload, 0, sizeof(payload));                        \
+		payload.mysql_greeting = greeting;                                     \
+		struct perf_event event;                                               \
+		__builtin_memset(&event, 0, sizeof(event));                            \
+		event.event_type = EVENT_MYSQL_GREETING;                               \
+		event.timestamp = _timestamp;                                          \
+		event.payload = payload;                                               \
+		bpf_perf_event_output(ctx, &perf_events, cpu, &event, sizeof(event));  \
+	})
+
+#define send_http_response(_ctx, _t, _http_status_code, _response_time, _timestamp, _cpu)     \
+	({                                                                                          \
+		struct event_http_response http_response;                                                 \
+		__builtin_memset(&http_response, 0, sizeof(http_response));                               \
+		http_response.connection = _t;                                                            \
+		http_response.status_code = _http_status_code;                                            \
+		http_response.response_time = _response_time;                                             \
+		union event_payload payload;                                                              \
+		__builtin_memset(&payload, 0, sizeof(payload));                                           \
+		payload.http_response = http_response;                                                    \
+		struct perf_event response_event;                                                         \
+		__builtin_memset(&response_event, 0, sizeof(response_event));                             \
+		response_event.event_type = EVENT_HTTP_RESPONSE;                                          \
+		response_event.timestamp = _timestamp;                                                    \
+		response_event.payload = payload;                                                         \
+		bpf_perf_event_output(_ctx, &perf_events, _cpu, &response_event, sizeof(response_event)); \
+	})
+
+__attribute__((always_inline))
+static int tcp_send(struct pt_regs *ctx, const size_t size) {
+
+	struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+	struct msghdr *k_msg = (void *)PT_REGS_PARM2(ctx);
+	u64 zero = 0;
+
+	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
+	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
+		return 0;
+	}
+
+	struct msghdr msg = {};
+	bpf_probe_read(&msg, sizeof(msg), k_msg);
+	if ((msg.msg_iter.type & ~(READ | WRITE)) == status->iter_type) {
+		char *data = bpf_map_lookup_elem(&write_buffer_heap, &zero);
+		if (data != NULL) {
+			struct iovec iov = {};
+			bpf_probe_read(&iov, sizeof(iov), (void *)msg.msg_iter.iov);
+			bpf_probe_read(data, MAX_MSG_SIZE, iov.iov_base);
+
+			struct ipv4_tuple_t t = {};
+			if (check_family(sk, status, AF_INET)) {
+				if (read_ipv4_tuple(&t, status, sk)) {
+					t.lport = ntohs(t.lport); // Making ports human-readable
+					t.rport = ntohs(t.rport);
+
+					struct tracked_socket *res = bpf_map_lookup_elem(&tracked_sockets, &sk);
+					u64 current_time = bpf_ktime_get_ns();
+					u64 ttfb = 0;
+					struct tracked_socket tsocket = {.active = 1};
+					tsocket.prev_send_time_ns = current_time;
+					bpf_map_update_elem(&tracked_sockets, &sk, &tsocket, BPF_ANY);
+					if (res != NULL) {
+						ttfb = current_time - res->prev_send_time_ns;
+					}
+					u64 cpu = bpf_get_smp_processor_id();
+					int http_status_code = 0;
+					u16 mysql_greeting_protocol_version = 0;
+					if (parse_http_response(data, iov.iov_len, &http_status_code)) {
+						send_http_response(ctx, t, http_status_code, ttfb / 1000, current_time, cpu);
+					} else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
+						send_mysql_greeting(ctx, t, mysql_greeting_protocol_version, current_time, cpu);
+					}
+				}
+			}
+		}
+	}
+
+	return increment_tcp_stats(sk, status, size, 0);
 }
 
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
-	struct sock *sk = (struct sock *) PT_REGS_PARM1(ctx);
-	size_t size = (size_t) PT_REGS_PARM3(ctx);
-	u64 zero = 0;
+	const size_t size = (size_t)PT_REGS_PARM3(ctx);
 
-	// TODO: Add DEBUG macro so this is only printed, if enabled
-	// bpf_debug("map: tcp_send_ipv4 kprobe\n");
-
-	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
-		return 0;
-	}
-
-	return increment_tcp_stats(sk, status, size, 0);
+	return tcp_send(ctx, size);
 }
 
 SEC("kprobe/tcp_sendpage")
 int kprobe__tcp_sendpage(struct pt_regs *ctx) {
-	struct sock *sk = (struct sock *) PT_REGS_PARM1(ctx);
-	size_t size = (size_t) PT_REGS_PARM4(ctx);
-	u64 zero = 0;
+	size_t size = (size_t)PT_REGS_PARM4(ctx);
 
-	struct tcptracer_status_t *status = bpf_map_lookup_elem(&tcptracer_status, &zero);
-	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
-		return 0;
-	}
-
-	return increment_tcp_stats(sk, status, size, 0);
+	return tcp_send(ctx, size);
 }
 
 SEC("kprobe/tcp_cleanup_rbuf")
@@ -921,6 +929,10 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 	struct tcptracer_status_t *status;
 	u64 zero = 0;
 	sk = (struct sock *) PT_REGS_PARM1(ctx);
+
+	int fd = PT_REGS_PARM1(ctx);
+
+	bpf_map_delete_elem(&tracked_sockets, &fd);
 
 	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
 	if (status == NULL || status->state != TCPTRACER_STATE_READY) {

@@ -3,12 +3,13 @@
 package tracer
 
 import (
-	"encoding/binary"
+	"errors"
 	"fmt"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
-	"net"
 	"strconv"
+	"time"
+	"unsafe"
 )
 
 /*
@@ -77,8 +78,61 @@ __u64 timestamp;
 */
 type ConnStatsWithTimestamp C.struct_conn_stats_ts_t
 
+type PerfEvent C.struct_perf_event
+type PerfEventPayload C.union_event_payload
+type EventHTTPResponse C.struct_event_http_response
+type EventMYSQLGreeting C.struct_event_mysql_greeting
+
 func (cs *ConnStatsWithTimestamp) isExpired(latestTime int64, timeout int64) bool {
 	return latestTime-int64(cs.timestamp) > timeout
+}
+
+func httpResponseEvent(eventC *EventHTTPResponse, timestamp time.Time) *common.PerfEvent {
+	return &common.PerfEvent{
+		Timestamp: timestamp,
+		HTTPResponse: &common.HTTPResponse{
+			Connection: common.ConnTupleV4{
+				Laddr: common.V4IPString(uint32(eventC.connection.laddr)),
+				Lport: uint16(eventC.connection.lport),
+				Raddr: common.V4IPString(uint32(eventC.connection.raddr)),
+				Rport: uint16(eventC.connection.rport),
+				Pid:   uint16(eventC.connection.pid),
+			},
+			StatusCode:   int(eventC.status_code),
+			ResponseTime: time.Duration(int(eventC.response_time)) * time.Microsecond,
+		},
+	}
+}
+
+func mysqlGreetingEvent(eventC *EventMYSQLGreeting, timestamp time.Time) *common.PerfEvent {
+	return &common.PerfEvent{
+		Timestamp: timestamp,
+		MySQLGreeting: &common.MySQLGreeting{
+			Connection: common.ConnTupleV4{
+				Laddr: common.V4IPString(uint32(eventC.connection.laddr)),
+				Lport: uint16(eventC.connection.lport),
+				Raddr: common.V4IPString(uint32(eventC.connection.raddr)),
+				Rport: uint16(eventC.connection.rport),
+				Pid:   uint16(eventC.connection.pid),
+			},
+			ProtocolVersion: int(uint16(eventC.protocol_version)),
+		},
+	}
+}
+
+func perfEvent(data []byte) (*common.PerfEvent, error) {
+	eventC := (*PerfEvent)(unsafe.Pointer(&data[0]))
+	timestamp := time.Now()
+	eventPayload := eventC.payload
+	eventType := int(uint16(eventC.event_type))
+	switch eventType {
+	case 1:
+		return httpResponseEvent((*EventHTTPResponse)(unsafe.Pointer(&eventPayload)), timestamp), nil
+	case 2:
+		return mysqlGreetingEvent((*EventMYSQLGreeting)(unsafe.Pointer(&eventPayload)), timestamp), nil
+	default:
+		return nil, errors.New(fmt.Sprintf("Unknown event type %v", eventType))
+	}
 }
 
 func connStatsFromTCPv4(t *ConnTupleV4, s *ConnStats) common.ConnectionStats {
@@ -86,8 +140,8 @@ func connStatsFromTCPv4(t *ConnTupleV4, s *ConnStats) common.ConnectionStats {
 		Pid:        uint32(t.pid),
 		Type:       common.TCP,
 		Family:     common.AF_INET,
-		Local:      v4IPString(uint32(t.laddr)),
-		Remote:     v4IPString(uint32(t.raddr)),
+		Local:      common.V4IPString(uint32(t.laddr)),
+		Remote:     common.V4IPString(uint32(t.raddr)),
 		LocalPort:  uint16(t.lport),
 		RemotePort: uint16(t.rport),
 		Direction:  common.Direction(s.direction),
@@ -102,8 +156,8 @@ func connStatsFromTCPv6(t *ConnTupleV6, s *ConnStats) common.ConnectionStats {
 		Pid:        uint32(t.pid),
 		Type:       common.TCP,
 		Family:     common.AF_INET6,
-		Local:      v6IPString(uint64(t.laddr_h), uint64(t.laddr_l)),
-		Remote:     v6IPString(uint64(t.raddr_h), uint64(t.raddr_l)),
+		Local:      common.V6IPString(uint64(t.laddr_h), uint64(t.laddr_l)),
+		Remote:     common.V6IPString(uint64(t.raddr_h), uint64(t.raddr_l)),
 		LocalPort:  uint16(t.lport),
 		RemotePort: uint16(t.rport),
 		Direction:  common.Direction(s.direction),
@@ -118,8 +172,8 @@ func connStatsFromUDPv4(t *ConnTupleV4, s *ConnStatsWithTimestamp) common.Connec
 		Pid:        uint32(t.pid),
 		Type:       common.UDP,
 		Family:     common.AF_INET,
-		Local:      v4IPString(uint32(t.laddr)),
-		Remote:     v4IPString(uint32(t.raddr)),
+		Local:      common.V4IPString(uint32(t.laddr)),
+		Remote:     common.V4IPString(uint32(t.raddr)),
 		LocalPort:  uint16(t.lport),
 		RemotePort: uint16(t.rport),
 		Direction:  common.UNKNOWN,
@@ -134,8 +188,8 @@ func connStatsFromUDPv6(t *ConnTupleV6, s *ConnStatsWithTimestamp) common.Connec
 		Pid:        uint32(t.pid),
 		Type:       common.UDP,
 		Family:     common.AF_INET6,
-		Local:      v6IPString(uint64(t.laddr_h), uint64(t.laddr_l)),
-		Remote:     v6IPString(uint64(t.raddr_h), uint64(t.raddr_l)),
+		Local:      common.V6IPString(uint64(t.laddr_h), uint64(t.laddr_l)),
+		Remote:     common.V6IPString(uint64(t.raddr_h), uint64(t.raddr_l)),
 		LocalPort:  uint16(t.lport),
 		RemotePort: uint16(t.rport),
 		Direction:  common.UNKNOWN,
@@ -164,17 +218,4 @@ func connStatsFromProcSpy(t *procspy.Connection) common.ConnectionStats {
 		SendBytes:  0,
 		RecvBytes:  0,
 	}.WithNamespace(strconv.FormatUint(t.Proc.NetNamespaceID, 10))
-}
-
-func v4IPString(addr uint32) string {
-	addrbuf := make([]byte, 4)
-	binary.LittleEndian.PutUint32(addrbuf, uint32(addr))
-	return net.IPv4(addrbuf[0], addrbuf[1], addrbuf[2], addrbuf[3]).String()
-}
-
-func v6IPString(addr_h, addr_l uint64) string {
-	addrbuf := make([]byte, 16)
-	binary.LittleEndian.PutUint64(addrbuf, uint64(addr_h))
-	binary.LittleEndian.PutUint64(addrbuf[8:], uint64(addr_l))
-	return net.IP(addrbuf).String()
 }

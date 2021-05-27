@@ -1,5 +1,5 @@
 
-required = ["github.com/mailru/easyjson"]
+required = ["github.com/mailru/easyjson", "github.com/iovisor/gobpf"]
 
 [[constraint]]
   name = "github.com/cihub/seelog"
@@ -10,16 +10,22 @@ required = ["github.com/mailru/easyjson"]
   revision = "efa1aff6aafc7b37ca3ffb136b6b27a11178ffd6"
 
 [[constraint]]
+  name = "github.com/DataDog/sketches-go"
+  source = "github.com/StackVista/sketches-go"
+  version = "=v1.1.0"
+
+[[constraint]]
   name = "github.com/iovisor/gobpf"
-  revision = "3b07770c6d5e2bd37e582ecd49460e6ef094f257"
+  source = "github.com/StackVista/gobpf"
+  version = "=v0.1.2"
 
 [[constraint]]
   name = "github.com/stretchr/testify"
-  version = "=v1.2.2"
+  version = "=v1.7.0"
 
 [[constraint]]
   name = "github.com/mailru/easyjson"
-  revision = "60711f1a8329503b04e1c88535f419d0bb440bff"
+  version = "=v0.7.7"
 
 [prune]
   go-tests = true

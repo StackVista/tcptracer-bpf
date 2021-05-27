@@ -7,6 +7,71 @@
  */
 #define SEC(NAME) __attribute__((section(NAME), used))
 
+// Table for reading hw perf cpu counters
+#define BPF_PERF_ARRAY(_name, _max_entries)      \
+	struct _name##_table_t                         \
+	{                                              \
+		int key;                                     \
+		u32 leaf;                                    \
+		/* counter = map.perf_read(index) */         \
+		u64 (*perf_read)(int);                       \
+		int (*perf_counter_value)(int, void *, u32); \
+		u32 max_entries;                             \
+	};                                             \
+	__attribute__((section("maps/perf_array"))) struct _name##_table_t _name = {.max_entries = (_max_entries)}
+// Table for cgroup file descriptors
+#define BPF_CGROUP_ARRAY(_name, _max_entries) \
+	struct _name##_table_t                      \
+	{                                           \
+		int key;                                  \
+		u32 leaf;                                 \
+		int (*check_current_task)(int);           \
+		u32 max_entries;                          \
+	};                                          \
+	__attribute__((section("maps/cgroup_array"))) struct _name##_table_t _name = {.max_entries = (_max_entries)}
+#define BPF_HASH1(_name) \
+	BPF_TABLE("hash", u64, u64, _name, 10240)
+#define BPF_HASH2(_name, _key_type) \
+	BPF_TABLE("hash", _key_type, u64, _name, 10240)
+#define BPF_HASH3(_name, _key_type, _leaf_type) \
+	BPF_TABLE("hash", _key_type, _leaf_type, _name, 10240)
+#define BPF_HASH4(_name, _key_type, _leaf_type, _size) \
+	BPF_TABLE("hash", _key_type, _leaf_type, _name, _size)
+// helper for default-variable macro function
+#define BPF_HASHX(_1, _2, _3, _4, NAME, ...) NAME
+// Define a hash function, some arguments optional
+// BPF_HASH(name, key_type=u64, leaf_type=u64, size=10240)
+#define BPF_HASH(...)                                                \
+	BPF_HASHX(__VA_ARGS__, BPF_HASH4, BPF_HASH3, BPF_HASH2, BPF_HASH1) \
+	(__VA_ARGS__)
+#define BPF_ARRAY1(_name) \
+	BPF_TABLE("array", int, u64, _name, 10240)
+#define BPF_ARRAY2(_name, _leaf_type) \
+	BPF_TABLE("array", int, _leaf_type, _name, 10240)
+#define BPF_ARRAY3(_name, _leaf_type, _size) \
+	BPF_TABLE("array", int, _leaf_type, _name, _size)
+// helper for default-variable macro function
+#define BPF_ARRAYX(_1, _2, _3, NAME, ...) NAME
+// Define an array function, some arguments optional
+// BPF_ARRAY(name, leaf_type=u64, size=10240)
+#define BPF_ARRAY(...)                                        \
+	BPF_ARRAYX(__VA_ARGS__, BPF_ARRAY3, BPF_ARRAY2, BPF_ARRAY1) \
+	(__VA_ARGS__)
+#define BPF_PERCPU_ARRAY1(_name) \
+	BPF_TABLE("percpu_array", int, u64, _name, 10240)
+#define BPF_PERCPU_ARRAY2(_name, _leaf_type) \
+	BPF_TABLE("percpu_array", int, _leaf_type, _name, 10240)
+#define BPF_PERCPU_ARRAY3(_name, _leaf_type, _size) \
+	BPF_TABLE("percpu_array", int, _leaf_type, _name, _size)
+// helper for default-variable macro function
+#define BPF_PERCPU_ARRAYX(_1, _2, _3, NAME, ...) NAME
+// Define an array function (per CPU), some arguments optional
+// BPF_PERCPU_ARRAY(name, leaf_type=u64, size=10240)
+#define BPF_PERCPU_ARRAY(...)                                               \
+	BPF_PERCPU_ARRAYX(                                                        \
+			__VA_ARGS__, BPF_PERCPU_ARRAY3, BPF_PERCPU_ARRAY2, BPF_PERCPU_ARRAY1) \
+	(__VA_ARGS__)
+
 /* helper functions called from eBPF programs written in C */
 static void *(*bpf_map_lookup_elem)(void *map, void *key) =
 	(void *) BPF_FUNC_map_lookup_elem;

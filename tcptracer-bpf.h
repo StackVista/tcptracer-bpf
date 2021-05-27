@@ -37,9 +37,9 @@ struct conn_stats_t {
 	__u64 send_bytes;
 	__u64 recv_bytes;
 	// These are big to have a 64 bit aligned struct
-    __u32 direction;
-    // Was the connection active or closed?
-    __u32 state;
+	__u32 direction;
+	// Was the connection active or closed?
+	__u32 state;
 };
 
 struct conn_stats_ts_t {
@@ -70,6 +70,38 @@ struct ipv6_tuple_t {
 	__u16 rport;
 	__u32 netns;
 	__u32 pid;
+};
+
+struct tracked_socket {
+    __u16 active;
+    __u64 prev_send_time_ns;
+};
+
+#define EVENT_HTTP_RESPONSE 1
+#define EVENT_MYSQL_GREETING 2
+
+struct event_http_response {
+    __u16 status_code;
+    __u32 response_time;
+    struct ipv4_tuple_t connection;
+};
+
+struct event_mysql_greeting {
+    __u16 protocol_version;
+    struct ipv4_tuple_t connection;
+};
+
+union event_payload
+{
+	struct event_http_response http_response;
+	struct event_mysql_greeting mysql_greeting;
+};
+
+struct perf_event
+{
+	__u16 event_type;
+	__u64 timestamp;
+	union event_payload payload;
 };
 
 #define TCPTRACER_STATE_UNINITIALIZED 0
@@ -104,6 +136,7 @@ struct tcptracer_status_t {
 	__u16 padding;
 
 	__u64 calling_probes[10];
+	__u16 iter_type;
 };
 
 #endif
