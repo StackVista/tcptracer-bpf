@@ -20,6 +20,8 @@ type CommonConfig struct {
 	HttpMetricConfig HttpMetricConfig
 	// Enable reading and logging bpf_trace_printk from a running eBPF program
 	EnableTracepipeLogging bool
+	// EnableProtocolMetrics Boolean flag to enable/disable protocol metrics from eBPF
+	EnableProtocolMetrics bool
 }
 
 type HttpMetricConfig struct {
@@ -55,6 +57,7 @@ var DefaultCommonConfig = &CommonConfig{
 		MaxNumBins: 1024,
 	},
 	EnableTracepipeLogging: false,
+	EnableProtocolMetrics:  true,
 }
 
 func MakeCommonConfig() *CommonConfig {
@@ -70,5 +73,6 @@ func MakeCommonConfig() *CommonConfig {
 			MaxNumBins: 1024,
 		},
 		EnableTracepipeLogging: false,
+		EnableProtocolMetrics:  true,
 	}
 }

@@ -2,6 +2,7 @@
 #define __TCPTRACER_BPF_H
 
 #include <linux/types.h>
+#include <stdbool.h>
 
 #define GUESS_SADDR      0
 #define GUESS_DADDR      1
@@ -110,6 +111,8 @@ struct perf_event
 #define TCPTRACER_STATE_READY         3
 
 struct tcptracer_status_t {
+//	bool protocol_metrics_enabled;
+	__u16 protocol_metrics_enabled;
 	__u64 state;
 
 	/* checking */
