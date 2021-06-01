@@ -224,7 +224,7 @@ func (t *LinuxTracer) Start() error {
 
 func (t *LinuxTracer) Stop() {
 	logger.Info("Stopping linux network tracer")
-	if t.config.EnableProtocolMetrics {
+	if t.config.EnableProtocolInspection {
 		t.stopCh <- true
 		t.perfMap.PollStop()
 	}
@@ -673,8 +673,8 @@ func (t *LinuxTracer) enrichTcpConn(conn *common.ConnectionStats) {
 	}
 }
 
-func initialize(m *bpflib.Module, protocolMetricsEnabled bool) error {
-	if err := guess(m, protocolMetricsEnabled); err != nil {
+func initialize(m *bpflib.Module, protocolInspectionEnabled bool) error {
+	if err := guess(m, protocolInspectionEnabled); err != nil {
 		return fmt.Errorf("error guessing offsets: %v", err)
 	}
 	return nil

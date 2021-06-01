@@ -134,7 +134,7 @@ static int update_tracer_offset_status_v4(struct tcptracer_status_t *status, str
 	new_status.netns = status->netns;
 	new_status.family = status->family;
 	new_status.iter_type = status->iter_type;
-	new_status.protocol_metrics_enabled = status->protocol_metrics_enabled;
+	new_status.protocol_inspection_enabled = status->protocol_inspection_enabled;
 
 	bpf_probe_read(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
 
@@ -260,7 +260,7 @@ static int update_tracer_offset_status_v6(struct tcptracer_status_t *status, str
 	new_status.netns = status->netns;
 	new_status.family = status->family;
 	new_status.iter_type = status->iter_type;
-	new_status.protocol_metrics_enabled = status->protocol_metrics_enabled;
+	new_status.protocol_inspection_enabled = status->protocol_inspection_enabled;
 
 	bpf_probe_read(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
 
@@ -854,7 +854,7 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
 		return 0;
 	}
 
-	if (status->protocol_metrics_enabled) {
+	if (status->protocol_inspection_enabled) {
 		struct msghdr msg = {};
 		bpf_probe_read(&msg, sizeof(msg), k_msg);
 		if ((msg.msg_iter.type & ~(READ | WRITE)) == status->iter_type) {
