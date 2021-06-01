@@ -101,7 +101,6 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 
 	var perfMap *bpflib.PerfMap = nil
 	if config.EnableProtocolInspection {
-		logger.Infof("bpflib.InitPerfMap")
 		perfMap, err = bpflib.InitPerfMap(m, common.PerfEvents, perfEventsBytes, perfEventsLostLog)
 		if err != nil {
 			return nil, err
@@ -120,7 +119,7 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 		perfEventsLostLog:   perfEventsLostLog,
 		tcpConnInsights:     make(map[common.ConnTupleV4]ConnInsight),
 		tcpConnInsightsLock: sync.RWMutex{},
-		stopCh:              make(chan bool), //
+		stopCh:              make(chan bool),
 	}
 
 	// Get data from /proc AFTER ebpf has been initialized. This makes sure that we do not miss any

@@ -262,7 +262,6 @@ static int update_tracer_offset_status_v6(struct tcptracer_status_t *status, str
 	new_status.iter_type = status->iter_type;
 	new_status.protocol_metrics_enabled = status->protocol_metrics_enabled;
 
-
 	bpf_probe_read(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
 
 	int i;

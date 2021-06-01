@@ -575,7 +575,7 @@ func TestHTTPRequestLogForExistingConnection(t *testing.T) {
 	})
 }
 
-func TestProtocolMetricsDisabled(t *testing.T) {
+func TestProtocolInspectionDisabled(t *testing.T) {
 	testConfig := MakeTestConfig()
 	testConfig.EnableProtocolInspection = false
 	tr, err := NewTracer(testConfig)
