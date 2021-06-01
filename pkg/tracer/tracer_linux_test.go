@@ -495,7 +495,7 @@ func TestUDPSendAndReceive(t *testing.T) {
 	doneChan <- struct{}{}
 }
 
-func TestHTTPRequestLog1(t *testing.T) {
+func TestHTTPRequestLog(t *testing.T) {
 	tr, err := NewTracer(MakeTestConfig())
 	assert.NoError(t, err)
 	assert.NoError(t, tr.Start())
@@ -573,6 +573,36 @@ func TestHTTPRequestLogForExistingConnection(t *testing.T) {
 		{StatusCode: 200, MaxResponseTimeMillis: TestHttpServerRootLatency.Milliseconds()},
 		{StatusCode: 404, MaxResponseTimeMillis: TestHttpServerNotfoundLatency.Milliseconds()},
 	})
+}
+
+func TestProtocolMetricsDisabled(t *testing.T) {
+	testConfig := MakeTestConfig()
+	testConfig.EnableProtocolInspection = false
+	tr, err := NewTracer(testConfig)
+	assert.NoError(t, err)
+	assert.NoError(t, tr.Start())
+	defer tr.Stop()
+
+	testServer := createTestHTTPServer()
+
+	httpT := httpLogTest{
+		test:   t,
+		tracer: tr,
+		server: testServer,
+		client: testServer.Client(),
+	}
+
+	// perform test calls to HTTP server that should be ignored by ebpf tracker
+	assertGetRequestStatusCode(t, httpT, "/", 200)
+	assertGetRequestStatusCode(t, httpT, "/", 200)
+	assertGetRequestStatusCode(t, httpT, "/error", 500)
+	assertGetRequestStatusCode(t, httpT, "/notfound", 404)
+	httpT.testHttpStats([]httpStat{})
+}
+
+func assertGetRequestStatusCode(t *testing.T, httpT httpLogTest, path string, expectedCode int) {
+	statusCode, _ := httpT.runGETRequest(path)
+	assert.Equal(t, expectedCode, statusCode)
 }
 
 type httpLogTest struct {

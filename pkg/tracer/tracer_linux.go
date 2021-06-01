@@ -87,7 +87,7 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 		}
 	}
 
-	if err := initialize(m, config.EnableProtocolMetrics); err != nil {
+	if err := initialize(m, config.EnableProtocolInspection); err != nil {
 		return nil, fmt.Errorf("failed to init module: %s", err)
 	}
 
@@ -100,7 +100,8 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 	perfEventsLostLog := make(chan uint64, PerfEventsBuffer)
 
 	var perfMap *bpflib.PerfMap = nil
-	if config.EnableProtocolMetrics {
+	if config.EnableProtocolInspection {
+		logger.Infof("bpflib.InitPerfMap")
 		perfMap, err = bpflib.InitPerfMap(m, common.PerfEvents, perfEventsBytes, perfEventsLostLog)
 		if err != nil {
 			return nil, err
@@ -119,7 +120,7 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 		perfEventsLostLog:   perfEventsLostLog,
 		tcpConnInsights:     make(map[common.ConnTupleV4]ConnInsight),
 		tcpConnInsightsLock: sync.RWMutex{},
-		stopCh:              make(chan bool),
+		stopCh:              make(chan bool), //
 	}
 
 	// Get data from /proc AFTER ebpf has been initialized. This makes sure that we do not miss any
@@ -193,7 +194,7 @@ func isDebugFsMounted() (bool, error) {
 
 func (t *LinuxTracer) Start() error {
 
-	if t.config.EnableProtocolMetrics {
+	if t.config.EnableProtocolInspection {
 		go func() {
 		EvLoop:
 			for {
@@ -224,8 +225,8 @@ func (t *LinuxTracer) Start() error {
 
 func (t *LinuxTracer) Stop() {
 	logger.Info("Stopping linux network tracer")
-	t.stopCh <- true
 	if t.config.EnableProtocolMetrics {
+		t.stopCh <- true
 		t.perfMap.PollStop()
 	}
 	err := t.m.Close()
@@ -243,7 +244,9 @@ func (t *LinuxTracer) GetConnections() (*common.Connections, error) {
 
 	tcpConns := t.getTcpConnectionsFromInFlight()
 
-	tcpConns = t.enrichTcpConns(tcpConns)
+	if t.config.EnableProtocolInspection {
+		tcpConns = t.enrichTcpConns(tcpConns)
+	}
 
 	udpConns, err := t.getEbpfUDPConnections()
 	if err != nil {
