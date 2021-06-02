@@ -572,7 +572,7 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 	defer t.tcpConnInsightsLock.Unlock()
 
 	if event.HTTPResponse != nil {
-		logger.Tracef("http response: %v", event.HTTPResponse)
+		logger.Warnf("http response: %v", event.HTTPResponse)
 		httpRes := event.HTTPResponse
 
 		conn, ok := t.tcpConnInsights[httpRes.Connection]
