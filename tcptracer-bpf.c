@@ -852,6 +852,8 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
 		return 0;
 	}
 
+	bpf_debug("test\n");
+
 	struct msghdr msg = {};
 	bpf_probe_read(&msg, sizeof(msg), k_msg);
 	if ((msg.msg_iter.type & ~(READ | WRITE)) == status->iter_type) {
