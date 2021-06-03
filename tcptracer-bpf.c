@@ -857,16 +857,6 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
 	bpf_probe_read(&msg, sizeof(msg), k_msg);
 	bpf_debug("test %d <> %d\n", msg.msg_iter.type & ~(READ | WRITE), status->iter_type);
 
-	{
-        struct ipv4_tuple_t t = {};
-        if (check_family(sk, status, AF_INET)) {
-            if (read_ipv4_tuple(&t, status, sk)) {
-                t.lport = ntohs(t.lport); // Making ports human-readable
-                t.rport = ntohs(t.rport);
-                send_mysql_greeting(ctx, t, (msg.msg_iter.type & ~(READ | WRITE)) == status->iter_type, 0, 0);
-            }
-        }
-	}
 	if ((msg.msg_iter.type & ~(READ | WRITE)) == status->iter_type) {
 		char *data = bpf_map_lookup_elem(&write_buffer_heap, &zero);
 		if (data != NULL) {
