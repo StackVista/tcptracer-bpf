@@ -819,7 +819,7 @@ bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) 
 		event.event_type = EVENT_MYSQL_GREETING;                               \
 		event.timestamp = _timestamp;                                          \
 		event.payload = payload;                                               \
-		bpf_perf_event_output(ctx, &perf_events, cpu, &event, sizeof(event));  \
+		bpf_perf_event_output(ctx, &perf_events, _cpu, &event, sizeof(event));  \
 	})
 
 #define send_http_response(_ctx, _t, _http_status_code, _response_time, _timestamp, _cpu)     \
@@ -853,6 +853,16 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
 	}
 
 	bpf_debug("test\n");
+	{
+        struct ipv4_tuple_t t = {};
+        if (check_family(sk, status, AF_INET)) {
+            if (read_ipv4_tuple(&t, status, sk)) {
+                t.lport = ntohs(t.lport); // Making ports human-readable
+                t.rport = ntohs(t.rport);
+                send_mysql_greeting(ctx, t, 0, 0, 0);
+            }
+        }
+	}
 
 	struct msghdr msg = {};
 	bpf_probe_read(&msg, sizeof(msg), k_msg);
