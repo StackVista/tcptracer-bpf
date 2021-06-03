@@ -881,7 +881,7 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
 					u16 mysql_greeting_protocol_version = 0;
 					if (parse_http_response(data, iov.iov_len, &http_status_code)) {
 						send_http_response(ctx, t, http_status_code, ttfb / 1000, current_time, cpu);
-					} else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
+					} else {
 						send_mysql_greeting(ctx, t, mysql_greeting_protocol_version, current_time, cpu);
 					}
 				}
