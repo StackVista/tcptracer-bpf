@@ -42,7 +42,7 @@ build-docker-image:
 	$(SUDO) docker build -t $(DOCKER_IMAGE) -f $(DOCKER_FILE) .
 
 build-ebpf-object:
-	$(SUDO) docker run --rm -e DEBUG=$(DEBUG) \
+	$(SUDO) docker run -t --rm -e DEBUG=$(DEBUG) \
 		-e CIRCLE_BUILD_URL=$(CIRCLE_BUILD_URL) \
 		-v $(PWD):/src:ro \
 		-v $(PWD)/ebpf:/dist/ \
