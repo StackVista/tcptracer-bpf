@@ -602,7 +602,7 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 		t.tcpConnInsights[httpRes.Connection] = conn
 
 	} else if event.MySQLGreeting != nil {
-		logger.Tracef("mysql greeting: %v", event.MySQLGreeting)
+		logger.Warnf("mysql greeting: %v", event.MySQLGreeting)
 		mysqlGreeting := event.MySQLGreeting
 
 		conn, ok := t.tcpConnInsights[mysqlGreeting.Connection]
