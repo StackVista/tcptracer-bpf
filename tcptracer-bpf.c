@@ -778,6 +778,7 @@ __attribute__((always_inline))
 bool parse_http_response(char *buffer, int size, int *status_code_result) {
 	const char http_marker[4] = "HTTP";
 	if (size > 11) {
+		bpf_debug("test buffer = %s\n", buffer);
 		if (memcmp(buffer, http_marker, sizeof(http_marker)) == 0) {
 			int status_code = 100 * (buffer[9] - '0') + 10 * (buffer[10] - '0') + (buffer[11] - '0');
 			if (status_code > 99 && status_code < 1000) {
@@ -805,11 +806,11 @@ bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) 
 	return false;
 }
 
-#define send_mysql_greeting(_ctx, _t, _protocol_version, _timestamp, _cpu) \
+#define send_ipv4_mysql_greeting(_ctx, _t, _protocol_version, _timestamp, _cpu) \
 	({                                                                       \
 		struct event_mysql_greeting greeting;                                  \
 		__builtin_memset(&greeting, 0, sizeof(greeting));                      \
-		greeting.connection = _t;                                              \
+		greeting.ipv4_connection = _t;                                              \
 		greeting.protocol_version = _protocol_version;                         \
 		union event_payload payload;                                           \
 		__builtin_memset(&payload, 0, sizeof(payload));                        \
@@ -822,11 +823,46 @@ bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) 
 		bpf_perf_event_output(ctx, &perf_events, _cpu, &event, sizeof(event));  \
 	})
 
-#define send_http_response(_ctx, _t, _http_status_code, _response_time, _timestamp, _cpu)     \
+#define send_ipv4_http_response(_ctx, _t, _http_status_code, _response_time, _timestamp, _cpu)     \
 	({                                                                                          \
 		struct event_http_response http_response;                                                 \
 		__builtin_memset(&http_response, 0, sizeof(http_response));                               \
-		http_response.connection = _t;                                                            \
+		http_response.ipv4_connection = _t;                                                            \
+		http_response.status_code = _http_status_code;                                            \
+		http_response.response_time = _response_time;                                             \
+		union event_payload payload;                                                              \
+		__builtin_memset(&payload, 0, sizeof(payload));                                           \
+		payload.http_response = http_response;                                                    \
+		struct perf_event response_event;                                                         \
+		__builtin_memset(&response_event, 0, sizeof(response_event));                             \
+		response_event.event_type = EVENT_HTTP_RESPONSE;                                          \
+		response_event.timestamp = _timestamp;                                                    \
+		response_event.payload = payload;                                                         \
+		bpf_perf_event_output(_ctx, &perf_events, _cpu, &response_event, sizeof(response_event)); \
+	})
+
+#define send_ipv6_mysql_greeting(_ctx, _t, _protocol_version, _timestamp, _cpu) \
+	({                                                                       \
+		struct event_mysql_greeting greeting;                                  \
+		__builtin_memset(&greeting, 0, sizeof(greeting));                      \
+		greeting.ipv6_connection = _t;                                              \
+		greeting.protocol_version = _protocol_version;                         \
+		union event_payload payload;                                           \
+		__builtin_memset(&payload, 0, sizeof(payload));                        \
+		payload.mysql_greeting = greeting;                                     \
+		struct perf_event event;                                               \
+		__builtin_memset(&event, 0, sizeof(event));                            \
+		event.event_type = EVENT_MYSQL_GREETING;                               \
+		event.timestamp = _timestamp;                                          \
+		event.payload = payload;                                               \
+		bpf_perf_event_output(ctx, &perf_events, _cpu, &event, sizeof(event));  \
+	})
+
+#define send_ipv6_http_response(_ctx, _t, _http_status_code, _response_time, _timestamp, _cpu)     \
+	({                                                                                          \
+		struct event_http_response http_response;                                                 \
+		__builtin_memset(&http_response, 0, sizeof(http_response));                               \
+		http_response.ipv6_connection = _t;                                                            \
 		http_response.status_code = _http_status_code;                                            \
 		http_response.response_time = _response_time;                                             \
 		union event_payload payload;                                                              \
@@ -855,8 +891,10 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
 
 	struct msghdr msg = {};
 	bpf_probe_read(&msg, sizeof(msg), k_msg);
-	bpf_debug("test %d <> %d\n", msg.msg_iter.type & ~(READ | WRITE), status->iter_type);
-
+	int iter_type = msg.msg_iter.type & ~(READ | WRITE);
+	if (iter_type != 4) {
+		bpf_debug("test iter_type %d <> %d\n", msg.msg_iter.type & ~(READ | WRITE), status->iter_type);
+	}
 	if ((msg.msg_iter.type & ~(READ | WRITE)) == status->iter_type) {
 		char *data = bpf_map_lookup_elem(&write_buffer_heap, &zero);
 		if (data != NULL) {
@@ -864,8 +902,8 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
 			bpf_probe_read(&iov, sizeof(iov), (void *)msg.msg_iter.iov);
 			bpf_probe_read(data, MAX_MSG_SIZE, iov.iov_base);
 
-			struct ipv4_tuple_t t = {};
 			if (check_family(sk, status, AF_INET)) {
+				struct ipv4_tuple_t t = {};
 				if (read_ipv4_tuple(&t, status, sk)) {
 					t.lport = ntohs(t.lport); // Making ports human-readable
 					t.rport = ntohs(t.rport);
@@ -883,9 +921,37 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
 					int http_status_code = 0;
 					u16 mysql_greeting_protocol_version = 0;
 					if (parse_http_response(data, iov.iov_len, &http_status_code)) {
-						send_http_response(ctx, t, http_status_code, ttfb / 1000, current_time, cpu);
+						bpf_debug("test IPV4 http\n");
+						send_ipv4_http_response(ctx, t, http_status_code, ttfb / 1000, current_time, cpu);
 					} else {
-						send_mysql_greeting(ctx, t, mysql_greeting_protocol_version, current_time, cpu);
+//						bpf_debug("test IPV4 mysql\n");
+						send_ipv4_mysql_greeting(ctx, t, mysql_greeting_protocol_version, current_time, cpu);
+					}
+				}
+			} else if (check_family(sk, status, AF_INET6)) {
+				struct ipv6_tuple_t t = {};
+				if (read_ipv6_tuple(&t, status, sk)) {
+					t.lport = ntohs(t.lport); // Making ports human-readable
+					t.rport = ntohs(t.rport);
+
+					struct tracked_socket *res = bpf_map_lookup_elem(&tracked_sockets, &sk);
+					u64 current_time = bpf_ktime_get_ns();
+					u64 ttfb = 0;
+					struct tracked_socket tsocket = {.active = 1};
+					tsocket.prev_send_time_ns = current_time;
+					bpf_map_update_elem(&tracked_sockets, &sk, &tsocket, BPF_ANY);
+					if (res != NULL) {
+						ttfb = current_time - res->prev_send_time_ns;
+					}
+					u64 cpu = bpf_get_smp_processor_id();
+					int http_status_code = 0;
+					u16 mysql_greeting_protocol_version = 0;
+					if (parse_http_response(data, iov.iov_len, &http_status_code)) {
+						bpf_debug("test IPV6 http\n");
+						send_ipv6_http_response(ctx, t, http_status_code, ttfb / 1000, current_time, cpu);
+					} else {
+						bpf_debug("test IPV6 mysql\n");
+						send_ipv6_mysql_greeting(ctx, t, mysql_greeting_protocol_version, current_time, cpu);
 					}
 				}
 			}

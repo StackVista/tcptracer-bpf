@@ -646,7 +646,7 @@ func (t *LinuxTracer) enrichTcpConn(conn *common.ConnectionStats) {
 	connInsight, ok := t.tcpConnInsights[connection]
 	if ok {
 		delete(t.tcpConnInsights, connection)
-		logger.Debugf("enriched %v with %v", connection, connInsight)
+		logger.Debugf("test enriched %v with %v", connection, connInsight)
 		if connInsight.ApplicationProtocol != "" {
 			conn.ApplicationProtocol = connInsight.ApplicationProtocol
 		}

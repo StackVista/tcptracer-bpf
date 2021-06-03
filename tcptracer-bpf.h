@@ -83,12 +83,14 @@ struct tracked_socket {
 struct event_http_response {
     __u16 status_code;
     __u32 response_time;
-    struct ipv4_tuple_t connection;
+    struct ipv4_tuple_t ipv4_connection;
+    struct ipv6_tuple_t ipv6_connection;
 };
 
 struct event_mysql_greeting {
     __u16 protocol_version;
-    struct ipv4_tuple_t connection;
+    struct ipv4_tuple_t ipv4_connection;
+    struct ipv6_tuple_t ipv6_connection;
 };
 
 union event_payload

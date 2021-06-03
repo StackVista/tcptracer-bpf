@@ -92,11 +92,11 @@ func httpResponseEvent(eventC *EventHTTPResponse, timestamp time.Time) *common.P
 		Timestamp: timestamp,
 		HTTPResponse: &common.HTTPResponse{
 			Connection: common.ConnTupleV4{
-				Laddr: common.V4IPString(uint32(eventC.connection.laddr)),
-				Lport: uint16(eventC.connection.lport),
-				Raddr: common.V4IPString(uint32(eventC.connection.raddr)),
-				Rport: uint16(eventC.connection.rport),
-				Pid:   uint16(eventC.connection.pid),
+				Laddr: common.V4IPString(uint32(eventC.ipv4_connection.laddr)),
+				Lport: uint16(eventC.ipv4_connection.lport),
+				Raddr: common.V4IPString(uint32(eventC.ipv4_connection.raddr)),
+				Rport: uint16(eventC.ipv4_connection.rport),
+				Pid:   uint16(eventC.ipv4_connection.pid),
 			},
 			StatusCode:   int(eventC.status_code),
 			ResponseTime: time.Duration(int(eventC.response_time)) * time.Microsecond,
@@ -109,11 +109,11 @@ func mysqlGreetingEvent(eventC *EventMYSQLGreeting, timestamp time.Time) *common
 		Timestamp: timestamp,
 		MySQLGreeting: &common.MySQLGreeting{
 			Connection: common.ConnTupleV4{
-				Laddr: common.V4IPString(uint32(eventC.connection.laddr)),
-				Lport: uint16(eventC.connection.lport),
-				Raddr: common.V4IPString(uint32(eventC.connection.raddr)),
-				Rport: uint16(eventC.connection.rport),
-				Pid:   uint16(eventC.connection.pid),
+				Laddr: common.V4IPString(uint32(eventC.ipv4_connection.laddr)),
+				Lport: uint16(eventC.ipv4_connection.lport),
+				Raddr: common.V4IPString(uint32(eventC.ipv4_connection.raddr)),
+				Rport: uint16(eventC.ipv4_connection.rport),
+				Pid:   uint16(eventC.ipv4_connection.pid),
 			},
 			ProtocolVersion: int(uint16(eventC.protocol_version)),
 		},
