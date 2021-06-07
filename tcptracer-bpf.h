@@ -110,6 +110,7 @@ struct perf_event
 #define TCPTRACER_STATE_READY         3
 
 struct tcptracer_status_t {
+	__u16 protocol_inspection_enabled;
 	__u64 state;
 
 	/* checking */

@@ -20,6 +20,8 @@ type CommonConfig struct {
 	HttpMetricConfig HttpMetricConfig
 	// Enable reading and logging bpf_trace_printk from a running eBPF program
 	EnableTracepipeLogging bool
+	// EnableProtocolInspection Boolean flag to enable/disable protocol inspection from eBPF
+	EnableProtocolInspection bool
 }
 
 type HttpMetricConfig struct {
@@ -54,7 +56,8 @@ var DefaultCommonConfig = &CommonConfig{
 		Accuracy:   0.01,
 		MaxNumBins: 1024,
 	},
-	EnableTracepipeLogging: false,
+	EnableTracepipeLogging:   false,
+	EnableProtocolInspection: true,
 }
 
 func MakeCommonConfig() *CommonConfig {
@@ -69,6 +72,7 @@ func MakeCommonConfig() *CommonConfig {
 			Accuracy:   0.01,
 			MaxNumBins: 1024,
 		},
-		EnableTracepipeLogging: false,
+		EnableTracepipeLogging:   false,
+		EnableProtocolInspection: true,
 	}
 }

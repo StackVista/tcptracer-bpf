@@ -87,7 +87,7 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 		}
 	}
 
-	if err := initialize(m); err != nil {
+	if err := initialize(m, config.EnableProtocolInspection); err != nil {
 		return nil, fmt.Errorf("failed to init module: %s", err)
 	}
 
@@ -99,9 +99,12 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 	perfEventsBytes := make(chan []byte, PerfEventsBuffer)
 	perfEventsLostLog := make(chan uint64, PerfEventsBuffer)
 
-	perfMap, err := bpflib.InitPerfMap(m, common.PerfEvents, perfEventsBytes, perfEventsLostLog)
-	if err != nil {
-		return nil, err
+	var perfMap *bpflib.PerfMap = nil
+	if config.EnableProtocolInspection {
+		perfMap, err = bpflib.InitPerfMap(m, common.PerfEvents, perfEventsBytes, perfEventsLostLog)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	inFlightTCP := make(map[string]*common.ConnectionStats)
@@ -190,37 +193,41 @@ func isDebugFsMounted() (bool, error) {
 
 func (t *LinuxTracer) Start() error {
 
-	go func() {
-	EvLoop:
-		for {
-			select {
-			case payload := <-t.perfEventsBytes:
-				tracingEvent, err := perfEvent(payload)
-				if err != nil {
-					logger.Warnf("cannot parse event for eBPF: %v, event bytes: %v", err, payload)
-				} else {
-					logger.Tracef("received tracing event: %v (bytes [%d]%v)", tracingEvent, len(payload), payload)
-					t.dispatchPerfEvent(tracingEvent)
+	if t.config.EnableProtocolInspection {
+		go func() {
+		EvLoop:
+			for {
+				select {
+				case payload := <-t.perfEventsBytes:
+					tracingEvent, err := perfEvent(payload)
+					if err != nil {
+						logger.Warnf("cannot parse event for eBPF: %v, event bytes: %v", err, payload)
+					} else {
+						logger.Tracef("received tracing event: %v (bytes [%d]%v)", tracingEvent, len(payload), payload)
+						t.dispatchPerfEvent(tracingEvent)
+					}
+					break
+				case lost := <-t.perfEventsLostLog:
+					logger.Infof("Lost %d", lost)
+					break
+				case <-t.stopCh:
+					break EvLoop
 				}
-				break
-			case lost := <-t.perfEventsLostLog:
-				logger.Infof("Lost %d", lost)
-				break
-			case <-t.stopCh:
-				break EvLoop
 			}
-		}
-	}()
+		}()
 
-	t.perfMap.PollStart()
+		t.perfMap.PollStart()
+	}
 
 	return nil
 }
 
 func (t *LinuxTracer) Stop() {
 	logger.Info("Stopping linux network tracer")
-	t.stopCh <- true
-	t.perfMap.PollStop()
+	if t.config.EnableProtocolInspection {
+		t.stopCh <- true
+		t.perfMap.PollStop()
+	}
 	err := t.m.Close()
 	if err != nil {
 		logger.Error(err.Error())
@@ -236,7 +243,9 @@ func (t *LinuxTracer) GetConnections() (*common.Connections, error) {
 
 	tcpConns := t.getTcpConnectionsFromInFlight()
 
-	tcpConns = t.enrichTcpConns(tcpConns)
+	if t.config.EnableProtocolInspection {
+		tcpConns = t.enrichTcpConns(tcpConns)
+	}
 
 	udpConns, err := t.getEbpfUDPConnections()
 	if err != nil {
@@ -664,8 +673,8 @@ func (t *LinuxTracer) enrichTcpConn(conn *common.ConnectionStats) {
 	}
 }
 
-func initialize(m *bpflib.Module) error {
-	if err := guess(m); err != nil {
+func initialize(m *bpflib.Module, protocolInspectionEnabled bool) error {
+	if err := guess(m, protocolInspectionEnabled); err != nil {
 		return fmt.Errorf("error guessing offsets: %v", err)
 	}
 	return nil

@@ -44,7 +44,7 @@ func TestEnsureGuessingFromConnectingSide(t *testing.T) {
 	defer runtime.UnlockOSThread()
 
 	// if guessBench null tracer is initialized
-	bench, err := setupGuess(module, currentNetns)
+	bench, err := setupGuess(module, currentNetns, true)
 	if err != nil || bench == nil {
 		t.Fatal(err)
 	}

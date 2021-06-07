@@ -134,6 +134,7 @@ static int update_tracer_offset_status_v4(struct tcptracer_status_t *status, str
 	new_status.netns = status->netns;
 	new_status.family = status->family;
 	new_status.iter_type = status->iter_type;
+	new_status.protocol_inspection_enabled = status->protocol_inspection_enabled;
 
 	bpf_probe_read(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
 
@@ -259,6 +260,7 @@ static int update_tracer_offset_status_v6(struct tcptracer_status_t *status, str
 	new_status.netns = status->netns;
 	new_status.family = status->family;
 	new_status.iter_type = status->iter_type;
+	new_status.protocol_inspection_enabled = status->protocol_inspection_enabled;
 
 	bpf_probe_read(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
 
@@ -852,37 +854,39 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
 		return 0;
 	}
 
-	struct msghdr msg = {};
-	bpf_probe_read(&msg, sizeof(msg), k_msg);
-	if ((msg.msg_iter.type & ~(READ | WRITE)) == status->iter_type) {
-		char *data = bpf_map_lookup_elem(&write_buffer_heap, &zero);
-		if (data != NULL) {
-			struct iovec iov = {};
-			bpf_probe_read(&iov, sizeof(iov), (void *)msg.msg_iter.iov);
-			bpf_probe_read(data, MAX_MSG_SIZE, iov.iov_base);
+	if (status->protocol_inspection_enabled) {
+		struct msghdr msg = {};
+		bpf_probe_read(&msg, sizeof(msg), k_msg);
+		if ((msg.msg_iter.type & ~(READ | WRITE)) == status->iter_type) {
+			char *data = bpf_map_lookup_elem(&write_buffer_heap, &zero);
+			if (data != NULL) {
+				struct iovec iov = {};
+				bpf_probe_read(&iov, sizeof(iov), (void *)msg.msg_iter.iov);
+				bpf_probe_read(data, MAX_MSG_SIZE, iov.iov_base);
 
-			struct ipv4_tuple_t t = {};
-			if (check_family(sk, status, AF_INET)) {
-				if (read_ipv4_tuple(&t, status, sk)) {
-					t.lport = ntohs(t.lport); // Making ports human-readable
-					t.rport = ntohs(t.rport);
+				struct ipv4_tuple_t t = {};
+				if (check_family(sk, status, AF_INET)) {
+					if (read_ipv4_tuple(&t, status, sk)) {
+						t.lport = ntohs(t.lport); // Making ports human-readable
+						t.rport = ntohs(t.rport);
 
-					struct tracked_socket *res = bpf_map_lookup_elem(&tracked_sockets, &sk);
-					u64 current_time = bpf_ktime_get_ns();
-					u64 ttfb = 0;
-					struct tracked_socket tsocket = {.active = 1};
-					tsocket.prev_send_time_ns = current_time;
-					bpf_map_update_elem(&tracked_sockets, &sk, &tsocket, BPF_ANY);
-					if (res != NULL) {
-						ttfb = current_time - res->prev_send_time_ns;
-					}
-					u64 cpu = bpf_get_smp_processor_id();
-					int http_status_code = 0;
-					u16 mysql_greeting_protocol_version = 0;
-					if (parse_http_response(data, iov.iov_len, &http_status_code)) {
-						send_http_response(ctx, t, http_status_code, ttfb / 1000, current_time, cpu);
-					} else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
-						send_mysql_greeting(ctx, t, mysql_greeting_protocol_version, current_time, cpu);
+						struct tracked_socket *res = bpf_map_lookup_elem(&tracked_sockets, &sk);
+						u64 current_time = bpf_ktime_get_ns();
+						u64 ttfb = 0;
+						struct tracked_socket tsocket = {.active = 1};
+						tsocket.prev_send_time_ns = current_time;
+						bpf_map_update_elem(&tracked_sockets, &sk, &tsocket, BPF_ANY);
+						if (res != NULL) {
+							ttfb = current_time - res->prev_send_time_ns;
+						}
+						u64 cpu = bpf_get_smp_processor_id();
+						int http_status_code = 0;
+						u16 mysql_greeting_protocol_version = 0;
+						if (parse_http_response(data, iov.iov_len, &http_status_code)) {
+							send_http_response(ctx, t, http_status_code, ttfb / 1000, current_time, cpu);
+						} else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
+							send_mysql_greeting(ctx, t, mysql_greeting_protocol_version, current_time, cpu);
+						}
 					}
 				}
 			}

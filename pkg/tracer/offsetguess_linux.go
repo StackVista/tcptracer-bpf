@@ -377,7 +377,7 @@ type guessBench struct {
 	status                   *tcpTracerStatus
 }
 
-func setupGuess(b *elf.Module, netns uint64) (*guessBench, error) {
+func setupGuess(b *elf.Module, netns uint64, protocolInspectionEnabled bool) (*guessBench, error) {
 	mp := b.Map("tcptracer_status")
 
 	processName := filepath.Base(os.Args[0])
@@ -397,9 +397,10 @@ func setupGuess(b *elf.Module, netns uint64) (*guessBench, error) {
 	}
 
 	status := &tcpTracerStatus{
-		state:     stateChecking,
-		proc:      C.struct_proc_t{comm: cProcName},
-		iter_type: C.__u16(iterType),
+		protocol_inspection_enabled: C.__u16(B2i(protocolInspectionEnabled)),
+		state:                       stateChecking,
+		proc:                        C.struct_proc_t{comm: cProcName},
+		iter_type:                   C.__u16(iterType),
 	}
 
 	// if we already have the offsets, just return
@@ -438,7 +439,7 @@ func setupGuess(b *elf.Module, netns uint64) (*guessBench, error) {
 	}, nil
 }
 
-func guess(module *elf.Module) error {
+func guess(module *elf.Module, protocolInspectionEnabled bool) error {
 	logger.Debug("start guessing ...")
 	currentNetns, err := ownNetNS()
 	if err != nil {
@@ -451,7 +452,7 @@ func guess(module *elf.Module) error {
 	defer runtime.UnlockOSThread()
 
 	// if guessBench null tracer is initialized
-	bench, err := setupGuess(module, currentNetns)
+	bench, err := setupGuess(module, currentNetns, protocolInspectionEnabled)
 	if err != nil || bench == nil {
 		return err
 	}
@@ -528,4 +529,11 @@ func getIterType() (uint16, error) {
 
 	logger.Debugf("Go iter_type = %d", iter_type)
 	return iter_type, nil
+}
+
+func B2i(b bool) uint16 {
+	if b {
+		return 1
+	}
+	return 0
 }
