@@ -62,8 +62,8 @@ func main() {
 		printConns(time.Now())
 		for {
 			select {
-			//case now := <-tick.C:
-			//	printConns(now)
+			case now := <-tick.C:
+				printConns(now)
 			case <-stopChan:
 				tick.Stop()
 				return
