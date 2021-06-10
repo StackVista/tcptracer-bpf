@@ -79,6 +79,8 @@ struct tracked_socket {
 
 #define EVENT_HTTP_RESPONSE 1
 #define EVENT_MYSQL_GREETING 2
+#define EVENT_HTTP_RESPONSE_V6 3
+#define EVENT_MYSQL_GREETING_V6 4
 
 struct event_http_response {
     __u16 status_code;
@@ -91,10 +93,23 @@ struct event_mysql_greeting {
     struct ipv4_tuple_t connection;
 };
 
+struct event_http_response_v6 {
+    __u16 status_code;
+    __u32 response_time;
+    struct ipv6_tuple_t connection;
+};
+
+struct event_mysql_greeting_v6 {
+    __u16 protocol_version;
+    struct ipv6_tuple_t connection;
+};
+
 union event_payload
 {
 	struct event_http_response http_response;
 	struct event_mysql_greeting mysql_greeting;
+	struct event_http_response_v6 http_response_v6;
+    struct event_mysql_greeting_v6 mysql_greeting_v6;
 };
 
 struct perf_event

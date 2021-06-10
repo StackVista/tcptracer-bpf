@@ -49,7 +49,7 @@ type LinuxTracer struct {
 	// This map is used to aggregate additional information (insight) about
 	// connections, currently data from perfEventsBytes finds it way into tcpConnInsights
 	// See dispatchPerfEvent & enrichTcpConns methods below
-	tcpConnInsights     map[common.ConnTupleV4]ConnInsight
+	tcpConnInsights     map[common.ConnTuple]ConnInsight
 	tcpConnInsightsLock sync.RWMutex
 
 	onPerfEvent func(event common.PerfEvent)
@@ -117,7 +117,7 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 		perfMap:             perfMap,
 		perfEventsBytes:     perfEventsBytes,
 		perfEventsLostLog:   perfEventsLostLog,
-		tcpConnInsights:     make(map[common.ConnTupleV4]ConnInsight),
+		tcpConnInsights:     make(map[common.ConnTuple]ConnInsight),
 		tcpConnInsightsLock: sync.RWMutex{},
 		stopCh:              make(chan bool),
 	}
@@ -580,9 +580,9 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 	t.tcpConnInsightsLock.Lock()
 	defer t.tcpConnInsightsLock.Unlock()
 
-	if event.HTTPResponse != nil {
-		logger.Tracef("http response: %v", event.HTTPResponse)
-		httpRes := event.HTTPResponse
+	if event.HTTPResponseV4 != nil {
+		logger.Warnf("http response: %v", event.HTTPResponseV4)
+		httpRes := event.HTTPResponseV4
 
 		conn, ok := t.tcpConnInsights[httpRes.Connection]
 		httpProtocol := "http"
@@ -610,9 +610,52 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 		}
 		t.tcpConnInsights[httpRes.Connection] = conn
 
-	} else if event.MySQLGreeting != nil {
-		logger.Tracef("mysql greeting: %v", event.MySQLGreeting)
-		mysqlGreeting := event.MySQLGreeting
+	} else if event.MySQLGreetingV4 != nil {
+		logger.Warnf("mysql greeting: %v", event.MySQLGreetingV4)
+		mysqlGreeting := event.MySQLGreetingV4
+
+		conn, ok := t.tcpConnInsights[mysqlGreeting.Connection]
+		if !ok {
+			conn = ConnInsight{
+				ApplicationProtocol: "mysql",
+				HttpMetrics:         make(map[HttpCode]*ddsketch.DDSketch),
+			}
+		}
+		conn.ApplicationProtocol = "mysql"
+		t.tcpConnInsights[mysqlGreeting.Connection] = conn
+	} else if event.HTTPResponseV6 != nil {
+		logger.Warnf("http response ipv6: %v", event.HTTPResponseV6)
+		httpRes := event.HTTPResponseV6
+
+		conn, ok := t.tcpConnInsights[httpRes.Connection]
+		httpProtocol := "http"
+		if !ok {
+			conn = ConnInsight{
+				ApplicationProtocol: httpProtocol,
+				HttpMetrics:         make(map[HttpCode]*ddsketch.DDSketch),
+			}
+		}
+		conn.ApplicationProtocol = httpProtocol
+
+		latencyCounter, ok := conn.HttpMetrics[httpRes.StatusCode]
+		if !ok {
+			var err error
+			latencyCounter, err = makeDDSketch(t.config.HttpMetricConfig)
+			if err != nil {
+				logger.Errorf("can't create dd sketch. Error: %v", err)
+			} else {
+				conn.HttpMetrics[httpRes.StatusCode] = latencyCounter
+				err := latencyCounter.Add(httpRes.ResponseTime.Seconds())
+				if err != nil {
+					logger.Errorf("can't add response time to DDSketch. Error: %v", err)
+				}
+			}
+		}
+		t.tcpConnInsights[httpRes.Connection] = conn
+
+	} else if event.MySQLGreetingV6 != nil {
+		logger.Warnf("mysql greeting ipv6: %v", event.MySQLGreetingV6)
+		mysqlGreeting := event.MySQLGreetingV6
 
 		conn, ok := t.tcpConnInsights[mysqlGreeting.Connection]
 		if !ok {
@@ -651,7 +694,7 @@ func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.Co
 func (t *LinuxTracer) enrichTcpConn(conn *common.ConnectionStats) {
 	t.tcpConnInsightsLock.Lock()
 	defer t.tcpConnInsightsLock.Unlock()
-	connection := conn.GetConnection()
+	connection := conn.GetConnectionV4()
 	connInsight, ok := t.tcpConnInsights[connection]
 	if ok {
 		delete(t.tcpConnInsights, connection)

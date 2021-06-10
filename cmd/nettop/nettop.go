@@ -29,6 +29,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	tracer.RunTracepipe()
+
 	t, err := tracer.NewTracer(config.DefaultConfig)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -60,8 +62,8 @@ func main() {
 		printConns(time.Now())
 		for {
 			select {
-			case now := <-tick.C:
-				printConns(now)
+			//case now := <-tick.C:
+			//	printConns(now)
 			case <-stopChan:
 				tick.Stop()
 				return
