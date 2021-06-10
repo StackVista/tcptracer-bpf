@@ -812,7 +812,7 @@ bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) 
 	({                                                                       \
 		struct event_mysql_greeting greeting;                                  \
 		__builtin_memset(&greeting, 0, sizeof(greeting));                      \
-		greeting.connection = _t;                                              \
+        greeting.connection.ipv4_connection = _t;                              \
 		greeting.protocol_version = _protocol_version;                         \
 		union event_payload payload;                                           \
 		__builtin_memset(&payload, 0, sizeof(payload));                        \
@@ -829,7 +829,7 @@ bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) 
 	({                                                                                          \
 		struct event_http_response http_response;                                                 \
 		__builtin_memset(&http_response, 0, sizeof(http_response));                               \
-		http_response.connection = _t;                                                            \
+		http_response.connection.ipv4_connection = _t;                                            \
 		http_response.status_code = _http_status_code;                                            \
 		http_response.response_time = _response_time;                                             \
 		union event_payload payload;                                                              \
@@ -845,16 +845,16 @@ bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) 
 
 #define send_mysql_greeting_v6(_ctx, _t, _protocol_version, _timestamp, _cpu) \
 	({                                                                          \
-		struct event_mysql_greeting_v6 greeting;                                  \
+		struct event_mysql_greeting greeting;                                    \
 		__builtin_memset(&greeting, 0, sizeof(greeting));                         \
-		greeting.connection = _t;                                                 \
+		greeting.connection.ipv6_connection = _t;                                 \
 		greeting.protocol_version = _protocol_version;                            \
 		union event_payload payload;                                              \
 		__builtin_memset(&payload, 0, sizeof(payload));                           \
-		payload.mysql_greeting_v6 = greeting;                                     \
+		payload.mysql_greeting = greeting;                                        \
 		struct perf_event event;                                                  \
 		__builtin_memset(&event, 0, sizeof(event));                               \
-		event.event_type = EVENT_MYSQL_GREETING_V6;                                  \
+		event.event_type = EVENT_MYSQL_GREETING_V6;                               \
 		event.timestamp = _timestamp;                                             \
 		event.payload = payload;                                                  \
 		bpf_perf_event_output(ctx, &perf_events, _cpu, &event, sizeof(event));    \
@@ -862,17 +862,17 @@ bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) 
 
 #define send_http_response_v6(_ctx, _t, _http_status_code, _response_time, _timestamp, _cpu)  \
 	({                                                                                          \
-		struct event_http_response_v6 http_response;                                              \
+		struct event_http_response http_response;                                                \
 		__builtin_memset(&http_response, 0, sizeof(http_response));                               \
-		http_response.connection = _t;                                                            \
+        http_response.connection.ipv6_connection = _t;                                            \
 		http_response.status_code = _http_status_code;                                            \
 		http_response.response_time = _response_time;                                             \
 		union event_payload payload;                                                              \
 		__builtin_memset(&payload, 0, sizeof(payload));                                           \
-		payload.http_response_v6 = http_response;                                                 \
+		payload.http_response = http_response;                                                    \
 		struct perf_event response_event;                                                         \
 		__builtin_memset(&response_event, 0, sizeof(response_event));                             \
-		response_event.event_type = EVENT_HTTP_RESPONSE_V6;                                          \
+		response_event.event_type = EVENT_HTTP_RESPONSE_V6;                                       \
 		response_event.timestamp = _timestamp;                                                    \
 		response_event.payload = payload;                                                         \
 		bpf_perf_event_output(_ctx, &perf_events, _cpu, &response_event, sizeof(response_event)); \

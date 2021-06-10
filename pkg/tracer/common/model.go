@@ -164,48 +164,61 @@ type ConnTuple struct {
 	Pid   uint16
 }
 
-func (ct *ConnTuple) Matches(stats *ConnectionStats) bool {
-	return stats.Pid == uint32(ct.Pid) &&
-		stats.Local == ct.Laddr && stats.Remote == ct.Raddr &&
-		stats.LocalPort == ct.Lport && stats.RemotePort == ct.Rport
+type ConnStruct struct {
+	IPV4Connection ConnTuple
+	IPV6Connection ConnTuple
+}
+
+func (ct *ConnStruct) MatchesV4(stats *ConnectionStats) bool {
+	return stats.Pid == uint32(ct.IPV4Connection.Pid) &&
+		stats.Local == ct.IPV4Connection.Laddr && stats.Remote == ct.IPV4Connection.Raddr &&
+		stats.LocalPort == ct.IPV4Connection.Lport && stats.RemotePort == ct.IPV4Connection.Rport
+}
+
+func (ct *ConnStruct) MatchesV6(stats *ConnectionStats) bool {
+	return stats.Pid == uint32(ct.IPV4Connection.Pid) &&
+		stats.Local == ct.IPV4Connection.Laddr && stats.Remote == ct.IPV4Connection.Raddr &&
+		stats.LocalPort == ct.IPV4Connection.Lport && stats.RemotePort == ct.IPV4Connection.Rport
 }
 
 type HTTPResponse struct {
-	Connection   ConnTuple
+	Connection   ConnStruct
 	StatusCode   int
 	ResponseTime time.Duration
 }
 
 type MySQLGreeting struct {
-	Connection      ConnTuple
+	Connection      ConnStruct
 	ProtocolVersion int
 }
 
 type PerfEvent struct {
-	HTTPResponseV4  *HTTPResponse
-	MySQLGreetingV4 *MySQLGreeting
-	HTTPResponseV6  *HTTPResponse
-	MySQLGreetingV6 *MySQLGreeting
+	HTTPResponse  *HTTPResponse
+	MySQLGreeting *MySQLGreeting
 	Timestamp     time.Time
 }
 
-func (c ConnectionStats) GetConnectionV4() ConnTuple {
-	return ConnTuple{
-		Laddr: c.Local,
-		Lport: c.LocalPort,
-		Raddr: c.Remote,
-		Rport: c.RemotePort,
-		Pid:   0,
+func (c ConnectionStats) GetConnectionV4() ConnStruct {
+	return ConnStruct{
+		IPV4Connection: ConnTuple {
+			Laddr: c.Local,
+			Lport: c.LocalPort,
+			Raddr: c.Remote,
+			Rport: c.RemotePort,
+			Pid:   0,
+		},
 	}
 }
 
-func (c ConnectionStats) GetConnectionV6() ConnTuple {
-	return ConnTuple{
-		Laddr: c.Local,
-		Lport: c.LocalPort,
-		Raddr: c.Remote,
-		Rport: c.RemotePort,
-		Pid:   0,
+func (c ConnectionStats) GetConnectionV6() ConnStruct {
+	return ConnStruct{
+		IPV6Connection: ConnTuple{
+			Laddr: c.Local,
+			Lport: c.LocalPort,
+			Raddr: c.Remote,
+			Rport: c.RemotePort,
+			Pid:   0,
+		},
 	}
 }
 
