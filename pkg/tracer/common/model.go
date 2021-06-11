@@ -164,31 +164,25 @@ type ConnTuple struct {
 	Pid   uint16
 }
 
-type ConnStruct struct {
-	IPV4Connection ConnTuple
-	IPV6Connection ConnTuple
-}
-
-func (ct *ConnTuple) MatchesV4(stats *ConnectionStats) bool {
+func (ct *ConnTuple) Matches(stats *ConnectionStats) bool {
 	return stats.Pid == uint32(ct.Pid) &&
 		stats.Local == ct.Laddr && stats.Remote == ct.Raddr &&
 		stats.LocalPort == ct.Lport && stats.RemotePort == ct.Rport
 }
 
 type HTTPResponse struct {
-	Connection   ConnStruct
 	StatusCode   int
 	ResponseTime time.Duration
 }
 
 type MySQLGreeting struct {
-	Connection      ConnStruct
 	ProtocolVersion int
 }
 
 type PerfEvent struct {
 	HTTPResponse  *HTTPResponse
 	MySQLGreeting *MySQLGreeting
+	Connection    *ConnTuple
 	Timestamp     time.Time
 }
 

@@ -579,15 +579,10 @@ func (t *LinuxTracer) getMap(mapName string) (*bpflib.Map, error) {
 func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 	t.tcpConnInsightsLock.Lock()
 	defer t.tcpConnInsightsLock.Unlock()
-	connection := common.ConnTuple{}
+	connection := *event.Connection
 	if event.HTTPResponse != nil {
-		if event.HTTPResponse.Connection.IPV4Connection.Lport == 0 {
-			logger.Tracef("http response ipv6: %v", event.HTTPResponse.Connection.IPV6Connection)
-			connection = event.HTTPResponse.Connection.IPV6Connection
-		} else {
-			logger.Tracef("http response ipv4: %v", event.HTTPResponse.Connection.IPV4Connection)
-			connection = event.HTTPResponse.Connection.IPV4Connection
-		}
+		logger.Tracef("http response: %v", event.Connection)
+
 		httpRes := event.HTTPResponse
 
 		conn, ok := t.tcpConnInsights[connection]
@@ -617,13 +612,7 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 		t.tcpConnInsights[connection] = conn
 
 	} else if event.MySQLGreeting != nil {
-		if event.MySQLGreeting.Connection.IPV4Connection.Lport == 0 {
-			logger.Tracef("mysql greeting ipv6: %v", event.MySQLGreeting.Connection.IPV6Connection)
-			connection = event.MySQLGreeting.Connection.IPV6Connection
-		} else {
-			logger.Tracef("mysql greeting ipv4: %v", event.MySQLGreeting.Connection.IPV4Connection)
-			connection = event.MySQLGreeting.Connection.IPV4Connection
-		}
+		logger.Tracef("mysql greeting: %v", event.Connection)
 
 		conn, ok := t.tcpConnInsights[connection]
 		if !ok {

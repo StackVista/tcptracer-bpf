@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/common"
 	"github.com/StackVista/tcptracer-bpf/pkg/tracer/procspy"
+	logger "github.com/cihub/seelog"
 	"strconv"
 	"time"
 	"unsafe"
@@ -91,84 +92,67 @@ func (cs *ConnStatsWithTimestamp) isExpired(latestTime int64, timeout int64) boo
 	return latestTime-int64(cs.timestamp) > timeout
 }
 
-func httpResponseEventV4(eventC *EventHTTPResponse, timestamp time.Time) *common.PerfEvent {
+func getConnDetails(eventType int, eventC *PerfEvent) (string, string, uint16, uint16, uint16) {
+	var laddr, raddr string
+	var lport, rport, pid uint16
 	connection_raw := (*IPConnection)(unsafe.Pointer(&eventC.connection))
-	connection := ipConnectionV4(connection_raw)
+	if eventType == 1 || eventType == 2 {
+		connection := ipConnectionV4(connection_raw)
+		logger.Tracef("ipv4: %v", connection)
+		laddr = common.V4IPString(uint32(connection.laddr))
+		raddr = common.V4IPString(uint32(connection.raddr))
+		lport = uint16(connection.lport)
+		rport = uint16(connection.rport)
+		pid = uint16(connection.pid)
+	} else {
+		connection := ipConnectionV6(connection_raw)
+		logger.Tracef("ipv6: %v", connection)
+		laddr = common.V6IPString(uint64(connection.laddr_h), uint64(connection.laddr_l))
+		raddr = common.V6IPString(uint64(connection.raddr_h), uint64(connection.raddr_l))
+		lport = uint16(connection.lport)
+		rport = uint16(connection.rport)
+		pid = uint16(connection.pid)
+	}
+	return laddr, raddr, lport, rport, pid
+}
+
+func httpResponseEvent(eventType int, eventC *PerfEvent, timestamp time.Time) *common.PerfEvent {
+	eventHttpResponse := (*EventHTTPResponse)(unsafe.Pointer(&eventC.payload))
+
+	laddr, raddr, lport, rport, pid := getConnDetails(eventType, eventC)
+
 	return &common.PerfEvent{
 		Timestamp: timestamp,
 		HTTPResponse: &common.HTTPResponse{
-			Connection: common.ConnStruct{
-				IPV4Connection: common.ConnTuple{
-					Laddr: common.V4IPString(uint32(connection.laddr)),
-					Lport: uint16(connection.lport),
-					Raddr: common.V4IPString(uint32(connection.raddr)),
-					Rport: uint16(connection.rport),
-					Pid:   uint16(connection.pid),
-				},
-			},
-			StatusCode:   int(eventC.status_code),
-			ResponseTime: time.Duration(int(eventC.response_time)) * time.Microsecond,
+			StatusCode:   int(eventHttpResponse.status_code),
+			ResponseTime: time.Duration(int(eventHttpResponse.response_time)) * time.Microsecond,
+		},
+		Connection: &common.ConnTuple{
+			Laddr: laddr,
+			Lport: lport,
+			Raddr: raddr,
+			Rport: rport,
+			Pid:   pid,
 		},
 	}
 }
 
-func mysqlGreetingEventV4(eventC *EventMYSQLGreeting, timestamp time.Time) *common.PerfEvent {
-	connection_raw := (*IPConnection)(unsafe.Pointer(&eventC.connection))
-	connection := ipConnectionV4(connection_raw)
+func mysqlGreetingEvent(eventType int, eventC *PerfEvent, timestamp time.Time) *common.PerfEvent {
+	mySqlGreeting := (*EventMYSQLGreeting)(unsafe.Pointer(&eventC.payload))
+
+	laddr, raddr, lport, rport, pid := getConnDetails(eventType, eventC)
+
 	return &common.PerfEvent{
 		Timestamp: timestamp,
 		MySQLGreeting: &common.MySQLGreeting{
-			Connection: common.ConnStruct{
-				IPV4Connection: common.ConnTuple{
-					Laddr: common.V4IPString(uint32(connection.laddr)),
-					Lport: uint16(connection.lport),
-					Raddr: common.V4IPString(uint32(connection.raddr)),
-					Rport: uint16(connection.rport),
-					Pid:   uint16(connection.pid),
-				},
-			},
-			ProtocolVersion: int(uint16(eventC.protocol_version)),
+			ProtocolVersion: int(uint16(mySqlGreeting.protocol_version)),
 		},
-	}
-}
-
-func httpResponseEventV6(eventC *EventHTTPResponse, timestamp time.Time) *common.PerfEvent {
-	connection_raw := (*IPConnection)(unsafe.Pointer(&eventC.connection))
-	connection := ipConnectionV6(connection_raw)
-	return &common.PerfEvent{
-		Timestamp: timestamp,
-		HTTPResponse: &common.HTTPResponse{
-			Connection: common.ConnStruct{
-				IPV6Connection: common.ConnTuple{
-					Laddr: common.V6IPString(uint64(connection.laddr_h), uint64(connection.laddr_l)),
-					Lport: uint16(connection.lport),
-					Raddr: common.V6IPString(uint64(connection.raddr_h), uint64(connection.raddr_l)),
-					Rport: uint16(connection.rport),
-					Pid:   uint16(connection.pid),
-				},
-			},
-			StatusCode:   int(eventC.status_code),
-			ResponseTime: time.Duration(int(eventC.response_time)) * time.Microsecond,
-		},
-	}
-}
-
-func mysqlGreetingEventV6(eventC *EventMYSQLGreeting, timestamp time.Time) *common.PerfEvent {
-	connection_raw := (*IPConnection)(unsafe.Pointer(&eventC.connection))
-	connection := ipConnectionV6(connection_raw)
-	return &common.PerfEvent{
-		Timestamp: timestamp,
-		MySQLGreeting: &common.MySQLGreeting{
-			Connection: common.ConnStruct{
-				IPV6Connection: common.ConnTuple{
-					Laddr: common.V6IPString(uint64(connection.laddr_h), uint64(connection.laddr_l)),
-					Lport: uint16(connection.lport),
-					Raddr: common.V6IPString(uint64(connection.raddr_h), uint64(connection.raddr_l)),
-					Rport: uint16(connection.rport),
-					Pid:   uint16(connection.pid),
-				},
-			},
-			ProtocolVersion: int(uint16(eventC.protocol_version)),
+		Connection: &common.ConnTuple{
+			Laddr: laddr,
+			Lport: lport,
+			Raddr: raddr,
+			Rport: rport,
+			Pid:   pid,
 		},
 	}
 }
@@ -186,17 +170,16 @@ func ipConnectionV6(eventC *IPConnection) *IPV6Connection {
 func perfEvent(data []byte) (*common.PerfEvent, error) {
 	eventC := (*PerfEvent)(unsafe.Pointer(&data[0]))
 	timestamp := time.Now()
-	eventPayload := eventC.payload
 	eventType := int(uint16(eventC.event_type))
 	switch eventType {
 	case 1:
-		return httpResponseEventV4((*EventHTTPResponse)(unsafe.Pointer(&eventPayload)), timestamp), nil
+		return httpResponseEvent(eventType, eventC, timestamp), nil
 	case 2:
-		return mysqlGreetingEventV4((*EventMYSQLGreeting)(unsafe.Pointer(&eventPayload)), timestamp), nil
+		return mysqlGreetingEvent(eventType, eventC, timestamp), nil
 	case 3:
-		return httpResponseEventV6((*EventHTTPResponse)(unsafe.Pointer(&eventPayload)), timestamp), nil
+		return httpResponseEvent(eventType, eventC, timestamp), nil
 	case 4:
-		return mysqlGreetingEventV6((*EventMYSQLGreeting)(unsafe.Pointer(&eventPayload)), timestamp), nil
+		return mysqlGreetingEvent(eventType, eventC, timestamp), nil
 	default:
 		return nil, errors.New(fmt.Sprintf("Unknown event type %v", eventType))
 	}

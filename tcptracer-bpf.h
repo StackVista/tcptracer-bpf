@@ -90,12 +90,10 @@ union connections {
 struct event_http_response {
     __u16 status_code;
     __u32 response_time;
-    union connections connection;
 };
 
 struct event_mysql_greeting {
     __u16 protocol_version;
-    union connections connection;
 };
 
 union event_payload
@@ -109,6 +107,7 @@ struct perf_event
 	__u16 event_type;
 	__u64 timestamp;
 	union event_payload payload;
+	union connections connection;
 };
 
 #define TCPTRACER_STATE_UNINITIALIZED 0
