@@ -92,11 +92,11 @@ func (cs *ConnStatsWithTimestamp) isExpired(latestTime int64, timeout int64) boo
 	return latestTime-int64(cs.timestamp) > timeout
 }
 
-func getConnDetails(eventType int, eventC *PerfEvent) (string, string, uint16, uint16, uint16) {
+func getConnDetails(connType int, eventC *PerfEvent) (string, string, uint16, uint16, uint16) {
 	var laddr, raddr string
 	var lport, rport, pid uint16
 	connection_raw := (*IPConnection)(unsafe.Pointer(&eventC.connection))
-	if eventType == 1 || eventType == 2 {
+	if connType == 1 {
 		connection := ipConnectionV4(connection_raw)
 		logger.Tracef("ipv4: %v", connection)
 		laddr = common.V4IPString(uint32(connection.laddr))
@@ -116,10 +116,10 @@ func getConnDetails(eventType int, eventC *PerfEvent) (string, string, uint16, u
 	return laddr, raddr, lport, rport, pid
 }
 
-func httpResponseEvent(eventType int, eventC *PerfEvent, timestamp time.Time) *common.PerfEvent {
+func httpResponseEvent(connType int, eventC *PerfEvent, timestamp time.Time) *common.PerfEvent {
 	eventHttpResponse := (*EventHTTPResponse)(unsafe.Pointer(&eventC.payload))
 
-	laddr, raddr, lport, rport, pid := getConnDetails(eventType, eventC)
+	laddr, raddr, lport, rport, pid := getConnDetails(connType, eventC)
 
 	return &common.PerfEvent{
 		Timestamp: timestamp,
@@ -137,10 +137,10 @@ func httpResponseEvent(eventType int, eventC *PerfEvent, timestamp time.Time) *c
 	}
 }
 
-func mysqlGreetingEvent(eventType int, eventC *PerfEvent, timestamp time.Time) *common.PerfEvent {
+func mysqlGreetingEvent(connType int, eventC *PerfEvent, timestamp time.Time) *common.PerfEvent {
 	mySqlGreeting := (*EventMYSQLGreeting)(unsafe.Pointer(&eventC.payload))
 
-	laddr, raddr, lport, rport, pid := getConnDetails(eventType, eventC)
+	laddr, raddr, lport, rport, pid := getConnDetails(connType, eventC)
 
 	return &common.PerfEvent{
 		Timestamp: timestamp,
@@ -170,18 +170,14 @@ func ipConnectionV6(eventC *IPConnection) *IPV6Connection {
 func perfEvent(data []byte) (*common.PerfEvent, error) {
 	eventC := (*PerfEvent)(unsafe.Pointer(&data[0]))
 	timestamp := time.Now()
-	eventType := int(uint16(eventC.event_type))
-	switch eventType {
+	connType := int(uint16(eventC.ip_protocol_version))
+	switch connType {
 	case 1:
-		return httpResponseEvent(eventType, eventC, timestamp), nil
+		return httpResponseEvent(connType, eventC, timestamp), nil
 	case 2:
-		return mysqlGreetingEvent(eventType, eventC, timestamp), nil
-	case 3:
-		return httpResponseEvent(eventType, eventC, timestamp), nil
-	case 4:
-		return mysqlGreetingEvent(eventType, eventC, timestamp), nil
+		return mysqlGreetingEvent(connType, eventC, timestamp), nil
 	default:
-		return nil, errors.New(fmt.Sprintf("Unknown event type %v", eventType))
+		return nil, errors.New(fmt.Sprintf("Unknown event type %v", connType))
 	}
 }
 

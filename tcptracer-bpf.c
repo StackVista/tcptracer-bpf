@@ -816,6 +816,7 @@ bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) 
 		union event_payload payload;                                                      \
 		__builtin_memset(&payload, 0, sizeof(payload));                                   \
 		payload.mysql_greeting = greeting;                                                \
+		_re.event_type = EVENT_MYSQL_GREETING;                                            \
 		_re.timestamp = _timestamp;                                                       \
 		_re.payload = payload;                                                            \
 		bpf_perf_event_output(ctx, &perf_events, _cpu, &_re, sizeof(struct perf_event));  \
@@ -830,6 +831,7 @@ bool parse_mysql_greeting(char *buffer, int size, u16 *protocol_version_result) 
 		union event_payload payload;                                                              \
 		__builtin_memset(&payload, 0, sizeof(payload));                                           \
 		payload.http_response = http_response;                                                    \
+		_re.event_type = EVENT_HTTP_RESPONSE;                                                     \
 		_re.timestamp = _timestamp;                                                               \
 		_re.payload = payload;                                                                    \
 		bpf_perf_event_output(_ctx, &perf_events, _cpu, &_re, sizeof(struct perf_event));         \
@@ -932,21 +934,19 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
                 if(is_ipv4(sk, status)) {
                     get_ip_v4_tuple(&t, sk, status);
                     response_event.connection.ipv4_connection = t;
+                    response_event.ip_protocol_version = IPV4;
                     if (parse_http_response(data, iov.iov_len, &http_status_code)) {
-                        response_event.event_type = EVENT_HTTP_RESPONSE;
                         send_http_response(ctx, response_event, http_status_code, ttfb / 1000, current_time, cpu);
                     } else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
-                        response_event.event_type = EVENT_MYSQL_GREETING;
                     	send_mysql_greeting(ctx, response_event, mysql_greeting_protocol_version, current_time, cpu);
                     }
                 } else {
                     get_ip_v6_tuple(&t6, sk, status);
                     response_event.connection.ipv6_connection = t6;
+                    response_event.ip_protocol_version = IPV6;
                     if (parse_http_response(data, iov.iov_len, &http_status_code)) {
-                        response_event.event_type = EVENT_HTTP_RESPONSE_V6;
                         send_http_response(ctx, response_event, http_status_code, ttfb / 1000, current_time, cpu);
                     } else if (parse_mysql_greeting(data, iov.iov_len, &mysql_greeting_protocol_version)) {
-                        response_event.event_type = EVENT_MYSQL_GREETING_V6;
                         send_mysql_greeting(ctx, response_event, mysql_greeting_protocol_version, current_time, cpu);
                     }
                 }
