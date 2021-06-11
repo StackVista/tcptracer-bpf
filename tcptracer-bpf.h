@@ -82,7 +82,7 @@ struct tracked_socket {
 #define EVENT_HTTP_RESPONSE_V6 3
 #define EVENT_MYSQL_GREETING_V6 4
 
-struct connections {
+union connections {
     struct ipv4_tuple_t ipv4_connection;
     struct ipv6_tuple_t ipv6_connection;
 };
@@ -90,12 +90,12 @@ struct connections {
 struct event_http_response {
     __u16 status_code;
     __u32 response_time;
-    struct connections connection;
+    union connections connection;
 };
 
 struct event_mysql_greeting {
     __u16 protocol_version;
-    struct connections connection;
+    union connections connection;
 };
 
 union event_payload

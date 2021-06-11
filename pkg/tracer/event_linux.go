@@ -82,7 +82,7 @@ type PerfEvent C.struct_perf_event
 type PerfEventPayload C.union_event_payload
 type EventHTTPResponse C.struct_event_http_response
 type EventMYSQLGreeting C.struct_event_mysql_greeting
-type IPConnections C.struct_connections
+type IPConnection C.union_connections
 type IPV4Connection C.struct_ipv4_tuple_t
 type IPV6Connection C.struct_ipv6_tuple_t
 
@@ -92,8 +92,8 @@ func (cs *ConnStatsWithTimestamp) isExpired(latestTime int64, timeout int64) boo
 }
 
 func httpResponseEventV4(eventC *EventHTTPResponse, timestamp time.Time) *common.PerfEvent {
-	connections_raw := (*IPConnections)(unsafe.Pointer(&eventC.connection))
-	connection := ipConnectionV4(connections_raw)
+	connection_raw := (*IPConnection)(unsafe.Pointer(&eventC.connection))
+	connection := ipConnectionV4(connection_raw)
 	return &common.PerfEvent{
 		Timestamp: timestamp,
 		HTTPResponse: &common.HTTPResponse{
@@ -113,8 +113,8 @@ func httpResponseEventV4(eventC *EventHTTPResponse, timestamp time.Time) *common
 }
 
 func mysqlGreetingEventV4(eventC *EventMYSQLGreeting, timestamp time.Time) *common.PerfEvent {
-	connections_raw := (*IPConnections)(unsafe.Pointer(&eventC.connection))
-	connection := ipConnectionV4(connections_raw)
+	connection_raw := (*IPConnection)(unsafe.Pointer(&eventC.connection))
+	connection := ipConnectionV4(connection_raw)
 	return &common.PerfEvent{
 		Timestamp: timestamp,
 		MySQLGreeting: &common.MySQLGreeting{
@@ -133,8 +133,8 @@ func mysqlGreetingEventV4(eventC *EventMYSQLGreeting, timestamp time.Time) *comm
 }
 
 func httpResponseEventV6(eventC *EventHTTPResponse, timestamp time.Time) *common.PerfEvent {
-	connections_raw := (*IPConnections)(unsafe.Pointer(&eventC.connection))
-	connection := ipConnectionV6(connections_raw)
+	connection_raw := (*IPConnection)(unsafe.Pointer(&eventC.connection))
+	connection := ipConnectionV6(connection_raw)
 	return &common.PerfEvent{
 		Timestamp: timestamp,
 		HTTPResponse: &common.HTTPResponse{
@@ -154,8 +154,8 @@ func httpResponseEventV6(eventC *EventHTTPResponse, timestamp time.Time) *common
 }
 
 func mysqlGreetingEventV6(eventC *EventMYSQLGreeting, timestamp time.Time) *common.PerfEvent {
-	connections_raw := (*IPConnections)(unsafe.Pointer(&eventC.connection))
-	connection := ipConnectionV6(connections_raw)
+	connection_raw := (*IPConnection)(unsafe.Pointer(&eventC.connection))
+	connection := ipConnectionV6(connection_raw)
 	return &common.PerfEvent{
 		Timestamp: timestamp,
 		MySQLGreeting: &common.MySQLGreeting{
@@ -173,13 +173,13 @@ func mysqlGreetingEventV6(eventC *EventMYSQLGreeting, timestamp time.Time) *comm
 	}
 }
 
-func ipConnectionV4(eventC *IPConnections) *IPV4Connection {
-	ipv4Connection := eventC.ipv4_connection;
+func ipConnectionV4(eventC *IPConnection) *IPV4Connection {
+	ipv4Connection := *eventC;
 	return (*IPV4Connection)(unsafe.Pointer(&ipv4Connection))
 }
 
-func ipConnectionV6(eventC *IPConnections) *IPV6Connection {
-	ipv6Connection := eventC.ipv6_connection;
+func ipConnectionV6(eventC *IPConnection) *IPV6Connection {
+	ipv6Connection := *eventC;
 	return (*IPV6Connection)(unsafe.Pointer(&ipv6Connection))
 }
 
