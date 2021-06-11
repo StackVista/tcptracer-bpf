@@ -582,10 +582,10 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 	connection := common.ConnTuple{}
 	if event.HTTPResponse != nil {
 		if event.HTTPResponse.Connection.IPV4Connection.Lport == 0 {
-			logger.Warnf("http response ipv6: %v", event.HTTPResponse.Connection.IPV6Connection)
+			logger.Tracef("http response ipv6: %v", event.HTTPResponse.Connection.IPV6Connection)
 			connection = event.HTTPResponse.Connection.IPV6Connection
 		} else {
-			logger.Warnf("http response ipv4: %v", event.HTTPResponse.Connection.IPV4Connection)
+			logger.Tracef("http response ipv4: %v", event.HTTPResponse.Connection.IPV4Connection)
 			connection = event.HTTPResponse.Connection.IPV4Connection
 		}
 		httpRes := event.HTTPResponse
@@ -618,13 +618,13 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 
 	} else if event.MySQLGreeting != nil {
 		if event.MySQLGreeting.Connection.IPV4Connection.Lport == 0 {
-			logger.Warnf("mysql greeting ipv6: %v", event.MySQLGreeting.Connection.IPV6Connection)
+			logger.Tracef("mysql greeting ipv6: %v", event.MySQLGreeting.Connection.IPV6Connection)
 			connection = event.MySQLGreeting.Connection.IPV6Connection
 		} else {
-			logger.Warnf("mysql greeting ipv4: %v", event.MySQLGreeting.Connection.IPV4Connection)
+			logger.Tracef("mysql greeting ipv4: %v", event.MySQLGreeting.Connection.IPV4Connection)
 			connection = event.MySQLGreeting.Connection.IPV4Connection
 		}
-		
+
 		conn, ok := t.tcpConnInsights[connection]
 		if !ok {
 			conn = ConnInsight{
