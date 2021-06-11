@@ -49,7 +49,7 @@ type LinuxTracer struct {
 	// This map is used to aggregate additional information (insight) about
 	// connections, currently data from perfEventsBytes finds it way into tcpConnInsights
 	// See dispatchPerfEvent & enrichTcpConns methods below
-	tcpConnInsights     map[common.ConnStruct]ConnInsight
+	tcpConnInsights     map[common.ConnTuple]ConnInsight
 	tcpConnInsightsLock sync.RWMutex
 
 	onPerfEvent func(event common.PerfEvent)
@@ -117,7 +117,7 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 		perfMap:             perfMap,
 		perfEventsBytes:     perfEventsBytes,
 		perfEventsLostLog:   perfEventsLostLog,
-		tcpConnInsights:     make(map[common.ConnStruct]ConnInsight),
+		tcpConnInsights:     make(map[common.ConnTuple]ConnInsight),
 		tcpConnInsightsLock: sync.RWMutex{},
 		stopCh:              make(chan bool),
 	}
@@ -579,16 +579,18 @@ func (t *LinuxTracer) getMap(mapName string) (*bpflib.Map, error) {
 func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 	t.tcpConnInsightsLock.Lock()
 	defer t.tcpConnInsightsLock.Unlock()
-
+	connection := common.ConnTuple{}
 	if event.HTTPResponse != nil {
 		if event.HTTPResponse.Connection.IPV4Connection.Lport == 0 {
 			logger.Warnf("http response ipv6: %v", event.HTTPResponse.Connection.IPV6Connection)
+			connection = event.HTTPResponse.Connection.IPV6Connection
 		} else {
 			logger.Warnf("http response ipv4: %v", event.HTTPResponse.Connection.IPV4Connection)
+			connection = event.HTTPResponse.Connection.IPV4Connection
 		}
 		httpRes := event.HTTPResponse
 
-		conn, ok := t.tcpConnInsights[httpRes.Connection]
+		conn, ok := t.tcpConnInsights[connection]
 		httpProtocol := "http"
 		if !ok {
 			conn = ConnInsight{
@@ -612,17 +614,18 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 				}
 			}
 		}
-		t.tcpConnInsights[httpRes.Connection] = conn
+		t.tcpConnInsights[connection] = conn
 
 	} else if event.MySQLGreeting != nil {
 		if event.MySQLGreeting.Connection.IPV4Connection.Lport == 0 {
 			logger.Warnf("mysql greeting ipv6: %v", event.MySQLGreeting.Connection.IPV6Connection)
+			connection = event.MySQLGreeting.Connection.IPV6Connection
 		} else {
 			logger.Warnf("mysql greeting ipv4: %v", event.MySQLGreeting.Connection.IPV4Connection)
+			connection = event.MySQLGreeting.Connection.IPV4Connection
 		}
-		mysqlGreeting := event.MySQLGreeting
-
-		conn, ok := t.tcpConnInsights[mysqlGreeting.Connection]
+		
+		conn, ok := t.tcpConnInsights[connection]
 		if !ok {
 			conn = ConnInsight{
 				ApplicationProtocol: "mysql",
@@ -630,7 +633,7 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 			}
 		}
 		conn.ApplicationProtocol = "mysql"
-		t.tcpConnInsights[mysqlGreeting.Connection] = conn
+		t.tcpConnInsights[connection] = conn
 	}
 }
 
@@ -659,7 +662,7 @@ func (t *LinuxTracer) enrichTcpConns(conns []common.ConnectionStats) []common.Co
 func (t *LinuxTracer) enrichTcpConn(conn *common.ConnectionStats) {
 	t.tcpConnInsightsLock.Lock()
 	defer t.tcpConnInsightsLock.Unlock()
-	connection := conn.GetConnectionV4()
+	connection := conn.GetConnection()
 	connInsight, ok := t.tcpConnInsights[connection]
 	if ok {
 		delete(t.tcpConnInsights, connection)

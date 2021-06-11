@@ -63,15 +63,6 @@ func (t *ConnTupleV6) copy() *ConnTupleV6 {
 	}
 }
 
-type ConnTupleStruct C.struct_connections
-
-func (t *ConnTupleStruct) copy() *ConnTupleStruct {
-	return &ConnTupleStruct{
-		ipv4_connection: t.ipv4_connection,
-		ipv6_connection: t.ipv6_connection,
-	}
-}
-
 /* struct conn_stats_t
 __u64 send_bytes;
 __u64 recv_bytes;
