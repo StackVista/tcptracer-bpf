@@ -899,7 +899,6 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
     if (status->protocol_inspection_enabled) {
         struct msghdr msg = {};
         bpf_probe_read(&msg, sizeof(msg), k_msg);
-    //	bpf_debug("test %d <> %d\n", msg.msg_iter.type & ~(READ | WRITE), status->iter_type);
 
         if ((msg.msg_iter.type & ~(READ | WRITE)) == status->iter_type) {
             char *data = bpf_map_lookup_elem(&write_buffer_heap, &zero);
