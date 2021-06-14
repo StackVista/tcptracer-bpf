@@ -49,7 +49,7 @@ type LinuxTracer struct {
 	// This map is used to aggregate additional information (insight) about
 	// connections, currently data from perfEventsBytes finds it way into tcpConnInsights
 	// See dispatchPerfEvent & enrichTcpConns methods below
-	tcpConnInsights     map[common.ConnTupleV4]ConnInsight
+	tcpConnInsights     map[common.ConnTuple]ConnInsight
 	tcpConnInsightsLock sync.RWMutex
 
 	onPerfEvent func(event common.PerfEvent)
@@ -117,7 +117,7 @@ func MakeTracer(config *config.Config) (Tracer, error) {
 		perfMap:             perfMap,
 		perfEventsBytes:     perfEventsBytes,
 		perfEventsLostLog:   perfEventsLostLog,
-		tcpConnInsights:     make(map[common.ConnTupleV4]ConnInsight),
+		tcpConnInsights:     make(map[common.ConnTuple]ConnInsight),
 		tcpConnInsightsLock: sync.RWMutex{},
 		stopCh:              make(chan bool),
 	}
@@ -579,12 +579,13 @@ func (t *LinuxTracer) getMap(mapName string) (*bpflib.Map, error) {
 func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 	t.tcpConnInsightsLock.Lock()
 	defer t.tcpConnInsightsLock.Unlock()
-
+	connection := *event.Connection
 	if event.HTTPResponse != nil {
-		logger.Tracef("http response: %v", event.HTTPResponse)
+		logger.Tracef("http response: %v", event.Connection)
+
 		httpRes := event.HTTPResponse
 
-		conn, ok := t.tcpConnInsights[httpRes.Connection]
+		conn, ok := t.tcpConnInsights[connection]
 		httpProtocol := "http"
 		if !ok {
 			conn = ConnInsight{
@@ -608,13 +609,12 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 				}
 			}
 		}
-		t.tcpConnInsights[httpRes.Connection] = conn
+		t.tcpConnInsights[connection] = conn
 
 	} else if event.MySQLGreeting != nil {
-		logger.Tracef("mysql greeting: %v", event.MySQLGreeting)
-		mysqlGreeting := event.MySQLGreeting
+		logger.Tracef("mysql greeting: %v", event.Connection)
 
-		conn, ok := t.tcpConnInsights[mysqlGreeting.Connection]
+		conn, ok := t.tcpConnInsights[connection]
 		if !ok {
 			conn = ConnInsight{
 				ApplicationProtocol: "mysql",
@@ -622,7 +622,7 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 			}
 		}
 		conn.ApplicationProtocol = "mysql"
-		t.tcpConnInsights[mysqlGreeting.Connection] = conn
+		t.tcpConnInsights[connection] = conn
 	}
 }
 

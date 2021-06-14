@@ -19,6 +19,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -503,11 +504,14 @@ func TestHTTPRequestLog(t *testing.T) {
 
 	testServer := createTestHTTPServer()
 
+	port, _ := strconv.Atoi(strings.Split( testServer.Listener.Addr().String(), ":")[1])
+
 	httpT := httpLogTest{
 		test:   t,
 		tracer: tr,
 		server: testServer,
 		client: testServer.Client(),
+		port: uint16(port),
 	}
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
@@ -532,6 +536,7 @@ func TestHTTPRequestLog(t *testing.T) {
 func TestHTTPRequestLogForExistingConnection(t *testing.T) {
 
 	testServer := createTestHTTPServer()
+	port, _ := strconv.Atoi(strings.Split( testServer.Listener.Addr().String(), ":")[1])
 
 	client := &http.Client{Transport: &http.Transport{
 		MaxConnsPerHost:     1,
@@ -543,6 +548,7 @@ func TestHTTPRequestLogForExistingConnection(t *testing.T) {
 		test:   t,
 		server: testServer,
 		client: client,
+		port: uint16(port),
 	}
 	httpT.runGETRequest("/")
 
@@ -610,6 +616,7 @@ type httpLogTest struct {
 	server *httptest.Server
 	client *http.Client
 	tracer Tracer
+	port uint16
 }
 
 type httpStat struct {
@@ -624,6 +631,10 @@ func (ht httpLogTest) getHttpStats() ([]httpStat, error) {
 	}
 	stats := make([]httpStat, 0)
 	for i := range conns.Conns {
+		conn := conns.Conns[i]
+		if conn.LocalPort != ht.port && conn.RemotePort != ht.port {
+			continue
+		}
 		for mi := range conns.Conns[i].Metrics {
 			metric := conns.Conns[i].Metrics[mi]
 			maxRespTime, err := metric.Value.Histogram.DDSketch.GetMaxValue()

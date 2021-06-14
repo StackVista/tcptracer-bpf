@@ -156,44 +156,43 @@ func (m *Histogram) MarshalJSON() ([]byte, error) {
 	return json.Marshal(encoded)
 }
 
-type ConnTupleV4 struct {
+type ConnTuple struct {
 	Laddr string
 	Lport uint16
 	Raddr string
 	Rport uint16
-	Pid   uint16
+	Pid   uint32
 }
 
-func (ct *ConnTupleV4) Matches(stats *ConnectionStats) bool {
+func (ct *ConnTuple) Matches(stats *ConnectionStats) bool {
 	return stats.Pid == uint32(ct.Pid) &&
 		stats.Local == ct.Laddr && stats.Remote == ct.Raddr &&
 		stats.LocalPort == ct.Lport && stats.RemotePort == ct.Rport
 }
 
 type HTTPResponse struct {
-	Connection   ConnTupleV4
 	StatusCode   int
 	ResponseTime time.Duration
 }
 
 type MySQLGreeting struct {
-	Connection      ConnTupleV4
 	ProtocolVersion int
 }
 
 type PerfEvent struct {
 	HTTPResponse  *HTTPResponse
 	MySQLGreeting *MySQLGreeting
+	Connection    *ConnTuple
 	Timestamp     time.Time
 }
 
-func (c ConnectionStats) GetConnection() ConnTupleV4 {
-	return ConnTupleV4{
-		Laddr: c.Local,
-		Lport: c.LocalPort,
-		Raddr: c.Remote,
-		Rport: c.RemotePort,
-		Pid:   0,
+func (c ConnectionStats) GetConnection() ConnTuple {
+	return ConnTuple {
+			Laddr: c.Local,
+			Lport: c.LocalPort,
+			Raddr: c.Remote,
+			Rport: c.RemotePort,
+			Pid:   c.Pid,
 	}
 }
 

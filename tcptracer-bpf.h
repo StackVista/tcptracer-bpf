@@ -3,21 +3,27 @@
 
 #include <linux/types.h>
 
-#define GUESS_SADDR      0
-#define GUESS_DADDR      1
-#define GUESS_FAMILY     2
-#define GUESS_SPORT      3
-#define GUESS_DPORT      4
-#define GUESS_NETNS      5
-#define GUESS_DADDR_IPV6 6
+enum guesses {
+    GUESS_SADDR = 0,
+    GUESS_DADDR,
+    GUESS_FAMILY,
+    GUESS_SPORT,
+    GUESS_DPORT,
+    GUESS_NETNS,
+    GUESS_DADDR_IPV6,
+    GUESS_MAX
+};
 
 #ifndef TASK_COMM_LEN
 #define TASK_COMM_LEN 16
 #endif
 
-#define DIRECTION_UNKNOWN 0
-#define DIRECTION_OUTGOING 1
-#define DIRECTION_INCOMING 2
+enum directions {
+    DIRECTION_UNKNOWN = 0,
+    DIRECTION_OUTGOING,
+    DIRECTION_INCOMING,
+    DIRECTION_MAX
+};
 
 // We observed the connection being initialized
 #define STATE_INITIALIZING 0
@@ -77,18 +83,30 @@ struct tracked_socket {
     __u64 prev_send_time_ns;
 };
 
-#define EVENT_HTTP_RESPONSE 1
-#define EVENT_MYSQL_GREETING 2
+enum event_types {
+    EVENT_HTTP_RESPONSE = 1,
+    EVENT_MYSQL_GREETING,
+    EVENT_TYPES_MAX
+};
+
+enum ip_protocol_versions {
+    IPV4 = 1,
+    IPV6,
+    IP_PROTOCOL_VERSIONS_MAX
+};
+
+union connections {
+    struct ipv4_tuple_t ipv4_connection;
+    struct ipv6_tuple_t ipv6_connection;
+};
 
 struct event_http_response {
     __u16 status_code;
     __u32 response_time;
-    struct ipv4_tuple_t connection;
 };
 
 struct event_mysql_greeting {
     __u16 protocol_version;
-    struct ipv4_tuple_t connection;
 };
 
 union event_payload
@@ -101,7 +119,9 @@ struct perf_event
 {
 	__u16 event_type;
 	__u64 timestamp;
+	__u16 ip_protocol_version;
 	union event_payload payload;
+	union connections connection;
 };
 
 #define TCPTRACER_STATE_UNINITIALIZED 0

@@ -29,6 +29,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	tracer.RunTracepipe()
+
 	t, err := tracer.NewTracer(config.DefaultConfig)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
