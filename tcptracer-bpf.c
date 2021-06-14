@@ -30,8 +30,6 @@
 		bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
 	})
 
-#define TO_HEX(i) (i <= 9 ? '0' + i : 'A' - 10 + i)
-
 /* http://stackoverflow.com/questions/1001307/detecting-endianness-programmatically-in-a-c-program */
 __attribute__((always_inline))
 static bool is_big_endian(void) {
@@ -906,16 +904,15 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
         if ((msg.msg_iter.type & ~(READ | WRITE)) == status->iter_type) {
             char *data = bpf_map_lookup_elem(&write_buffer_heap, &zero);
             if (data != NULL) {
+                if(!is_v4_or_v6(sk, status)){
+                    return 0;
+                }
                 struct iovec iov = {};
                 bpf_probe_read(&iov, sizeof(iov), (void *)msg.msg_iter.iov);
                 bpf_probe_read(data, MAX_MSG_SIZE, iov.iov_base);
 
                 struct ipv4_tuple_t t = {};
                 struct ipv6_tuple_t t6 = {};
-
-                if(!is_v4_or_v6(sk, status)){
-                    return 0;
-                }
 
                 struct tracked_socket *res = bpf_map_lookup_elem(&tracked_sockets, &sk);
                 u64 current_time = bpf_ktime_get_ns();
