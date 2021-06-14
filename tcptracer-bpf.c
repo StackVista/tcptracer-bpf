@@ -895,6 +895,9 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
 	if (status == NULL || status->state == TCPTRACER_STATE_UNINITIALIZED) {
 		return 0;
 	}
+    if(!is_v4_or_v6(sk, status)){
+        return 0;
+    }
 
     if (status->protocol_inspection_enabled) {
         struct msghdr msg = {};
@@ -903,9 +906,6 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
         if ((msg.msg_iter.type & ~(READ | WRITE)) == status->iter_type) {
             char *data = bpf_map_lookup_elem(&write_buffer_heap, &zero);
             if (data != NULL) {
-                if(!is_v4_or_v6(sk, status)){
-                    return 0;
-                }
                 struct iovec iov = {};
                 bpf_probe_read(&iov, sizeof(iov), (void *)msg.msg_iter.iov);
                 bpf_probe_read(data, MAX_MSG_SIZE, iov.iov_base);

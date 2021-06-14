@@ -161,7 +161,7 @@ type ConnTuple struct {
 	Lport uint16
 	Raddr string
 	Rport uint16
-	Pid   uint16
+	Pid   uint32
 }
 
 func (ct *ConnTuple) Matches(stats *ConnectionStats) bool {
@@ -192,7 +192,7 @@ func (c ConnectionStats) GetConnection() ConnTuple {
 			Lport: c.LocalPort,
 			Raddr: c.Remote,
 			Rport: c.RemotePort,
-			Pid:   0,
+			Pid:   c.Pid,
 	}
 }
 

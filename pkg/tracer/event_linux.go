@@ -92,9 +92,10 @@ func (cs *ConnStatsWithTimestamp) isExpired(latestTime int64, timeout int64) boo
 	return latestTime-int64(cs.timestamp) > timeout
 }
 
-func getConnDetails(connType int, eventC *PerfEvent) (string, string, uint16, uint16, uint16) {
+func getConnDetails(connType int, eventC *PerfEvent) (string, string, uint16, uint16, uint32) {
 	var laddr, raddr string
-	var lport, rport, pid uint16
+	var lport, rport uint16
+	var pid uint32
 	connection_raw := (*IPConnection)(unsafe.Pointer(&eventC.connection))
 	if connType == 1 {
 		connection := ipConnectionV4(connection_raw)
@@ -103,7 +104,7 @@ func getConnDetails(connType int, eventC *PerfEvent) (string, string, uint16, ui
 		raddr = common.V4IPString(uint32(connection.raddr))
 		lport = uint16(connection.lport)
 		rport = uint16(connection.rport)
-		pid = uint16(connection.pid)
+		pid = uint32(connection.pid)
 	} else {
 		connection := ipConnectionV6(connection_raw)
 		logger.Tracef("ipv6: %v", connection)
@@ -111,7 +112,7 @@ func getConnDetails(connType int, eventC *PerfEvent) (string, string, uint16, ui
 		raddr = common.V6IPString(uint64(connection.raddr_h), uint64(connection.raddr_l))
 		lport = uint16(connection.lport)
 		rport = uint16(connection.rport)
-		pid = uint16(connection.pid)
+		pid = uint32(connection.pid)
 	}
 	return laddr, raddr, lport, rport, pid
 }
@@ -171,13 +172,14 @@ func perfEvent(data []byte) (*common.PerfEvent, error) {
 	eventC := (*PerfEvent)(unsafe.Pointer(&data[0]))
 	timestamp := time.Now()
 	connType := int(uint16(eventC.ip_protocol_version))
-	switch connType {
+	eventType := int(uint16(eventC.event_type))
+	switch eventType {
 	case 1:
 		return httpResponseEvent(connType, eventC, timestamp), nil
 	case 2:
 		return mysqlGreetingEvent(connType, eventC, timestamp), nil
 	default:
-		return nil, errors.New(fmt.Sprintf("Unknown event type %v", connType))
+		return nil, errors.New(fmt.Sprintf("Unknown event type %v", eventType))
 	}
 }
 
