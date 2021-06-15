@@ -768,7 +768,7 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 	}
 
 	struct tracked_socket t = {.active = 1};
-	t.prev_send_time_ns = bpf_ktime_get_ns();
+	t.prev_receive_time_ns = 0;
 
 	bpf_map_update_elem(&tracked_sockets, &newsk, &t, BPF_ANY);
 
@@ -916,11 +916,8 @@ static int tcp_send(struct pt_regs *ctx, const size_t size) {
                 struct tracked_socket *res = bpf_map_lookup_elem(&tracked_sockets, &sk);
                 u64 current_time = bpf_ktime_get_ns();
                 u64 ttfb = 0;
-                struct tracked_socket tsocket = {.active = 1};
-                tsocket.prev_send_time_ns = current_time;
-                bpf_map_update_elem(&tracked_sockets, &sk, &tsocket, BPF_ANY);
                 if (res != NULL) {
-                    ttfb = current_time - res->prev_send_time_ns;
+                    ttfb = current_time - res->prev_receive_time_ns;
                 }
                 u64 cpu = bpf_get_smp_processor_id();
                 int http_status_code = 0;
@@ -965,6 +962,21 @@ int kprobe__tcp_sendpage(struct pt_regs *ctx) {
 	size_t size = (size_t)PT_REGS_PARM4(ctx);
 
 	return tcp_send(ctx, size);
+}
+
+SEC("kprobe/skb_copy_datagram_iter")
+int kprobe__skb_copy_datagram_iter(struct pt_regs *ctx) {
+    struct sk_buff * skbp = (struct sk_buff *) PT_REGS_PARM1(ctx);
+    struct sock *sk = 0;
+    bpf_probe_read(&sk, sizeof(sk), &(skbp->sk));
+    struct tracked_socket *res = bpf_map_lookup_elem(&tracked_sockets, &sk);
+    if (res != 0) {
+        struct tracked_socket newsock = {};
+        newsock.active = res->active;
+        newsock.prev_receive_time_ns = bpf_ktime_get_ns();
+        bpf_map_update_elem(&tracked_sockets, &sk, &newsock, BPF_ANY);
+    }
+    return 0;
 }
 
 SEC("kprobe/tcp_cleanup_rbuf")

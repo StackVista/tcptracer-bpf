@@ -504,14 +504,14 @@ func TestHTTPRequestLog(t *testing.T) {
 
 	testServer := createTestHTTPServer()
 
-	port, _ := strconv.Atoi(strings.Split( testServer.Listener.Addr().String(), ":")[1])
+	port, _ := strconv.Atoi(strings.Split(testServer.Listener.Addr().String(), ":")[1])
 
 	httpT := httpLogTest{
 		test:   t,
 		tracer: tr,
 		server: testServer,
 		client: testServer.Client(),
-		port: uint16(port),
+		port:   uint16(port),
 	}
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
@@ -536,7 +536,7 @@ func TestHTTPRequestLog(t *testing.T) {
 func TestHTTPRequestLogForExistingConnection(t *testing.T) {
 
 	testServer := createTestHTTPServer()
-	port, _ := strconv.Atoi(strings.Split( testServer.Listener.Addr().String(), ":")[1])
+	port, _ := strconv.Atoi(strings.Split(testServer.Listener.Addr().String(), ":")[1])
 
 	client := &http.Client{Transport: &http.Transport{
 		MaxConnsPerHost:     1,
@@ -548,8 +548,9 @@ func TestHTTPRequestLogForExistingConnection(t *testing.T) {
 		test:   t,
 		server: testServer,
 		client: client,
-		port: uint16(port),
+		port:   uint16(port),
 	}
+	// perform first request to establish the only connection
 	httpT.runGETRequest("/")
 
 	tr, err := NewTracer(MakeTestConfig())
@@ -562,12 +563,8 @@ func TestHTTPRequestLogForExistingConnection(t *testing.T) {
 	statusCode, respText := httpT.runGETRequest("/error")
 	assert.Equal(t, 500, statusCode)
 	assert.Equal(t, "Internal error", respText)
-	// we expect 0 here, because the connection was not tracked from the start
-	// and we don't track requests (only response), hence for the first response
-	// latency is undefined
-	// to be fixed in STAC-12225
 	httpT.testHttpStats([]httpStat{
-		{StatusCode: 500, MaxResponseTimeMillis: 0},
+		{StatusCode: 500, MaxResponseTimeMillis: TestHttpServerErrorLatency.Milliseconds()},
 	})
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
@@ -616,7 +613,7 @@ type httpLogTest struct {
 	server *httptest.Server
 	client *http.Client
 	tracer Tracer
-	port uint16
+	port   uint16
 }
 
 type httpStat struct {

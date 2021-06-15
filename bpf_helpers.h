@@ -114,7 +114,6 @@ static unsigned long long (*bpf_get_prandom_u32)(void) =
 /* llvm builtin functions that eBPF C program may use to
  * emit BPF_LD_ABS and BPF_LD_IND instructions
  */
-struct sk_buff;
 unsigned long long load_byte(void *skb,
 			     unsigned long long off) asm("llvm.bpf.load.byte");
 unsigned long long load_half(void *skb,
