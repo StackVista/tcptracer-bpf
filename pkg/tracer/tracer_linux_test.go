@@ -226,6 +226,8 @@ func TestCloseInFlightTCPConnectionWithEBPFWithData(t *testing.T) {
 	// Explicitly close this TCP connection
 	c.Close()
 
+	time.Sleep(50 * time.Millisecond)
+
 	// First run, should contain the closed connection
 	connections, err := tr.GetConnections()
 	if err != nil {

@@ -768,7 +768,7 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx)
 	}
 
 	struct tracked_socket t = {.active = 1};
-	t.prev_receive_time_ns = 0;
+	t.prev_receive_time_ns = bpf_ktime_get_ns();
 
 	bpf_map_update_elem(&tracked_sockets, &newsk, &t, BPF_ANY);
 
