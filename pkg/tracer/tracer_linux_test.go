@@ -496,22 +496,20 @@ func TestUDPSendAndReceive(t *testing.T) {
 	doneChan <- struct{}{}
 }
 
-func TestHTTPRequestLog(t *testing.T) {
+func TestHTTPRequestLogSingleRequest(t *testing.T) {
 	tr, err := NewTracer(MakeTestConfig())
 	assert.NoError(t, err)
 	assert.NoError(t, tr.Start())
 	defer tr.Stop()
 
-	testServer := createTestHTTPServer()
-
-	port, _ := strconv.Atoi(strings.Split(testServer.Listener.Addr().String(), ":")[1])
+	testServer, port := createTestHTTPServer()
 
 	httpT := httpLogTest{
-		test:   t,
-		tracer: tr,
-		server: testServer,
-		client: testServer.Client(),
-		port:   uint16(port),
+		test:       t,
+		tracer:     tr,
+		server:     testServer,
+		client:     testServer.Client(),
+		serverPort: port,
 	}
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
@@ -535,8 +533,7 @@ func TestHTTPRequestLog(t *testing.T) {
 
 func TestHTTPRequestLogForExistingConnection(t *testing.T) {
 
-	testServer := createTestHTTPServer()
-	port, _ := strconv.Atoi(strings.Split(testServer.Listener.Addr().String(), ":")[1])
+	testServer, port := createTestHTTPServer()
 
 	client := &http.Client{Transport: &http.Transport{
 		MaxConnsPerHost:     1,
@@ -545,10 +542,10 @@ func TestHTTPRequestLogForExistingConnection(t *testing.T) {
 	}}
 
 	httpT := httpLogTest{
-		test:   t,
-		server: testServer,
-		client: client,
-		port:   uint16(port),
+		test:       t,
+		server:     testServer,
+		client:     client,
+		serverPort: port,
 	}
 	// perform first request to establish the only connection
 	httpT.runGETRequest("/")
@@ -566,14 +563,45 @@ func TestHTTPRequestLogForExistingConnection(t *testing.T) {
 	httpT.testHttpStats([]httpStat{
 		{StatusCode: 500, MaxResponseTimeMillis: TestHttpServerErrorLatency.Milliseconds()},
 	})
+}
+
+func TestHTTPRequestLogDelayBetweenTwoRequestIsNotCounted(t *testing.T) {
+
+	testServer, port := createTestHTTPServer()
+
+	client := &http.Client{Transport: &http.Transport{
+		MaxConnsPerHost:     1,
+		MaxIdleConns:        1,
+		MaxIdleConnsPerHost: 1,
+	}}
+
+	httpT := httpLogTest{
+		test:       t,
+		server:     testServer,
+		client:     client,
+		serverPort: port,
+	}
+
+	tr, err := NewTracer(MakeTestConfig())
+	assert.NoError(t, err)
+	assert.NoError(t, tr.Start())
+	defer tr.Stop()
+	httpT.tracer = tr
 
 	// perform test calls to HTTP server that should be caught by BPF the tracer
-	httpT.runGETRequest("/")
-	statusCode, respText = httpT.runGETRequest("/notfound")
-	assert.Equal(t, 404, statusCode)
-	assert.Equal(t, "Not found", respText)
+	statusCode, _ := httpT.runGETRequest("/")
+	assert.Equal(t, 200, statusCode)
 	httpT.testHttpStats([]httpStat{
 		{StatusCode: 200, MaxResponseTimeMillis: TestHttpServerRootLatency.Milliseconds()},
+	})
+
+	// sleep for some time to ensure latency is measured only between request and response
+	time.Sleep(1 * time.Second)
+
+	// perform test calls to HTTP server that should be caught by BPF the tracer
+	statusCode, _ = httpT.runGETRequest("/notfound")
+	assert.Equal(t, 404, statusCode)
+	httpT.testHttpStats([]httpStat{
 		{StatusCode: 404, MaxResponseTimeMillis: TestHttpServerNotfoundLatency.Milliseconds()},
 	})
 }
@@ -586,13 +614,14 @@ func TestProtocolInspectionDisabled(t *testing.T) {
 	assert.NoError(t, tr.Start())
 	defer tr.Stop()
 
-	testServer := createTestHTTPServer()
+	testServer, port := createTestHTTPServer()
 
 	httpT := httpLogTest{
-		test:   t,
-		tracer: tr,
-		server: testServer,
-		client: testServer.Client(),
+		test:       t,
+		tracer:     tr,
+		server:     testServer,
+		client:     testServer.Client(),
+		serverPort: port,
 	}
 
 	// perform test calls to HTTP server that should be ignored by ebpf tracker
@@ -609,11 +638,11 @@ func assertGetRequestStatusCode(t *testing.T, httpT httpLogTest, path string, ex
 }
 
 type httpLogTest struct {
-	test   *testing.T
-	server *httptest.Server
-	client *http.Client
-	tracer Tracer
-	port   uint16
+	test       *testing.T
+	server     *httptest.Server
+	client     *http.Client
+	tracer     Tracer
+	serverPort uint16
 }
 
 type httpStat struct {
@@ -629,7 +658,7 @@ func (ht httpLogTest) getHttpStats() ([]httpStat, error) {
 	stats := make([]httpStat, 0)
 	for i := range conns.Conns {
 		conn := conns.Conns[i]
-		if conn.LocalPort != ht.port && conn.RemotePort != ht.port {
+		if conn.LocalPort != ht.serverPort && conn.RemotePort != ht.serverPort {
 			continue
 		}
 		for mi := range conns.Conns[i].Metrics {
@@ -646,7 +675,7 @@ func (ht httpLogTest) getHttpStats() ([]httpStat, error) {
 	return stats, nil
 }
 
-const ToleranceMillis = 500
+const ToleranceMillis = 250
 
 func (ht httpLogTest) testHttpStats(expected []httpStat) {
 	require.Eventually(ht.test, func() bool {
@@ -680,7 +709,8 @@ const TestHttpServerRootLatency = 1 * time.Second
 const TestHttpServerNotfoundLatency = 1 * time.Second
 const TestHttpServerErrorLatency = 1 * time.Second
 
-func createTestHTTPServer() *httptest.Server {
+// createTestHTTPServer returns created http server and the port it is listening on
+func createTestHTTPServer() (*httptest.Server, uint16) {
 	handler := http.NewServeMux()
 	handler.Handle("/", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		<-time.After(TestHttpServerRootLatency)
@@ -697,7 +727,11 @@ func createTestHTTPServer() *httptest.Server {
 		writer.WriteHeader(500)
 		_, _ = writer.Write([]byte("Internal error"))
 	}))
-	return httptest.NewServer(handler)
+	newServer := httptest.NewServer(handler)
+	boundAddr := newServer.Listener.Addr().String()
+	colonIndex := strings.LastIndex(boundAddr, ":")
+	boundPort, _ := strconv.Atoi(boundAddr[colonIndex+1:])
+	return newServer, uint16(boundPort)
 }
 
 func TestTCPSendPage(t *testing.T) {

@@ -969,13 +969,10 @@ int kprobe__skb_copy_datagram_iter(struct pt_regs *ctx) {
     struct sk_buff * skbp = (struct sk_buff *) PT_REGS_PARM1(ctx);
     struct sock *sk = 0;
     bpf_probe_read(&sk, sizeof(sk), &(skbp->sk));
-    struct tracked_socket *res = bpf_map_lookup_elem(&tracked_sockets, &sk);
-    if (res != 0) {
-        struct tracked_socket newsock = {};
-        newsock.active = res->active;
-        newsock.prev_receive_time_ns = bpf_ktime_get_ns();
-        bpf_map_update_elem(&tracked_sockets, &sk, &newsock, BPF_ANY);
-    }
+    struct tracked_socket tsock = {};
+    tsock.active = 1;
+    tsock.prev_receive_time_ns = bpf_ktime_get_ns();
+    bpf_map_update_elem(&tracked_sockets, &sk, &tsock, BPF_ANY);
     return 0;
 }
 
@@ -998,14 +995,11 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx) {
 
 SEC("kprobe/tcp_close")
 int kprobe__tcp_close(struct pt_regs *ctx) {
-	struct sock *sk;
+	struct sock *sk = (struct sock *) PT_REGS_PARM1(ctx);
 	struct tcptracer_status_t *status;
 	u64 zero = 0;
-	sk = (struct sock *) PT_REGS_PARM1(ctx);
 
-	int fd = PT_REGS_PARM1(ctx);
-
-	bpf_map_delete_elem(&tracked_sockets, &fd);
+	bpf_map_delete_elem(&tracked_sockets, &sk);
 
 	status = bpf_map_lookup_elem(&tcptracer_status, &zero);
 	if (status == NULL || status->state != TCPTRACER_STATE_READY) {

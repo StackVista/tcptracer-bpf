@@ -581,7 +581,7 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 	defer t.tcpConnInsightsLock.Unlock()
 	connection := *event.Connection
 	if event.HTTPResponse != nil {
-		logger.Tracef("http response: %v", event.Connection)
+		logger.Tracef("http response: %v for %v", event.HTTPResponse, event.Connection)
 
 		httpRes := event.HTTPResponse
 
@@ -612,7 +612,7 @@ func (t *LinuxTracer) dispatchPerfEvent(event *common.PerfEvent) {
 		t.tcpConnInsights[connection] = conn
 
 	} else if event.MySQLGreeting != nil {
-		logger.Tracef("mysql greeting: %v", event.Connection)
+		logger.Tracef("mysql greeting: %v for %v", event.MySQLGreeting, event.Connection)
 
 		conn, ok := t.tcpConnInsights[connection]
 		if !ok {
