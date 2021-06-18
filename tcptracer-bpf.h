@@ -80,7 +80,7 @@ struct ipv6_tuple_t {
 
 struct tracked_socket {
     __u16 active;
-    __u64 prev_send_time_ns;
+    __u64 prev_receive_time_ns;
 };
 
 enum event_types {
