@@ -278,6 +278,8 @@ func (t *LinuxTracer) getProcConnections() error {
 
 	buffer := new(bytes.Buffer)
 
+	connectionsNotAdded := 0
+
 	// Collect the data and listening ports
 	for conn := conns.Next(); conn != nil; conn = conns.Next() {
 		connWithStats := connStatsFromProcSpy(conn)
@@ -323,7 +325,13 @@ func (t *LinuxTracer) getProcConnections() error {
 			return logger.Errorf("failed to write to byte buffer: %s", err)
 		}
 
-		t.addInFlight(string(connKey), conn)
+		if (!t.addInFlight(string(connKey), conn)) {
+			connectionsNotAdded += 1
+		}
+	}
+
+	if (connectionsNotAdded > 0) {
+		logger.Warnf("Failed to track all %d in connections from /proc, exceeded maximum connections %d.", connectionsNotAdded, t.config.MaxConnections)
 	}
 
 	return nil
@@ -353,6 +361,8 @@ func (t *LinuxTracer) updateInFlightTCPWithEBPF() error {
 
 	buffer := new(bytes.Buffer)
 
+	connectionsNotAdded := 0
+
 	for _, conn := range ebpf_conns {
 		// We drop the direction to enable merging with undirected metrics
 		connKey, err := conn.WithUnknownDirection().ByteKey(buffer)
@@ -368,7 +378,9 @@ func (t *LinuxTracer) updateInFlightTCPWithEBPF() error {
 
 		if conn.Direction != common.UNKNOWN && conn.State != common.CLOSED {
 			// If we already know the direction, we do not need previous in-flight connections and can just put this in, EBPF knows all
-			t.addInFlight(string(connKey), conn)
+			if (!t.addInFlight(string(connKey), conn)) {
+				connectionsNotAdded += 1
+			}
 		} else {
 			// We had no direction, lets merge the info with what we learned from /proc
 			if inFlight, exists := t.inFlightTCP[string(connKey)]; exists {
@@ -383,15 +395,19 @@ func (t *LinuxTracer) updateInFlightTCPWithEBPF() error {
 		}
 	}
 
+	if (connectionsNotAdded > 0) {
+		logger.Warnf("Failed to track all %d in flight connections, exceeded maximum connections %d.", connectionsNotAdded, t.config.MaxConnections)
+	}
+
 	return nil
 }
 
-func (t *LinuxTracer) addInFlight(key string, conn common.ConnectionStats) {
+func (t *LinuxTracer) addInFlight(key string, conn common.ConnectionStats) bool {
 	if len(t.inFlightTCP) >= t.config.MaxConnections {
-		logger.Warnf("Exceeded maximum connections %d", t.config.MaxConnections)
-		return
+		return false
 	}
 	t.inFlightTCP[key] = &conn
+	return true
 }
 
 func (t *LinuxTracer) getEbpfTCPConnections() ([]common.ConnectionStats, error) {
